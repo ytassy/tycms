@@ -580,6 +580,22 @@ try {
     check(json_decode(request($url . '?action=releases&source=1.0.0&php=8.4.1&channel=beta')[1], true)['releases'] !== [],
         'Filtres source/PHP ignorés avec la bêta.');
 
+    // Une version bêta se lit avec `channel=beta`, et reste introuvable sans canal.
+    check(request($url . '?action=manifest&version=1.0.4')[0] === 404, 'Manifeste bêta servi sans canal.');
+    check(request($url . '?action=package&version=1.0.4')[0] === 404, 'Paquet bêta servi sans canal.');
+    check(request($url . '?action=notes&version=1.0.4')[0] === 404, 'Notes bêta servies sans canal.');
+    [$betaStatus, $betaManifest] = request($url . '?action=manifest&version=1.0.4&channel=beta');
+    check($betaStatus === 200 && Protocol::channel(Protocol::verify($betaManifest, ['test-key' => $public])) === 'beta',
+        'Manifeste bêta absent du canal bêta.');
+    [$betaStatus, $betaPackage] = request($url . '?action=package&version=1.0.4&channel=beta');
+    check($betaStatus === 200 && hash('sha256', $betaPackage) === $betaBuilt['archive']['sha256'],
+        'Paquet bêta absent du canal bêta.');
+    [$betaStatus, $betaNotes] = request($url . '?action=notes&version=1.0.4&channel=beta');
+    check($betaStatus === 200 && $betaNotes === $betaNotes, 'Notes bêta absentes du canal bêta.');
+    // Une version de prod reste lisible sur les deux canaux.
+    check(request($url . '?action=manifest&version=1.0.1&channel=prod')[0] === 200, 'Release prod refusée sur son canal.');
+    check(request($url . '?action=manifest&version=1.0.1&channel=canal')[0] === 400, 'Canal inconnu accepté sur un manifeste.');
+
     // Révocation et HTTPS : vérifiés sans réécrire configuration.php pendant que le
     // serveur tourne, pour ne pas dépendre du moment où chaque requête relit le fichier.
     $revoked = array_replace($config, ['publish_token_sha256' => []]);

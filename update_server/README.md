@@ -165,6 +165,7 @@ aucune réécriture d'URL spécifique n'est nécessaire.
 | `GET ?action=releases&channel=prod` | Même catalogue explicite ; valeur par défaut. |
 | `GET ?action=releases&channel=beta` | Releases en bêta et en prod. La bêta n'est jamais servie sans cette demande. |
 | `GET ?action=manifest&version=1.0.1` | Enveloppe signée de la release. |
+| `GET ?action=manifest&version=1.0.1&channel=beta` | Même manifeste pour une version en bêta : sans `channel=beta`, la réponse est HTTP 404. |
 | `GET ?action=notes&version=1.0.1` | Markdown original, sans rendu HTML, en téléchargement. HTTP 404 pour une ancienne release sans notes. |
 | `GET ?action=package&version=1.0.1` | ZIP public de la release, servi en flux depuis le stockage privé. |
 

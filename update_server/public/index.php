@@ -191,7 +191,12 @@ try {
     } catch (RuntimeException) {
         throw new HttpError(400, 'Version invalide.');
     }
-    $release = $repository->release($version);
+    // Une bêta n'est servie qu'à qui la demande : sans canal, seule la prod répond.
+    $requested = $_GET['channel'] ?? Protocol::CHANNEL_PROD;
+    if (!is_string($requested) || !in_array($requested, [Protocol::CHANNEL_PROD, Protocol::CHANNEL_BETA], true)) {
+        throw new HttpError(400, 'Canal invalide.');
+    }
+    $release = $repository->release($version, $requested);
     if ($action === 'manifest') {
         echo $release['envelope'];
         exit;
