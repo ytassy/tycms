@@ -94,6 +94,9 @@ class Configuration extends ConfigurationBase
     // public array $update_trusted_public_keys = [
     //     'release-1' => 'eoUy4eKEJ0H2I5t1XRMCnBYYDnH/m5pbqFievQZyxnk=',
     // ];
+    // Canal accepté : 'prod' (défaut) ou 'beta'. Réserver 'beta' aux installations d'essai :
+    // les versions de bêta y sont proposées avant leur publication en prod.
+    // public string $update_channel = 'prod';
 
     // Chemins disque : les médias et polices doivent rester accessibles aux URL publiques.
     // Les logs et fichiers temporaires restent hors de la racine HTTP public/.

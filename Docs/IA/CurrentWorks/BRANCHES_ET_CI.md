@@ -54,8 +54,10 @@ Retour en arrière refusé. « Refuser » supprime physiquement une proposition.
 **Extension** (TyCatalog) : `draft` (affiché « en attente ») → `published`
 avec `channel ∈ {beta, release}` → `withdrawn`. Bêta → release seulement.
 
-**Choix du canal côté installation** : absent = prod/release. Le canal bêta
-est un lot à part (A2 protocole, A3 client), jamais activable par une URL.
+**Choix du canal côté installation** : `update_channel` vaut `prod` par défaut ;
+`beta` fait demander le canal bêta au serveur et accepter ses releases. Le
+client écarte en plus toute bêta reçue par erreur sur le canal prod (défense en
+profondeur). Le réglage est local, jamais activable par une URL.
 
 ## Lots
 
@@ -65,7 +67,7 @@ est un lot à part (A2 protocole, A3 client), jamais activable par une URL.
 | B | `publish.php` annonce une proposition en attente | Livré |
 | C | CI cœur : contrôles et release sur `push prod_*` | Livré |
 | A2 | Protocole : `schema_version: 2` avec `channel`, lecture v1 | Livré |
-| A3 | Client : réglage `update_channel`, filtre bêta | À faire |
+| A3 | Client : réglage `update_channel`, filtre bêta | Livré |
 | F | Notifications Telegram / Slack / Discord (webhooks) | À faire |
 | G | Tickets GitHub : analyse read-only, correction après étiquette | À faire |
 | H | `security_X` : analyse différentielle avec SHA analysé | À faire |

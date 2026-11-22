@@ -62,6 +62,10 @@ class ConfigurationBase
         'release-1' => 'eoUy4eKEJ0H2I5t1XRMCnBYYDnH/m5pbqFievQZyxnk=',
     ];
 
+    // Canal de diffusion accepté : « prod » (défaut) ou « beta ».
+    // « beta » fait aussi proposer les versions de bêta, à réserver aux installations d'essai.
+    public string $update_channel = 'prod';
+
 	public $site_name = 'Yann Tassy';
 
 	public $first_admin_email = 'admin@admin15531.org';

@@ -55,6 +55,18 @@ dépendre de la forme d'un attribut booléen : selon la version de libxml, un
 Comparer ce qui est rendu — texte du fragment, attributs `data-*` — plutôt que
 la chaîne complète. Exemple : `ShortCodeTest::testDiagramKeepsIndentation…`.
 
+Un test de concurrence ne doit pas exiger l'absence de contention. Les journaux
+ont un verrou à attente bornée : sous forte charge, une écriture peut être
+abandonnée et signalée par `LOG_WRITE_FAILED`. Une entrée manquante est admise ;
+le test vérifie l'intégrité des lignes écrites (aucune ligne corrompue, aucun
+identifiant dupliqué, rotation) et que toute sortie d'erreur est bien ce
+signal. Exemple : `LoggingTest::testConcurrentWritersKeepValidLinesAndRotateTogether`.
+
+Un script de test qui réécrit `configuration.php` pendant qu'un serveur
+`php -S` tourne rend le résultat dépendant du moment où chaque requête relit
+le fichier. Vérifier ces cas sur une instance dédiée (`Admin`, `Repository`)
+plutôt qu'en modifiant la configuration du serveur en cours de test.
+
 ## Frontend et build
 
 ```bash

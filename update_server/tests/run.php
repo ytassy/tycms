@@ -497,22 +497,21 @@ try {
     check(adminRequest($url . '?action=logout', null, $session)[0] === 303, 'Déconnexion refusée.');
     check(str_contains(adminRequest($url . '?action=admin', null, $session)[1], 'Se connecter'), 'Session valide après déconnexion.');
 
-    // Compte absent : l'interface signale l'absence de configuration sans exposer de secret.
-    check(!Admin::configured(['admin_user' => 'admin', 'admin_password_hash' => 'motdepasse']), 'Empreinte faible acceptée.');
-    $noAdmin = array_replace($config, ['admin_password_hash' => '']);
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($noAdmin, true) . ';');
-
-    // Sans compte configuré, une session encore valide n'ouvre plus le pilotage des versions.
-    [$status, $body] = adminRequest($url . '?action=admin', null, $session);
-    check($status === 200 && str_contains($body, 'Connexion requise')
-        && !str_contains($body, 'Approuver'), 'Pilotage accessible sans compte configuré.');
-
-    // Seul un POST de connexion sans session exercé la configuration : avec une session, la
-    // requête rejoint le pilotage sans relire le compte.
-    [$status, $body] = adminRequest($url . '?action=login', ['user' => 'admin', 'password' => $adminPassword]);
-    check($status === 200 && str_contains($body, 'Compte d’administration non configuré')
-        && !str_contains($body, $adminPassword), 'Compte désactivé accepté.');
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
+    // Compte désactivé : contrôlé sans HTTP, sur une instance dédiée. Réécrire
+    // configuration.php pendant que le serveur de test tourne rendrait le résultat
+    // dépendant du moment où chaque requête relit le fichier.
+    $sessions = $root . '/sessions-check';
+    mkdir($sessions);
+    $disabled = array_replace($config, ['admin_password_hash' => '']);
+    $disabledAdmin = new Admin($disabled, $sessions);
+    refused(fn() => $disabledAdmin->login('admin', $adminPassword), 'Connexion acceptée sans compte configuré.');
+    // Une session accordée reste fermée dès que le compte disparaît de la configuration.
+    $activeAdmin = new Admin($config, $sessions);
+    check($activeAdmin->login('admin', $adminPassword), 'Connexion refusée avec un compte configuré.');
+    refused(fn() => (new Admin($disabled, $sessions))->require(), 'Session acceptée sans compte configuré.', 401);
+    check(!Admin::configured(['admin_user' => 'admin', 'admin_password_hash' => 'motdepasse']), 'Empreinte non Argon2id acceptée.');
+    check(!Admin::configured(['admin_user' => '', 'admin_password_hash' => password_hash('x', PASSWORD_ARGON2ID)]),
+        'Compte sans nom accepté.');
 
     // Après ces essais, le catalogue public ne contient que les versions approuvées en prod.
     check(count($repository->releases(null, null)) === 2, 'Catalogue public incohérent après approbation.');
@@ -581,25 +580,17 @@ try {
     check(json_decode(request($url . '?action=releases&source=1.0.0&php=8.4.1&channel=beta')[1], true)['releases'] !== [],
         'Filtres source/PHP ignorés avec la bêta.');
 
-    // Les essais de canal ont besoin d'HTTP local : restaurer la configuration avant la suite.
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
-
+    // Révocation et HTTPS : vérifiés sans réécrire configuration.php pendant que le
+    // serveur tourne, pour ne pas dépendre du moment où chaque requête relit le fichier.
     $revoked = array_replace($config, ['publish_token_sha256' => []]);
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($revoked, true) . ';');
-    check(request($url . '?action=publish', $token, $zipPath, $envelope)[0] === 401, 'Token révoqué accepté.');
-    // Le dernier test de l'API HTTP ; la configuration du mini-UI est restaurée ensuite.
-    $client['allow_loopback_http'] = true;
-    file_put_contents($clientConfig, '<?php return ' . var_export($client, true) . ';');
-    $noHttp = array_replace($config, ['allow_loopback_http' => false]);
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($noHttp, true) . ';');
-    [$status, $body] = request($url);
-    check($status === 400 && !str_contains($body, $root) && !str_contains($body, $token), 'HTTPS non imposé ou données privées exposées.');
+    $revokedRepository = new Repository($revoked, $root . '/server/public');
+    refused(fn() => $revokedRepository->authenticate('Bearer ' . $token), 'Token révoqué accepté.', 401);
+
     $client['allow_loopback_http'] = false;
     file_put_contents($clientConfig, '<?php return ' . var_export($client, true) . ';');
     check(command($arguments)[0] === 1, 'HTTP accepté sans exception locale explicite.');
 
     // Arguments de publication refusés : aucun envoi implicite, aucune configuration du dépôt.
-    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
     foreach (['--from=1.0.0', '--initial-install-only'] as $obsolete) {
         check(command([PHP_BINARY, $repositoryRoot . '/build/publish.php', $zipPath, $obsolete,
             '--config=' . $clientConfig])[0] === 1, 'Ancien paramètre accepté.');

@@ -8,6 +8,7 @@ use RuntimeException;
 use YTassy\Tycms\Application;
 use YTassy\Tycms\BaseApplicationItem;
 use YTassy\Tycms\CoreExts\Core\Helper\Acl\AclHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\SystemUpdate\ManifestVerifier;
 use YTassy\Tycms\CoreExts\Core\Helper\SystemUpdate\ServerUnavailableException;
 use YTassy\Tycms\CoreExts\Core\Helper\SystemUpdate\SystemUpdateHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\SystemUpdate\SystemUpdatePackageHelper;
@@ -32,13 +33,17 @@ final class SystemUpdateTest extends FrameworkTestCase
         $this->public = base64_encode(sodium_crypto_sign_publickey($pair));
     }
 
-    private function envelope(string $version = '1.1.0', array|string $sources = ['1.0.0'], ?string $notes = null): array
+    private function envelope(string $version = '1.1.0', array|string $sources = ['1.0.0'], ?string $notes = null,
+        string $channel = 'prod', int $schema = 2): array
     {
-        $manifest = ['schema_version' => 1, 'type' => 'system', 'version' => $version,
+        $manifest = ['schema_version' => $schema, 'type' => 'system', 'version' => $version,
             'version_string' => str_replace('.', '_', $version), 'source_versions' => $sources,
             'php_min' => '8.4.1', 'php_max_exclusive' => '8.6.0',
             'archive' => ['filename' => 'tycms-' . str_replace('.', '_', $version) . '.zip',
                 'bytes' => 100, 'sha256' => str_repeat('a', 64)]];
+        if ($schema === 2) {
+            $manifest['channel'] = $channel;
+        }
         if ($notes !== null) {
             $manifest['release_notes'] = ['filename' => 'tycms-' . str_replace('.', '_', $version) . '.md',
                 'bytes' => strlen($notes), 'sha256' => hash('sha256', $notes)];
@@ -55,11 +60,12 @@ final class SystemUpdateTest extends FrameworkTestCase
         return json_encode(['schema_version' => 1, 'releases' => $envelopes], JSON_THROW_ON_ERROR);
     }
 
-    private function helper(array $responses): SystemUpdateHelper
+    private function helper(array $responses, string $channel = 'prod'): SystemUpdateHelper
     {
         $app = $this->createApplication();
         $app->getConf()->update_servers = [self::FIRST, self::SECOND];
         $app->getConf()->update_trusted_public_keys = ['test' => $this->public];
+        $app->getConf()->update_channel = $channel;
 
         return new class($app, $responses) extends SystemUpdateHelper {
             public array $requests = [];
@@ -96,7 +102,7 @@ final class SystemUpdateTest extends FrameworkTestCase
         self::assertSame('1.2.0', $result['available_update']['version']);
         self::assertSame(['1.2.0', '1.1.0'], $result['compatible_versions']);
         self::assertSame($notes, $result['notes']);
-        self::assertSame([self::FIRST . '?action=releases', self::FIRST . '?action=notes&version=1.2.0'], $helper->requests);
+        self::assertSame([self::FIRST . '?action=releases&channel=prod', self::FIRST . '?action=notes&version=1.2.0'], $helper->requests);
     }
 
     public function testOnlyTransportFailureAllowsTheNextCatalogue(): void
@@ -106,7 +112,7 @@ final class SystemUpdateTest extends FrameworkTestCase
 
         self::assertSame(self::SECOND, $result['server']);
         self::assertCount(1, $result['failures']);
-        self::assertSame([self::FIRST . '?action=releases', self::SECOND . '?action=releases'], $helper->requests);
+        self::assertSame([self::FIRST . '?action=releases&channel=prod', self::SECOND . '?action=releases&channel=prod'], $helper->requests);
     }
 
     public function testAnEmptyValidCatalogueDoesNotFallBack(): void
@@ -219,6 +225,57 @@ final class SystemUpdateTest extends FrameworkTestCase
             self::assertStringContainsString('altérées', $exception->getMessage());
         }
         self::assertCount(2, $helper->requests);
+    }
+
+    public function testLegacySchemaOneManifestIsReadAsProd(): void
+    {
+        // Une release déjà publiée en v1 doit rester lisible : c'est la condition de la migration.
+        $helper = $this->helper([$this->catalogue([$this->envelope('1.1.0', schema: 1)])]);
+        $result = $helper->check('1.0.0', '8.5.0');
+        self::assertSame('1.1.0', $result['available_update']['version']);
+        self::assertSame('prod', ManifestVerifier::channel($result['available_update']));
+    }
+
+    public function testBetaManifestsAreIgnoredOnTheProdChannel(): void
+    {
+        // Défense en profondeur : même servi par erreur, un manifeste bêta ne doit pas être proposé.
+        $helper = $this->helper([$this->catalogue([
+            $this->envelope('1.2.0', channel: 'beta'), $this->envelope('1.1.0', channel: 'prod'),
+        ])]);
+        $result = $helper->check('1.0.0', '8.5.0');
+        self::assertSame('1.1.0', $result['available_update']['version']);
+        self::assertSame(['1.1.0'], $result['compatible_versions']);
+    }
+
+    public function testBetaChannelRequestsTheBetaCatalogueAndAcceptsItsReleases(): void
+    {
+        $helper = $this->helper([$this->catalogue([
+            $this->envelope('1.2.0', channel: 'beta'), $this->envelope('1.1.0', channel: 'prod'),
+        ])], channel: 'beta');
+        $result = $helper->check('1.0.0', '8.5.0');
+        self::assertSame(self::FIRST . '?action=releases&channel=beta', $helper->requests[0]);
+        self::assertSame('1.2.0', $result['available_update']['version']);
+        self::assertSame('beta', ManifestVerifier::channel($result['available_update']));
+    }
+
+    public function testUnknownChannelIsRejectedBeforeTheNetwork(): void
+    {
+        $helper = $this->helper([], channel: 'canal');
+        $this->expectException(RuntimeException::class);
+        $helper->check('1.0.0', '8.5.0');
+    }
+
+    public function testSchemaTwoWithoutValidChannelIsRejected(): void
+    {
+        $envelope = $this->envelope();
+        $manifest = json_decode(base64_decode($envelope['payload']), true, 16, JSON_THROW_ON_ERROR);
+        $manifest['channel'] = 'canal';
+        $payload = json_encode($manifest, JSON_THROW_ON_ERROR);
+        $envelope['payload'] = base64_encode($payload);
+        $envelope['signature'] = base64_encode(sodium_crypto_sign_detached($payload, $this->secret));
+        $helper = $this->helper([$this->catalogue([$envelope])]);
+        $this->expectException(RuntimeException::class);
+        $helper->check('1.0.0', '8.5.0');
     }
 
     public function testInvalidLocalSettingsAreRejectedBeforeTheNetwork(): void

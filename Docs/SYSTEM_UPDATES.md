@@ -73,9 +73,15 @@ ajoutée à la confiance locale.
 Le client demande le catalogue complet et vérifie **toutes** ses enveloppes.
 Le serveur de distribution ne sert par défaut que les versions en prod : une
 version en attente d'approbation et une version en bêta n'y figurent pas. Le
-choix du canal bêta côté client (paramètre `channel` du catalogue et réglage
-local) relève d'un lot ultérieur ; en attendant, la bêta s'essaie depuis le
-mini-UI du serveur ou avec une installation dédiée à la validation.
+catalogue interrogé dépend du réglage local `update_channel` :
+
+- `prod` (défaut) : le client demande `?action=releases&channel=prod` et
+  **écarte** toute release dont le manifeste signé indique la bêta ;
+- `beta` : il demande `?action=releases&channel=beta` et accepte prod et bêta.
+
+Le canal vient exclusivement de `configuration.php`, jamais d'un paramètre de
+requête ni d'un champ de formulaire. Un manifeste `schema_version: 1` est lu
+comme une release de prod ; le schéma `2` porte le canal, obligatoire.
 Sur une release stable, il filtre ensuite localement : une cible doit être strictement supérieure à la
 source, accepter la source via `source_versions` et accepter le PHP réel :
 borne minimale incluse, borne maximale exclue. La première installation reste

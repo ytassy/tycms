@@ -44,7 +44,14 @@ class SystemUpdateHelper extends BaseHelper
             ManifestVerifier::publicKey($key);
         }
 
-        return ['servers' => array_values(array_unique($servers)), 'keys' => $keys];
+        // Le canal est un réglage local, jamais un paramètre du navigateur : une
+        // installation ne doit pas pouvoir être basculée en bêta par une URL.
+        $channel = $configuration->update_channel ?? ManifestVerifier::CHANNEL_PROD;
+        if (!in_array($channel, [ManifestVerifier::CHANNEL_PROD, ManifestVerifier::CHANNEL_BETA], true)) {
+            throw new RuntimeException('update_channel accepte uniquement « prod » ou « beta ».');
+        }
+
+        return ['servers' => array_values(array_unique($servers)), 'keys' => $keys, 'channel' => $channel];
     }
 
     public function check(string $source, string $php, bool $devPreview = false): array
@@ -56,13 +63,19 @@ class SystemUpdateHelper extends BaseHelper
         $failures = [];
         foreach ($configuration['servers'] as $index => $server) {
             try {
-                // Vérifier tout le catalogue, même les releases qui seront ensuite écartées.
-                $body = $this->fetch($server . '?action=releases', self::MAX_CATALOGUE_BYTES);
+                // Vérifier tout le catalogue du canal demandé, même les releases écartées ensuite.
+                $body = $this->fetch($server . '?action=releases&channel=' . rawurlencode($configuration['channel']),
+                    self::MAX_CATALOGUE_BYTES);
             } catch (ServerUnavailableException) {
                 $failures[] = ['server' => $server, 'reason' => 'Serveur indisponible ou réponse HTTP en erreur.'];
                 continue;
             }
             $manifests = $this->catalogue($body, $configuration['keys']);
+            // Défense en profondeur : ignorer une bêta reçue par erreur sur un canal prod.
+            if ($configuration['channel'] === ManifestVerifier::CHANNEL_PROD) {
+                $manifests = array_values(array_filter($manifests, static fn(array $manifest): bool
+                    => ManifestVerifier::channel($manifest) === ManifestVerifier::CHANNEL_PROD));
+            }
             $compatible = array_values(array_filter($manifests, static fn(array $manifest): bool =>
                 version_compare($manifest['version'], $source, '>')
                 && self::acceptsSource($manifest, $source)

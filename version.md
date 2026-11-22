@@ -15,9 +15,11 @@ Ce document présente uniquement les changements utiles aux utilisateurs de Tycm
 ## Changements
 
 - Serveur de distribution : une version envoyée par la publication n’est plus servie immédiatement. Elle reste **en attente d’approbation** dans une interface d’administration (`index.php?action=admin`, compte unique configuré sur le serveur). L’administrateur peut l’approuver en **Bêta**, l’approuver directement en **Prod**, ou la **refuser** (suppression physique). Une version en bêta peut ensuite être promue en prod ; un retour en arrière est refusé. Le catalogue par défaut ne contient que les versions en prod : les sites déjà installés ne reçoivent une version qu’après approbation. La commande de publication annonce désormais une *proposition enregistrée, en attente d’approbation* au lieu d’annoncer une version publiée.
-- Mises à jour : le manifeste signé d'une release précise désormais son canal de diffusion (`prod` ou `beta`). Le serveur de distribution sert les versions de prod par défaut et ne propose une bêta qu'aux installations qui la demandent ; les anciennes releases, sans cette information, restent servies comme des versions de prod.
+- Mises à jour : le manifeste signé d'une release précise désormais son canal de diffusion (`prod` ou `beta`). Le serveur de distribution sert les versions de prod par défaut et ne propose une bêta qu'aux installations qui la demandent ; les anciennes releases, sans cette information, restent servies comme des versions de prod. Une installation peut accepter les versions de bêta avec le réglage `update_channel` de sa configuration ; par défaut, elle ne reçoit que les versions de prod.
 - Intégration continue : un push sur une branche de production construit la release et l’envoie en proposition d’approbation sur le serveur de distribution, après validation de l’environnement protégé. Les branches de développement et les pull requests vérifient la suite unitaire PHP, le frontend et la suite du serveur de distribution, sans base SQL. Les scripts de préparation et de vérification partagés sont dans `cicd/`, sans secret en argument.
 
 ## Corrections
 
+- Journaux : désactiver le compte d'administration du serveur de distribution ferme désormais aussi les sessions déjà ouvertes.
+- Tests : les contrôles de concurrence des journaux et du serveur de distribution ne dépendent plus de la charge de la machine.
 - Build : les images de `plg_core` (dont le logo TyCMS) sont de nouveau incluses dans les releases.

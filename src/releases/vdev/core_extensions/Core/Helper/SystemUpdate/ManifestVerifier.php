@@ -6,11 +6,16 @@ namespace YTassy\Tycms\CoreExts\Core\Helper\SystemUpdate;
 
 use RuntimeException;
 
-/** Consommateur du schéma 1, autonome dans la release et sans dépendre du serveur de distribution. */
+/** Consommateur des schémas 1 et 2, autonome dans la release et sans dépendre du serveur de distribution. */
 final class ManifestVerifier
 {
     public const MAX_MANIFEST_BYTES = 65536;
     public const MAX_NOTES_BYTES = 262144;
+
+    /** Le schéma 1 ne porte pas de canal : il reste lu comme une release de prod. */
+    public const SCHEMA_VERSIONS = [1, 2];
+    public const CHANNEL_BETA = 'beta';
+    public const CHANNEL_PROD = 'prod';
 
     public static function version(mixed $version): string
     {
@@ -20,6 +25,14 @@ final class ManifestVerifier
         }
 
         return $version;
+    }
+
+    /** Canal effectif d'un manifeste vérifié : le schéma 1 désigne toujours la prod. */
+    public static function channel(array $manifest): string
+    {
+        return ($manifest['schema_version'] ?? null) === 2
+            ? ($manifest['channel'] ?? self::CHANNEL_PROD)
+            : self::CHANNEL_PROD;
     }
 
     public static function publicKey(mixed $key): string
@@ -56,9 +69,15 @@ final class ManifestVerifier
         }
 
         $manifest = json_decode($payload, true, 16, JSON_THROW_ON_ERROR);
-        if (!is_array($manifest) || ($manifest['schema_version'] ?? null) !== 1
+        // Les deux schémas sont acceptés : une installation doit pouvoir lire la v2
+        // avant que le serveur cesse d'émettre du v1, et inversement.
+        if (!is_array($manifest) || !in_array($manifest['schema_version'] ?? null, self::SCHEMA_VERSIONS, true)
             || ($manifest['type'] ?? null) !== 'system') {
             throw new RuntimeException('Manifeste de mise à jour invalide.');
+        }
+        if ($manifest['schema_version'] === 2
+            && !in_array($manifest['channel'] ?? null, [self::CHANNEL_BETA, self::CHANNEL_PROD], true)) {
+            throw new RuntimeException('Canal de mise à jour invalide.');
         }
         $version = self::version($manifest['version'] ?? null);
         $suffix = str_replace('.', '_', $version);

@@ -262,6 +262,9 @@ locale. Les installations existantes adoptent manuellement l’héritage de
   `https://update.tycms.yanntassy.fr/index.php` en premier, puis `https://update.tycms.fr/index.php`.
 - `update_trusted_public_keys` : identifiant de clé vers clé publique Ed25519
   en base64 ; la base embarque la clé de production `release-1`.
+- `update_channel` : `prod` (défaut) ou `beta`. Le client interroge alors
+  `?action=releases&channel=…` ; un manifeste de bêta reçu sur le canal prod est
+  écarté. Réglage réservé aux installations d'essai.
 
 Core dispose d'un écran de [consultation manuelle](../Docs/SYSTEM_UPDATES.md)
 réservé à ROOT, avec vérification des signatures et des notes, et un bouton

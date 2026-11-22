@@ -108,6 +108,12 @@ final class Admin
 
     public function require(): string
     {
+        // Un compte retiré de la configuration ferme aussi les sessions déjà accordées :
+        // sans cette règle, une session survivrait à la désactivation du compte.
+        if (!self::configured($this->config)) {
+            throw new HttpError(401, 'Connexion requise.');
+        }
+
         return $this->session() ?? throw new HttpError(401, 'Connexion requise.');
     }
 
