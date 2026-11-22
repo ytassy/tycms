@@ -5,10 +5,11 @@ name: Contrôles
 # PHP, extensions, libxml et Node compris. Un seul job pour ménager les minutes
 # de runner. Aucune base SQL, aucun secret.
 on:
+  # Uniquement les branches de développement : une branche de production ne
+  # reçoit que des merges déjà vérifiés en dev, et son push déclenche la release.
   push:
     branches:
       - 'dev_[0-9]*'
-      - 'prod_[0-9]*'
     # Un commit documentaire ne justifie pas un run.
     paths-ignore:
       - '**.md'
@@ -37,16 +38,16 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Récupérer le dépôt
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       # Mise en cache des couches : la construction ne coûte que lors du premier run.
       - name: Préparer Buildx
-        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Construire l'image PHP de développement
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: docker/dev/php
           load: true
@@ -55,6 +56,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=tycms-dev-php
 
       # Télécharger l'image Node une seule fois pour les deux usages.
+      # Le Node des tests frontend vient de l'image Docker, pas d'une action : rien à épingler ici.
       - name: Récupérer l'image Node
         run: docker pull "$NODE_IMAGE"
 

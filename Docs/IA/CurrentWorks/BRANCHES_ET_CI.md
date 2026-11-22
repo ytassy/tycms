@@ -79,10 +79,12 @@ profondeur). Le réglage est local, jamais activable par une URL.
 ## Workflows livrés
 
 - [`.github/workflows/checks.yml`](../../../.github/workflows/checks.yml) :
-  push sur `dev_*` / `prod_*`, hors commits purement documentaires
+  push sur **`dev_*` seulement**, hors commits purement documentaires
   (`paths-ignore`). **Un seul job** sans base SQL : PHP `unit`, tests Node et
   suite du serveur de distribution. Aucun secret. Pas de `pull_request` :
-  le développement se fait sur `dev_*` et le push suffit.
+  le développement se fait sur `dev_*` et le push suffit. Une branche `prod_*`
+  ne relance pas ces contrôles : elle ne reçoit que des merges déjà vérifiés,
+  et son push déclenche la release.
 - [`.github/workflows/release.yml`](../../../.github/workflows/release.yml) :
   `push` sur `prod_*`. Construit dans l'image isolée, puis envoie la
   proposition avec les secrets de l'environnement `production`.

@@ -39,10 +39,17 @@ La politique évite le bruit :
 | `push` sur `prod_*` | échec **et** succès (la release est alors en attente) |
 | autre événement (ticket, sécurité) | échec et succès |
 
+Le workflow `Contrôles` ne s'exécute que sur `dev_*` : une branche de production
+ne reçoit que des merges déjà vérifiés, et son push lance la release.
+
 `NOTIFY_STATUS` porte `${{ job.status }}`. Un canal mal configuré est signalé
 sur la sortie d'erreur, sans recopier l'URL ni le jeton, et **ne fait jamais
 échouer le workflow**. `NOTIFY=off` désactive tout envoi sans retirer les
 secrets.
+
+Les actions de GitHub sont épinglées par empreinte de commit, avec leur version
+en commentaire. Une mise à jour change l'empreinte **et** le commentaire ; un
+changement de version majeure se vérifie en lisant les notes de l'action.
 
 Les adresses de webhook contiennent un secret : elles ne doivent jamais
 apparaître dans un message de commit, un journal ou une capture d'écran.
