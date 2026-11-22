@@ -40,9 +40,23 @@ jobs:
         with:
           node-version: '24'
 
+      # Installer DSH coûte cher : 200 paquets et plus d'un gigaoctet. Le cache
+      # couvre les archives npm et les modules globaux ; une clé par version
+      # garantit qu'un changement d'outil ne réutilise pas l'ancien.
+      - name: Localiser le préfixe npm
+        run: echo "NPM_PREFIX=$(npm config get prefix)" >> "$GITHUB_ENV"
+
+      - name: Restaurer DSH
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm
+            ${{ env.NPM_PREFIX }}/lib/node_modules
+          key: dsh-0.2.2-rc.5
+
       # Version figée de l'outil : une analyse ne doit pas changer de moteur sans décision.
       - name: Installer DSH
-        run: npm install --global @deepseek-ai/dsh@0.2.2-rc.5
+        run: npm install --global @deepseek-ai/dsh@0.2.2-rc.5 --prefer-offline --no-audit --no-fund
 
       # La surcouche ne contient que le fournisseur et le modèle, hors du dépôt.
       - name: Préparer la surcouche de profil

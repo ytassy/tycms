@@ -92,6 +92,12 @@ Le coût d'une analyse est donc de l'ordre de la demi-minute, sans appel d'outil
 d'écriture : le délai de 20 minutes du workflow de tickets est largement suffisant.
 Le second workflow, qui modifie et vérifie le code, demande davantage.
 
+L'installation de DSH est mise en cache (`actions/cache`) sous la clé
+`dsh-0.2.2-rc.5` : les archives npm et les modules globaux sont restaurés avant
+`npm install --global`, qui reste exécuté pour valider l'installation. Changer
+de version dans le workflow **change la clé** et provoque une installation
+complète ; c'est voulu, pour ne jamais réutiliser un binaire périmé.
+
 Les adresses de webhook contiennent un secret : elles ne doivent jamais
 apparaître dans un message de commit, un journal ou une capture d'écran.
 
