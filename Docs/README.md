@@ -42,6 +42,7 @@ documentée ou une piste de travail ne constitue pas une fonctionnalité livrée
 | Construire et signer le ZIP de production d’une extension | [Build des extensions](../build_extensions/README.md) |
 | Conception et lots du serveur TyCatalog et du client Core de catalogues | [Chantier TyCatalog](IA/CurrentWorks/TYCATALOG.md) |
 | Concevoir le moteur d'automatisation, le langage de scénarios et son registre d'actions | [Chantier Automatisation](IA/CurrentWorks/AUTOMATION.md) |
+| Organiser les branches, la publication et les workflows GitHub Actions | [Chantier branches et CI](IA/CurrentWorks/BRANCHES_ET_CI.md) |
 | Préparer une mise en production minimale et la rotation des secrets | [Production Automatisation](AUTOMATION_PROD.md) |
 | Connecter un compte de service Google Sheets et utiliser les actions de classeur | [Google Sheets](GOOGLE_SHEETS.md) |
 | Gérer des événements Google Agenda avec le même compte de service | [Google Agenda](GOOGLE_CALENDAR.md) |

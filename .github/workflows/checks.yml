@@ -1,0 +1,79 @@
+name: Contrôles
+
+# Un seul job, pour consommer un minimum de minutes de runner : un
+# provisionnement unique, une seule liste de logs à lire. Aucune base SQL,
+# aucun secret. Les pulls requests ne sont pas suivies : le développement se
+# fait sur `dev_*` et les contrôles partent au push.
+on:
+  push:
+    branches:
+      - 'dev_[0-9]*'
+      - 'prod_[0-9]*'
+    # Un commit documentaire ne justifie pas un run ; il peut être relancé à la main.
+    paths-ignore:
+      - '**.md'
+      - 'Docs/**'
+      - '.github/**'
+
+# Un nouveau push sur la même référence annule les contrôles devenus inutiles.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COMPOSER_ALLOW_SUPERUSER: '1'
+  COMPOSER_NO_INTERACTION: '1'
+
+jobs:
+  checks:
+    name: Contrôles
+    runs-on: ubuntu-latest
+    # Le budget couvre les trois suites ; une étape bloquée ne coûte pas une heure.
+    timeout-minutes: 25
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Préparer PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: '8.4'
+          # `sodium` et `zip` servent aussi au serveur de distribution.
+          extensions: mbstring, intl, curl, zip, sodium, mysqli, pdo_mysql
+          coverage: none
+
+      - name: Préparer Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: src/ria/package-lock.json
+
+      # Les dépendances Composer sont verrouillées ; refuser un verrou désynchronisé.
+      - name: Installer les dépendances PHP
+        working-directory: src/releases/vdev
+        run: composer install --no-progress --prefer-dist
+
+      # `npm ci` n'exécute que les scripts du paquet verrouillé, sans accès aux secrets.
+      - name: Installer les dépendances Node
+        working-directory: src/ria
+        run: npm ci --no-audit --no-fund
+
+      # Suite `unit` : aucun MySQL, aucune configuration locale, aucun secret.
+      - name: PHP unitaire
+        working-directory: src/releases/vdev
+        run: vendor/bin/phpunit --configuration phpunit.xml --testsuite unit --no-coverage
+
+      # Les suites Node sont dans `src/ria/tests` ; la composition varie selon le domaine.
+      - name: Frontend unitaire
+        working-directory: src/ria
+        run: node --test tests/*.test.js
+
+      # Le serveur de distribution possède sa propre suite, sans SQL ni service.
+      - name: Serveur de distribution
+        run: php update_server/tests/run.php

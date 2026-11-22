@@ -15,6 +15,7 @@ Ce document présente uniquement les changements utiles aux utilisateurs de Tycm
 ## Changements
 
 - Serveur de distribution : une version envoyée par la publication n’est plus servie immédiatement. Elle reste **en attente d’approbation** dans une interface d’administration (`index.php?action=admin`, compte unique configuré sur le serveur). L’administrateur peut l’approuver en **Bêta**, l’approuver directement en **Prod**, ou la **refuser** (suppression physique). Une version en bêta peut ensuite être promue en prod ; un retour en arrière est refusé. Le catalogue par défaut ne contient que les versions en prod : les sites déjà installés ne reçoivent une version qu’après approbation. La commande de publication annonce désormais une *proposition enregistrée, en attente d’approbation* au lieu d’annoncer une version publiée.
+- Intégration continue : un push sur une branche de production construit la release et l’envoie en proposition d’approbation sur le serveur de distribution, après validation de l’environnement protégé. Les branches de développement et les pull requests vérifient la suite unitaire PHP, le frontend et la suite du serveur de distribution, sans base SQL. Les scripts de préparation et de vérification partagés sont dans `cicd/`, sans secret en argument.
 
 ## Corrections
 
