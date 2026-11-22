@@ -51,6 +51,47 @@ Les actions de GitHub sont épinglées par empreinte de commit, avec leur versio
 en commentaire. Une mise à jour change l'empreinte **et** le commentaire ; un
 changement de version majeure se vérifie en lisant les notes de l'action.
 
+## Analyse de tickets (DSH)
+
+`dsh/prepare-profile.php` écrit une surcouche de profil hors du dépôt : le
+fournisseur et le modèle par défaut viennent de `DSH_PROVIDER` et `DSH_MODEL`
+(variables de dépôt GitHub `vars.DSH_PROVIDER` / `vars.DSH_MODEL`, valeurs par
+défaut `openrouter` et `deepseek/deepseek-v4.1-flash-1017`).
+
+`dsh/prompt.php` compose la tâche : une invite versionnée
+(`dsh/prompts/triage.md`, `dsh/prompts/fix.md`), puis le texte du ticket encadré
+par `<<<TICKET>>>`. **Les balises sont neutralisées dans le texte reçu** : le
+motif ignore la casse, les espaces **et le nombre de chevrons**, de sorte que
+`<FIN_TICKET>`, `<<FIN_TICKET>>`, `<<<FIN_TICKET>>>`, `<<<<FIN_TICKET>>>>`,
+`<<<fin_ticket>>>` ou `<<< FIN_TICKET >>` sont tous encodés. Les chevrons
+deviennent des entités HTML : le texte reste lisible, aucune balise ne subsiste,
+et le ticket ne peut pas refermer son bloc ni en ouvrir un faux.
+
+L'analyse tourne en `--permission-mode read-only` avec `--approval-policy never` :
+elle ne peut rien modifier, même si le ticket le demande. La correction tourne
+en `workspace-write`, sans accès aux secrets de publication.
+
+### Authentification OpenRouter
+
+La clé vient du secret `OPENROUTER_API_KEY` et se résout par la référence
+`apiKeyEnv` du profil généré. Elle doit **avoir le format attendu par
+OpenRouter** (`sk-or-v1-…`) : une valeur arbitraire est ignorée sans erreur de
+configuration, et OpenRouter répond alors `401 Missing Authentication header`.
+Ce message ne signale donc pas un défaut de transmission ; une clé bien formée
+mais inconnue reçoit `401 User not found`.
+
+Vérifié en local sur DSH 0.2.2-rc.5, avec une vraie clé :
+
+| Contrôle | Résultat |
+| --- | --- |
+| Analyse d'un ticket factice | code 0, **28 s**, 81 événements, réponse structurée conforme |
+| Exactitude des références | fichiers et numéros de ligne cités exacts (bouton, getter `isDirty`) |
+| Écriture en mode `read-only` | refusée par le bac à sable, aucune approbation possible, aucun fichier créé |
+
+Le coût d'une analyse est donc de l'ordre de la demi-minute, sans appel d'outil
+d'écriture : le délai de 20 minutes du workflow de tickets est largement suffisant.
+Le second workflow, qui modifie et vérifie le code, demande davantage.
+
 Les adresses de webhook contiennent un secret : elles ne doivent jamais
 apparaître dans un message de commit, un journal ou une capture d'écran.
 

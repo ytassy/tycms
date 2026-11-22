@@ -1,0 +1,120 @@
+name: Analyse de ticket
+
+# Un ticket est une entrée NON FIABLE écrite par n'importe qui. Ce workflow se
+# contente de l'analyser : aucun accès en écriture au code, aucun secret de
+# publication, aucune branche créée. La correction éventuelle passe par un
+# second workflow, déclenché par une étiquette posée à la main.
+on:
+  issues:
+    types: [opened, reopened]
+
+# Un nouveau déclenchement sur le même ticket remplace l'analyse en cours.
+concurrency:
+  group: triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  # Lecture du code pour situer le ticket ; écriture limitée aux commentaires.
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    name: Analyser le ticket
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Préparer PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Préparer Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      # Version figée de l'outil : une analyse ne doit pas changer de moteur sans décision.
+      - name: Installer DSH
+        run: npm install --global @deepseek-ai/dsh@0.2.2-rc.5
+
+      # La surcouche ne contient que le fournisseur et le modèle, hors du dépôt.
+      - name: Préparer la surcouche de profil
+        env:
+          DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          DSH_PROVIDER: ${{ vars.DSH_PROVIDER }}
+          DSH_MODEL: ${{ vars.DSH_MODEL }}
+        run: php cicd/dsh/prepare-profile.php
+
+      # Le texte du ticket est transmis par variable d'environnement, jamais
+      # interpolé dans le script : son contenu ne peut pas devenir du shell.
+      - name: Composer la tâche
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+        run: |
+          {
+            printf 'Titre : %s\n' "$ISSUE_TITLE"
+            printf 'Auteur : %s\n\n' "$ISSUE_AUTHOR"
+            printf '%s\n' "$ISSUE_BODY"
+          } > "$RUNNER_TEMP/ticket.txt"
+          version=$(php -r 'echo json_decode(file_get_contents("version.json"), true)["version"] ?? "";')
+          php cicd/dsh/prompt.php triage "$RUNNER_TEMP/ticket.txt" "$version" > "$RUNNER_TEMP/task.txt"
+          wc -c "$RUNNER_TEMP/task.txt"
+
+      # Lecture seule et refus de toute demande d'approbation : l'analyse ne peut
+      # rien modifier, même si le ticket contient une consigne de le faire.
+      - name: Analyser
+        env:
+          DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          DSH_HOME: ${{ runner.temp }}/dsh/home
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set +e
+          dsh --profile headless \
+            --patch "$DSH_CONFIG_DIR/headless.patch.yml" \
+            --permission-mode read-only \
+            --approval-policy never \
+            --json - < "$RUNNER_TEMP/task.txt" > "$RUNNER_TEMP/run.jsonl"
+          status=$?
+          set -e
+          echo "code de sortie : $status"
+          # Le dernier événement final porte la réponse ; un échec est signalé sans bloquer.
+          jq -r 'select(.type == "final") | .text // ""' "$RUNNER_TEMP/run.jsonl" > "$RUNNER_TEMP/answer.md" || true
+          if [ ! -s "$RUNNER_TEMP/answer.md" ]; then
+            printf 'Analyse indisponible : le moteur n’a pas rendu de réponse.\n' > "$RUNNER_TEMP/answer.md"
+          fi
+          head -c 400 "$RUNNER_TEMP/answer.md"
+
+      - name: Publier l'analyse
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          {
+            printf '<!-- analyse-automatique -->\n'
+            printf '### Analyse automatique\n\n'
+            cat "$RUNNER_TEMP/answer.md"
+            printf '\n\n---\n'
+            printf '_Analyse produite automatiquement. Aucun fichier n’a été modifié. '
+            printf 'Pour lancer une correction, ajouter l’étiquette `fix-approved`._\n'
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/comment.md"
+
+      # Notifier la fin du traitement du ticket.
+      - name: Notifier le résultat
+        if: always()
+        env:
+          TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          NOTIFY_STATUS: ${{ job.status }}
+          NOTIFY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: php cicd/notify.php

@@ -69,7 +69,7 @@ profondeur). Le réglage est local, jamais activable par une URL.
 | A2 | Protocole : `schema_version: 2` avec `channel`, lecture v1 | Livré |
 | A3 | Client : réglage `update_channel`, filtre bêta | Livré |
 | F | Notifications Telegram / Slack / Discord (webhooks) | Livré |
-| G | Tickets GitHub : analyse read-only, correction après étiquette | À faire |
+| G | Tickets GitHub : analyse read-only, correction après étiquette | Livré (analyse validée en réel) |
 | H | `security_X` : analyse différentielle avec SHA analysé | À faire |
 | D | CI extensions : build puis dépôt catalogue | À faire |
 | E | TyCatalog : validation par canal | À faire |
@@ -128,6 +128,30 @@ configuré : le script ne fait rien. Une notification manquée ne fait jamais
 échouer le workflow.
 
 Le serveur de distribution ne notifie pas : son propriétaire le gère seul.
+
+## Analyse de tickets
+
+Deux workflows : `ticket-triage.yml` analyse en lecture seule et commente le
+ticket ; `ticket-fix.yml` ne part que sur l'étiquette `fix-approved`, crée
+`dev_1_1_ticket_<n>` et ouvre une pull request **en brouillon**, sans aucun
+secret de publication. Les invites sont versionnées dans `cicd/dsh/prompts/`.
+
+Le texte du ticket est une donnée non fiable : il passe par l'environnement du
+script, jamais par une expression interpolée dans un `run:`, et ses balises
+délimiteuses sont neutralisées avant insertion, quel que soit le nombre de
+chevrons ou la casse employés.
+
+La clé `OPENROUTER_API_KEY` se résout par `apiKeyEnv` et doit avoir le format
+`sk-or-v1-…` : une valeur arbitraire est ignorée sans erreur, et OpenRouter
+répond `401 Missing Authentication header`. Une clé bien formée mais inconnue
+répond `401 User not found`, ce qui distingue un format invalide d'une clé
+révoquée.
+
+L'analyse a été validée en réel sur DSH 0.2.2-rc.5 avec
+`deepseek/deepseek-v4.1-flash-1017` : 28 s, réponse structurée, chemins et
+numéros de ligne exacts. En mode `read-only`, une demande d'écriture est refusée
+par le bac à sable et aucune approbation n'est possible : le ticket ne peut pas
+faire modifier le dépôt. Le workflow de correction, lui, n'a pas encore tourné.
 
 ## Limites ouvertes
 

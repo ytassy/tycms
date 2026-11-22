@@ -1,0 +1,92 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tycms\CiCd;
+
+use RuntimeException;
+use Throwable;
+
+// Script d'intégration continue : n'est jamais utilisable depuis une requête HTTP.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
+/**
+ * Composer la tâche envoyée à DSH : une invite versionnée du dépôt, puis le
+ * texte du ticket encadré et neutralisé.
+ *
+ * Le ticket est écrit par une personne extérieure : il ne doit jamais pouvoir
+ * refermer son bloc et se faire passer pour une consigne. Les occurrences des
+ * balises sont donc remplacées avant insertion, et la taille est bornée.
+ *
+ * Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version]
+ */
+
+const MAX_TICKET_BYTES = 60000;
+
+const PROMPTS = [
+    'triage' => 'triage.md',
+    'fix' => 'fix.md',
+];
+
+try {
+    if ($argc < 3 || $argc > 4) {
+        throw new RuntimeException('Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version]');
+    }
+    $kind = $argv[1];
+    if (!isset(PROMPTS[$kind])) {
+        throw new RuntimeException('Type d’invite inconnu.');
+    }
+    $ticketFile = $argv[2];
+    if (!is_file($ticketFile) || is_link($ticketFile)) {
+        throw new RuntimeException('Fichier de ticket absent.');
+    }
+    $ticket = file_get_contents($ticketFile, false, null, 0, MAX_TICKET_BYTES + 1);
+    if (!is_string($ticket)) {
+        throw new RuntimeException('Fichier de ticket illisible.');
+    }
+    if ($ticket === '') {
+        $ticket = '(ticket vide)';
+    }
+    if (strlen($ticket) > MAX_TICKET_BYTES) {
+        throw new RuntimeException('Ticket trop volumineux pour une analyse fiable.');
+    }
+
+    $promptFile = __DIR__ . '/prompts/' . PROMPTS[$kind];
+    $prompt = is_file($promptFile) ? file_get_contents($promptFile) : false;
+    if (!is_string($prompt) || $prompt === '') {
+        throw new RuntimeException('Invite absente ou vide.');
+    }
+
+    // Neutraliser les balises : le ticket ne peut pas clore son bloc prématurément.
+    // Le motif couvre la casse, les espaces et un nombre quelconque de chevrons :
+    // « <<FIN_TICKET>> », « <FIN_TICKET> » ou « <<<<FIN_TICKET>>>> » seraient
+    // sinon lus comme un délimiteur par un modèle peu attentif.
+    // Les chevrons sont encodés en entités : le texte reste lisible, mais aucune
+    // balise ne subsiste.
+    $safe = preg_replace_callback(
+        '/<{1,}\s*(FIN_)?TICKET\s*>{1,}/i',
+        static fn (array $match): string => str_replace(['<', '>'], ['&lt;', '&gt;'], $match[0]),
+        $ticket
+    );
+    if (!is_string($safe)) {
+        throw new RuntimeException('Neutralisation des balises impossible.');
+    }
+
+    $version = $argc === 4 ? trim((string) $argv[3]) : '';
+    if ($version !== '' && preg_match('/\A[0-9A-Za-z._-]{1,40}\z/', $version) !== 1) {
+        $version = '';
+    }
+
+    $output = rtrim($prompt) . "\n\n"
+        . "## Ticket à analyser\n\n"
+        . ($version !== '' ? "Version du projet : " . $version . "\n\n" : '')
+        . "<<<TICKET>>>\n" . $safe . "\n<<<FIN_TICKET>>>\n";
+
+    fwrite(STDOUT, $output);
+} catch (Throwable $error) {
+    fwrite(STDERR, 'Invite refusée : ' . $error->getMessage() . PHP_EOL);
+    exit(1);
+}
