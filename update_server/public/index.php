@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Tycms\Distribution\Admin;
+use Tycms\Distribution\AdminView;
 use Tycms\Distribution\HttpError;
 use Tycms\Distribution\Protocol;
 use Tycms\Distribution\Repository;
@@ -9,19 +11,93 @@ use Tycms\Distribution\Repository;
 ini_set('display_errors', '0');
 
 require_once dirname(__DIR__) . '/lib/Protocol.php';
+require_once dirname(__DIR__) . '/lib/Admin.php';
+require_once dirname(__DIR__) . '/lib/AdminView.php';
 require_once dirname(__DIR__) . '/lib/Repository.php';
 
-// Aucune session Tycms, aucun cookie ni secret dans les réponses de cette API autonome.
+// Aucune session Tycms ni secret dans les réponses de cette API autonome ; l'administration
+// utilise ses propres cookies de session, seulement sur les actions HTML listées plus bas.
 header('X-Content-Type-Options: nosniff');
 header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
 header('Cache-Control: no-store');
 header('Content-Type: application/json; charset=utf-8');
 
+// Les erreurs d'administration se rendent en page, sans changer les réponses JSON de l'API.
+$admin = false;
 $respond = static function (array $body, int $status = 200): never {
     http_response_code($status);
     echo json_encode($body, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     exit;
 };
+
+// Actions HTML du mini-UI ; toute autre action reste l'API JSON existante.
+const ADMIN_ACTIONS = ['admin', 'login', 'logout', 'approve', 'promote', 'discard'];
+
+/**
+ * Exécuter une action d'administration, protégée par une session et par le CSRF
+ * dérivé de cette session. Le formulaire HTML ne réalise jamais de mutation en GET.
+ */
+function admin(Repository $repository, array $config, string $action, string $method): void
+{
+    $view = new AdminView();
+    $admin = new Admin($config, $repository->storageRoot());
+
+    // Déconnexion et accès au formulaire de connexion.
+    if ($action === 'logout') {
+        $admin->logout();
+        header('Location: index.php?action=admin', true, 303);
+        exit;
+    }
+    if ($action === 'login') {
+        if ($method !== 'POST') {
+            $view->send($view->login());
+        }
+        if (!Admin::configured($config)) {
+            throw new HttpError(503, 'Compte d’administration non configuré.');
+        }
+        $user = $_POST['user'] ?? '';
+        $password = $_POST['password'] ?? '';
+        if (!is_string($user) || !is_string($password) || !$admin->login($user, $password)) {
+            $view->send($view->login('Identifiants refusés.'));
+        }
+        header('Location: index.php?action=admin', true, 303);
+        exit;
+    }
+
+    // Toute autre action exige une session valide.
+    $session = $admin->require();
+    $csrf = Admin::csrf($session);
+
+    if ($action === 'approve' || $action === 'promote' || $action === 'discard') {
+        if ($method !== 'POST') {
+            header('Allow: POST');
+            throw new HttpError(405, 'Méthode refusée.');
+        }
+        Admin::checkCsrf($session, $_POST['csrf'] ?? null);
+        $version = $_POST['version'] ?? null;
+        if (!is_string($version)) {
+            throw new HttpError(400, 'Version absente.');
+        }
+        if ($action === 'discard') {
+            $repository->discard($version);
+            $message = 'Version ' . $version . ' refusée et supprimée.';
+        } else {
+            $channel = $action === 'promote' ? Repository::CHANNEL_PROD : ($_POST['channel'] ?? null);
+            if (!is_string($channel)) {
+                throw new HttpError(400, 'Canal absent.');
+            }
+            $manifest = $repository->approve($version, $channel);
+            $message = 'Version ' . $manifest['version'] . ' approuvée pour le canal ' . $channel . '.';
+        }
+
+        // Redirection après action : le formulaire ne se rejoue pas au rechargement.
+        header('Location: index.php?action=admin&done=' . rawurlencode($message), true, 303);
+        exit;
+    }
+
+    $notice = is_string($_GET['done'] ?? null) ? $_GET['done'] : null;
+    $view->send($view->home($repository->pending(), $repository->approved(), $csrf, $notice));
+}
 
 try {
     $configuration = dirname(__DIR__) . '/configuration.php';
@@ -42,6 +118,12 @@ try {
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
     if (!is_string($action)) {
         throw new HttpError(400, 'Action invalide.');
+    }
+    if (in_array($action, ADMIN_ACTIONS, true)) {
+        $admin = true;
+        header_remove('Content-Type');
+        admin($repository, $config, $action, $method);
+        exit;
     }
 
     if ($action === 'publish') {
@@ -132,6 +214,11 @@ try {
     fpassthru($stream);
     fclose($stream);
 } catch (HttpError $error) {
+    if ($admin) {
+        $view = new AdminView();
+        $view->send($error->status === 401 ? $view->login($error->getMessage())
+            : $view->home([], [], '', null, $error->getMessage()), 200);
+    }
     if ($error->status === 401) {
         header('WWW-Authenticate: Bearer');
     }

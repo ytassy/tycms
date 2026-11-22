@@ -17,6 +17,12 @@ return [
     'storage_path' => __DIR__ . '/storage',
     'max_package_bytes' => 128 * 1024 * 1024,
 
+    // Compte unique du mini-UI d'administration (index.php?action=admin).
+    // Empreinte générée avec : php update_server/tools/admin-password.php
+    // Laisser vide pour désactiver l'interface ; la publication API reste possible.
+    'admin_user' => 'admin',
+    'admin_password_hash' => '',
+
     // Réservé aux tests via le serveur PHP intégré, accessible depuis la boucle locale.
     'allow_loopback_http' => false,
 ];

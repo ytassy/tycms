@@ -43,11 +43,11 @@ try {
         foreach ($archives as $index => $path) {
             echo '  ' . ($index + 1) . '. ' . basename($path) . "\n";
         }
-        echo "  0. Annuler\nNuméro du ZIP à publier : ";
+        echo "  0. Annuler\nNuméro du ZIP à proposer : ";
         $input = fgets(STDIN);
         $choice = $input === false ? '0' : trim($input);
         if ($choice === '0') {
-            echo "Publication annulée.\n";
+            echo "Envoi annulé.\n";
             exit(0);
         }
         if (preg_match('/\A[1-9][0-9]*\z/', $choice) !== 1 || !isset($archives[(int) $choice - 1])) {
@@ -107,7 +107,7 @@ try {
             echo "  0. Annuler\nNuméro de la configuration [1] : ";
             $input = fgets(STDIN);
             if ($input === false || trim($input) === '0') {
-                echo "Publication annulée.\n";
+                echo "Envoi annulé.\n";
                 exit(0);
             }
             $choice = trim($input) === '' ? '1' : trim($input);
@@ -150,10 +150,10 @@ try {
     if ($interactive) {
         // Confirmer la cible avant de lire la clé privée et d'envoyer le paquet.
         echo "\nVersion : $version\nServeur : $url\nClé de signature : $keyId\n";
-        echo "Confirmer la publication ? [o/N] : ";
+        echo "Confirmer l’envoi de la proposition ? [o/N] : ";
         $answer = fgets(STDIN);
         if ($answer === false || !in_array(strtolower(trim($answer)), ['o', 'oui'], true)) {
-            echo "Publication annulée.\n";
+            echo "Envoi annulé.\n";
             exit(0);
         }
     }
@@ -218,7 +218,7 @@ try {
     if ($local) {
         curl_setopt($curl, CURLOPT_PROXY, '');
     }
-    echo "Publication de $version depuis un ZIP existant…\n";
+    echo "Envoi de la proposition $version depuis un ZIP existant…\n";
     $sent = curl_exec($curl);
     $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     if ($sent === false) {
@@ -231,7 +231,10 @@ try {
     if (($receipt['published'] ?? null) !== $version || ($receipt['sha256'] ?? null) !== $manifest['archive']['sha256']) {
         throw new RuntimeException('Accusé de publication incohérent ; vérifier le manifeste distant.');
     }
-    echo "Version publiée : $version\nSHA-256 : " . $manifest['archive']['sha256'] . "\n";
+    // L'envoi ne rend rien public : le serveur attend une approbation dans son administration.
+    echo "Proposition enregistrée : $version, en attente d’approbation.\n"
+        . "SHA-256 : " . $manifest['archive']['sha256'] . "\n"
+        . "Approuver cette version dans l’interface d’administration du serveur avant qu’elle soit distribuée.\n";
 } catch (Throwable $error) {
     // Ne jamais afficher le contenu de la configuration, du token ou d'une réponse distante.
     fwrite(STDERR, 'Publication interrompue : ' . ($error instanceof RuntimeException ? $error->getMessage() : 'Données ou configuration invalides.') . "\n");

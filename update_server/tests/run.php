@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use Tycms\Distribution\Admin;
 use Tycms\Distribution\HttpError;
 use Tycms\Distribution\Protocol;
 use Tycms\Distribution\Repository;
 
 require_once dirname(__DIR__) . '/lib/Protocol.php';
+require_once dirname(__DIR__) . '/lib/Admin.php';
 require_once dirname(__DIR__) . '/lib/Repository.php';
 require_once dirname(__DIR__, 2) . '/build/functions.php';
 
@@ -80,6 +82,33 @@ function request(string $url, ?string $token = null, ?string $zip = null, ?strin
     return [curl_getinfo($curl, CURLINFO_RESPONSE_CODE), $body];
 }
 
+/**
+ * Requête d'administration : formulaire URL-encodé, cookie de session optionnel
+ * et redirections non suivies pour observer le 303 après une action.
+ */
+function adminRequest(string $url, ?array $form = null, ?string $cookie = null): array
+{
+    $curl = curl_init($url);
+    $options = [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5, CURLOPT_PROXY => '',
+        CURLOPT_HEADER => true, CURLOPT_FOLLOWLOCATION => false];
+    if ($cookie !== null) {
+        $options[CURLOPT_COOKIE] = 'tycms_distribution_admin=' . $cookie;
+    }
+    if ($form !== null) {
+        $options[CURLOPT_POST] = true;
+        $options[CURLOPT_POSTFIELDS] = http_build_query($form);
+    }
+    curl_setopt_array($curl, $options);
+    $response = curl_exec($curl);
+    check(is_string($response), 'Requête d’administration impossible.');
+    $headerBytes = curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+    preg_match_all('/^Set-Cookie:\s*([^;\r\n]+)/mi', substr($response, 0, $headerBytes), $cookies);
+    $setCookie = $cookies[1] !== [] ? trim(end($cookies[1])) : null;
+
+    return [curl_getinfo($curl, CURLINFO_RESPONSE_CODE), substr($response, $headerBytes), $setCookie,
+        substr($response, 0, $headerBytes)];
+}
+
 umask(0077);
 $root = sys_get_temp_dir() . '/tycms-distribution-test-' . bin2hex(random_bytes(8));
 mkdir($root);
@@ -94,11 +123,13 @@ try {
     foreach (['public', 'lib'] as $directory) {
         mkdir($root . '/server/' . $directory);
     }
-    foreach (['public/index.php', 'lib/Protocol.php', 'lib/Repository.php'] as $file) {
+    foreach (['public/index.php', 'lib/Protocol.php', 'lib/Repository.php', 'lib/Admin.php', 'lib/AdminView.php'] as $file) {
         copy(dirname(__DIR__) . '/' . $file, $root . '/server/' . $file);
     }
+    $adminPassword = 'mot-de-passe-administration-test';
     $config = ['storage_path' => $root . '/storage', 'publish_token_sha256' => [hash('sha256', $token)],
-        'trusted_public_keys' => ['test-key' => $public], 'max_package_bytes' => 1000000, 'allow_loopback_http' => true];
+        'trusted_public_keys' => ['test-key' => $public], 'max_package_bytes' => 1000000, 'allow_loopback_http' => true,
+        'admin_user' => 'admin', 'admin_password_hash' => password_hash($adminPassword, PASSWORD_ARGON2ID)];
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
 
     // Fabriquer une archive factice : aucun code du site ni donnée SQL n'est utilisé.
@@ -186,7 +217,7 @@ try {
     unset($legacy['release_notes']);
     $legacyRepository = new Repository(array_replace($config, ['storage_path' => $root . '/legacy']), $root . '/server/public');
     $legacyRepository->publish($zipPath, Protocol::sign($legacy, 'test-key', $secret));
-    check($legacyRepository->release('1.0.1')['notes'] === null, 'Ancienne release sans notes illisible.');
+    check($legacyRepository->release('1.0.1', Repository::CHANNEL_PENDING)['notes'] === null, 'Ancienne release sans notes illisible.');
     $repository->authenticate('Bearer ' . $token);
     refused(fn() => $repository->authenticate('Bearer ' . str_repeat('0', 64)), 'Token invalide accepté.', 401);
     refused(fn() => (new Repository(array_replace($config, ['publish_token_sha256' => []]), $root . '/server/public'))->authenticate('Bearer ' . $token), 'Liste vide autorisant un token.', 401);
@@ -195,6 +226,7 @@ try {
     $invalidHash['archive']['sha256'] = str_repeat('0', 64);
     refused(fn() => $repository->publish($zipPath, Protocol::sign($invalidHash, 'test-key', $secret), $notes), 'Empreinte invalide acceptée.', 422);
     check($repository->releases(null, null) === [], 'Publication incomplète visible.');
+    check($repository->pending() === [] && $repository->approved() === [], 'Proposition en échec visible.');
 
     // Serveur PHP éphémère limité à 127.0.0.1 ; les exceptions HTTP restent testables.
     $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
@@ -256,7 +288,7 @@ try {
     check(command($menuArguments)[0] === 0, 'Fin d’entrée du menu non traitée.');
     check(command($menuArguments, "99\n")[0] === 1, 'Sélection inexistante acceptée.');
     [$exit, $out] = command($menuArguments, "1\nn\n");
-    check($exit === 0 && str_contains($out, $url) && str_contains($out, 'Publication annulée.'), 'Confirmation de destination incorrecte.');
+    check($exit === 0 && str_contains($out, $url) && str_contains($out, 'Envoi annulé.'), 'Confirmation de destination incorrecte.');
     // Choisir la configuration dans un dossier privé factice, sans utiliser celles de l'hôte.
     $configHome = $root . '/config-home';
     mkdir($configHome . '/tycms', 0700, true);
@@ -293,8 +325,32 @@ try {
     file_put_contents($metadataPath, $frozen);
     [$exit, $out, $err] = command($arguments);
     check($exit === 0, 'Échec du vrai client : ' . $err);
+    // Le client annonce une proposition en attente, jamais une distribution immédiate.
+    check(str_contains($out, 'Proposition enregistrée : 1.0.1, en attente d’approbation')
+        && str_contains($out, $manifest['archive']['sha256']), 'Message de proposition incorrect.');
+    check(!str_contains($out, 'Version publiée'), 'Distribution annoncée avant approbation.');
     check(!str_contains($out . $err, $token), 'Token exposé par le client.');
     check(hash_file('sha256', $zipPath) === $manifest['archive']['sha256'], 'Le client a modifié le ZIP.');
+    check($repository->channelOf('1.0.1') === Repository::CHANNEL_PENDING, 'Publication directe sans approbation.');
+    check(request($url . '?action=manifest&version=1.0.1')[0] === 404, 'Proposition en attente exposée par le manifeste.');
+    check(request($url . '?action=releases')[1] === '{"schema_version":1,"releases":[]}', 'Proposition en attente exposée par le catalogue.');
+    check(request($url . '?action=package&version=1.0.1')[0] === 404, 'Proposition en attente téléchargeable.');
+
+    // Approbation en bêta : immuable, sans retour possible vers l'attente ou une nouvelle approbation.
+    check(count($repository->pending()) === 1 && $repository->pending()[0]['channel'] === Repository::CHANNEL_PENDING,
+        'Proposition absente de la liste d’administration.');
+    check($repository->approve('1.0.1', Repository::CHANNEL_BETA)['version'] === '1.0.1', 'Approbation bêta refusée.');
+    refused(fn() => $repository->approve('1.0.1', Repository::CHANNEL_BETA), 'Double approbation acceptée.', 409);
+    refused(fn() => $repository->discard('1.0.1'), 'Suppression d’une version approuvée acceptée.', 409);
+    refused(fn() => $repository->approve('1.0.1', Repository::CHANNEL_PENDING), 'Retour en attente accepté.', 400);
+    refused(fn() => $repository->approve('1.0.1', 'canal'), 'Canal inconnu accepté.', 400);
+    check($repository->release('1.0.1', Repository::CHANNEL_BETA)['notes'] === $notes, 'Notes absentes après approbation.');
+
+    // Promotion bêta → prod : définitive, avec la même identité signée.
+    $approved = $repository->approve('1.0.1', Repository::CHANNEL_PROD);
+    check($approved === $manifest && $repository->channelOf('1.0.1') === Repository::CHANNEL_PROD, 'Promotion en prod incohérente.');
+    refused(fn() => $repository->approve('1.0.1', Repository::CHANNEL_BETA), 'Retour en bêta accepté.', 409);
+    check(count($repository->releases(null, null)) === 1 && $repository->pending() === [], 'Catalogue public après promotion incorrect.');
     [$status, $body] = request($url . '?action=manifest&version=1.0.1');
     check($status === 200 && Protocol::verify($body, ['test-key' => $public]) === $manifest, 'Manifeste téléchargé incorrect.');
     check(str_contains($body, "\n    \"key_id\""), 'Manifeste publié non indenté.');
@@ -318,11 +374,150 @@ try {
     $redirectClient = array_replace($client, ['server_url' => 'http://' . $address . '/redirect.php']);
     file_put_contents($clientConfig, '<?php return ' . var_export($redirectClient, true) . ';');
     check(command($arguments)[0] === 1 && !file_exists($root . '/redirect-followed'), 'Redirection de publication suivie.');
-    symlink($root . '/storage/releases/v1_0_1', $root . '/storage/releases/v1_0_9');
+    symlink($root . '/storage/prod/v1_0_1', $root . '/storage/prod/v1_0_9');
     check(request($url . '?action=package&version=1.0.9')[0] === 404, 'Alias symbolique de release accepté.');
+    // ---- Mini-UI d'administration : session, CSRF, approbation, promotion, refus. ----
+    // Une seconde version est déposée en attente ; elle ne servira qu'à ces contrôles.
+    $secondZip = $root . '/tycms-1_0_2.zip';
+    copy($zipPath, $secondZip);
+    // Fabriquer un ZIP valide pour 1.0.2 en réécrivant les noms et la version.
+    $archive = new ZipArchive();
+    $archive->open($secondZip, ZipArchive::OVERWRITE);
+    foreach (['index.php', 'configuration.base.php', 'composer.json', 'composer.lock', 'vendor/autoload.php'] as $file) {
+        $archive->addFromString('releases/v1_0_2/' . $file, '<?php // fixture');
+    }
+    $archive->addFromString('releases/v1_0_2/version.php', "<?php\ndefine('APP_VERSION', '1.0.2');\ndefine('APP_VERSION_STRING', '1_0_2');\n");
+    foreach (['public/index.php', 'public/.htaccess', 'updater/index.php', 'var/releases-states.json'] as $file) {
+        $archive->addFromString($file, 'fixture');
+    }
+    $archive->close();
+    $secondNotes = "# Notes 1.0.2\n";
+    file_put_contents($root . '/version.md', $secondNotes);
+    $secondMetadata = ['version' => '1.0.2', 'version_string' => '1_0_2',
+        'source_versions' => '*', 'php_min' => '8.4.1', 'php_max_exclusive' => '8.6.0'];
+    ob_start();
+    finishReleaseArtifacts($secondZip, $root . '/version.md', $secondMetadata, $root);
+    ob_end_clean();
+    $secondManifest = json_decode(file_get_contents($root . '/tycms-1_0_2.build.json'), true, 16, JSON_THROW_ON_ERROR);
+    $secondEnvelope = Protocol::sign($secondManifest, 'test-key', $secret);
+    $secondNotesFrozen = file_get_contents($root . '/tycms-1_0_2.md');
+    check(request($url . '?action=publish', $token, $secondZip, $secondEnvelope, $secondNotesFrozen)[0] === 201,
+        'Seconde proposition refusée.');
+    $pendingDirectory = $root . '/storage/pending/v1_0_2';
+    check(is_dir($pendingDirectory) && !is_dir($root . '/storage/prod/v1_0_2'), 'Proposition rangée hors de l’attente.');
+
+    // Sans session, aucune page d'administration ni action n'est accordée.
+    check(adminRequest($url . '?action=admin')[0] === 200, 'Page de connexion indisponible.');
+    [$status] = adminRequest($url . '?action=approve', ['version' => '1.0.2', 'channel' => 'prod']);
+    check($status === 200 && str_contains(adminRequest($url . '?action=admin')[1], 'Se connecter'),
+        'Action sans session non rendue comme un refus.');
+    check($repository->channelOf('1.0.2') === Repository::CHANNEL_PENDING, 'Action sans session acceptée.');
+
+    // Identifiants faux refusés, puis connexion du compte configuré avec un cookie HttpOnly.
+    [$status, $body] = adminRequest($url . '?action=login', ['user' => 'admin', 'password' => 'mauvais']);
+    check($status === 200 && str_contains($body, 'Identifiants refusés'), 'Mot de passe faux accepté.');
+    [$status, $body, $setCookie, $headers] = adminRequest($url . '?action=login',
+        ['user' => 'admin', 'password' => $adminPassword]);
+    check($status === 303 && is_string($setCookie) && str_starts_with($setCookie, Admin::COOKIE . '=')
+        && stripos($headers, 'httponly') !== false, 'Connexion refusée ou cookie non protégé.');
+    $session = '';
+    if (is_string($setCookie) && str_starts_with($setCookie, Admin::COOKIE . '=')) {
+        $session = substr($setCookie, strlen(Admin::COOKIE) + 1);
+    }
+    check(preg_match('/\A[a-f0-9]{64}\z/', $session) === 1, 'Connexion refusée pour le compte administrateur.');
+    $csrf = Admin::csrf($session);
+    [$status, $body] = adminRequest($url . '?action=admin', null, $session);
+    check($status === 200 && str_contains($body, '1.0.2') && str_contains($body, 'En attente d’approbation (1)')
+        && !str_contains($body, $session), 'Page d’administration incorrecte.');
+    check(!str_contains($body, '<script>'), 'Notes ou données injectées comme HTML.');
+
+    // Le CSRF dérivé de la session est exigé sur chaque mutation : une page de refus n'est pas un succès.
+    [$status, $body] = adminRequest($url . '?action=approve', ['version' => '1.0.2', 'channel' => 'beta'], $session);
+    check($status === 200 && str_contains($body, 'Jeton de formulaire invalide'), 'Mutation sans CSRF non refusée.');
+    check($repository->channelOf('1.0.2') === Repository::CHANNEL_PENDING, 'Mutation sans CSRF appliquée.');
+    [$status, $body] = adminRequest($url . '?action=approve',
+        ['version' => '1.0.2', 'channel' => 'beta', 'csrf' => str_repeat('0', 64)], $session);
+    check($status === 200 && str_contains($body, 'Jeton de formulaire invalide')
+        && $repository->channelOf('1.0.2') === Repository::CHANNEL_PENDING, 'CSRF faux accepté.');
+    [$status, $body] = adminRequest($url . '?action=approve&version=1.0.2&channel=beta', null, $session);
+    check($status === 200 && str_contains($body, 'Méthode refusée'), 'Mutation en GET non refusée.');
+
+    // Un cookie inventé ne remplace pas une session accordée.
+    check(str_contains(adminRequest($url . '?action=admin', null, str_repeat('a', 64))[1], 'Se connecter'),
+        'Session inventée acceptée.');
+
+    // Approbation bêta par le formulaire, puis promotion en prod, puis refus impossible.
+    [$status, , $setCookie, $headers] = adminRequest($url . '?action=approve',
+        ['version' => '1.0.2', 'channel' => 'beta', 'csrf' => $csrf], $session);
+    check($status === 303 && $repository->channelOf('1.0.2') === Repository::CHANNEL_BETA, 'Approbation bêta par formulaire refusée.');
+    check(adminRequest($url . '?action=discard', ['version' => '1.0.2', 'csrf' => $csrf], $session)[0] === 200
+        && is_dir($root . '/storage/beta/v1_0_2'), 'Suppression d’une version bêta acceptée.');
+    check(adminRequest($url . '?action=promote', ['version' => '1.0.2', 'csrf' => $csrf], $session)[0] === 303
+        && $repository->channelOf('1.0.2') === Repository::CHANNEL_PROD, 'Promotion par formulaire refusée.');
+    [$status, $body] = adminRequest($url . '?action=promote', ['version' => '1.0.2', 'csrf' => $csrf], $session);
+    check($status === 200 && str_contains($body, 'déjà dans ce canal')
+        && $repository->channelOf('1.0.2') === Repository::CHANNEL_PROD, 'Double promotion non refusée.');
+
+    // « Refuser » supprime physiquement une proposition et libère son numéro pour un envoi futur.
+    [$status, $body] = adminRequest($url . '?action=discard', ['version' => '1.0.1', 'csrf' => $csrf], $session);
+    check($status === 200 && str_contains($body, 'Seule une version en attente peut être refusée')
+        && $repository->channelOf('1.0.1') === Repository::CHANNEL_PROD, 'Version en prod refusée.');
+    $thirdZip = $root . '/tycms-1_0_3.zip';
+    copy($secondZip, $thirdZip);
+    $archive = new ZipArchive();
+    $archive->open($thirdZip, ZipArchive::OVERWRITE);
+    foreach (['index.php', 'configuration.base.php', 'composer.json', 'composer.lock', 'vendor/autoload.php'] as $file) {
+        $archive->addFromString('releases/v1_0_3/' . $file, '<?php // fixture');
+    }
+    $archive->addFromString('releases/v1_0_3/version.php', "<?php\ndefine('APP_VERSION', '1.0.3');\ndefine('APP_VERSION_STRING', '1_0_3');\n");
+    foreach (['public/index.php', 'public/.htaccess', 'updater/index.php', 'var/releases-states.json'] as $file) {
+        $archive->addFromString($file, 'fixture');
+    }
+    $archive->close();
+    file_put_contents($root . '/version.md', $secondNotes);
+    ob_start();
+    finishReleaseArtifacts($thirdZip, $root . '/version.md',
+        ['version' => '1.0.3', 'version_string' => '1_0_3', 'source_versions' => '*',
+            'php_min' => '8.4.1', 'php_max_exclusive' => '8.6.0'], $root);
+    ob_end_clean();
+    $third = json_decode(file_get_contents($root . '/tycms-1_0_3.build.json'), true, 16, JSON_THROW_ON_ERROR);
+    $thirdEnvelope = Protocol::sign($third, 'test-key', $secret);
+    check(request($url . '?action=publish', $token, $thirdZip, $thirdEnvelope, $secondNotesFrozen)[0] === 201, 'Troisième proposition refusée.');
+    check(adminRequest($url . '?action=discard', ['version' => '1.0.3', 'csrf' => $csrf], $session)[0] === 303,
+        'Refus par formulaire refusé.');
+    check($repository->channelOf('1.0.3') === null && !file_exists($root . '/storage/pending/v1_0_3/package.zip'),
+        'Refus sans suppression physique.');
+    // Un canal inconnu ne doit jamais devenir un nom de dossier (« ../.. » par exemple).
+    refused(fn() => $repository->approve('1.0.2', '../../evil'), 'Canal arbitraire accepté.', 400);
+    check(!file_exists($root . '/evil') && !file_exists(dirname($root) . '/evil'), 'Nom de canal utilisé comme chemin.');
+    [$status, $body] = adminRequest($url . '?action=discard', ['version' => '1.0.3', 'csrf' => $csrf], $session);
+    check($status === 200 && str_contains($body, 'Version introuvable'), 'Refus d’une version absente non signalé.');
+
+    // Déconnexion : la session accordée devient inutilisable.
+    check(adminRequest($url . '?action=logout', null, $session)[0] === 303, 'Déconnexion refusée.');
+    check(str_contains(adminRequest($url . '?action=admin', null, $session)[1], 'Se connecter'), 'Session valide après déconnexion.');
+
+    // Compte absent : l'interface signale l'absence de configuration sans exposer de secret.
+    check(!Admin::configured(['admin_user' => 'admin', 'admin_password_hash' => 'motdepasse']), 'Empreinte faible acceptée.');
+    $noAdmin = array_replace($config, ['admin_password_hash' => '']);
+    $adminRequestSession = '';
+    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($noAdmin, true) . ';');
+    // Le formulaire de connexion exige l'absence de session : une session ouverte rejoint le pilotage.
+    [$status, $body] = adminRequest($url . '?action=login', ['user' => 'admin', 'password' => $adminPassword],
+        str_repeat('b', 64));
+    check($status === 200 && str_contains($body, 'Compte d’administration non configuré')
+        && !str_contains($body, $adminPassword), 'Compte désactivé accepté.');
+    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
+
+    // Après ces essais, le catalogue public ne contient que les versions approuvées en prod.
+    check(count($repository->releases(null, null)) === 2, 'Catalogue public incohérent après approbation.');
+
     $revoked = array_replace($config, ['publish_token_sha256' => []]);
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($revoked, true) . ';');
     check(request($url . '?action=publish', $token, $zipPath, $envelope)[0] === 401, 'Token révoqué accepté.');
+    // Le dernier test de l'API HTTP ; la configuration du mini-UI est restaurée ensuite.
+    $client['allow_loopback_http'] = true;
+    file_put_contents($clientConfig, '<?php return ' . var_export($client, true) . ';');
     $noHttp = array_replace($config, ['allow_loopback_http' => false]);
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($noHttp, true) . ';');
     [$status, $body] = request($url);
@@ -330,6 +525,9 @@ try {
     $client['allow_loopback_http'] = false;
     file_put_contents($clientConfig, '<?php return ' . var_export($client, true) . ';');
     check(command($arguments)[0] === 1, 'HTTP accepté sans exception locale explicite.');
+
+    // Arguments de publication refusés : aucun envoi implicite, aucune configuration du dépôt.
+    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
     foreach (['--from=1.0.0', '--initial-install-only'] as $obsolete) {
         check(command([PHP_BINARY, $repositoryRoot . '/build/publish.php', $zipPath, $obsolete,
             '--config=' . $clientConfig])[0] === 1, 'Ancien paramètre accepté.');
@@ -344,7 +542,8 @@ try {
     check(!str_contains($out, trim(file_get_contents($generated))), 'Clé privée affichée.');
     check((fileperms($generated) & 0777) === 0600, 'Permissions de clé trop larges.');
     check(command([PHP_BINARY, $repositoryRoot . '/build/signing-key.php', $generated])[0] === 1, 'Clé existante écrasée.');
-    echo "OK : signatures, ZIP, authentification, publication PHP locale, HTTP, compatibilités, téléchargement et refus d’écrasement.\n";
+    echo "OK : signatures, ZIP, authentification, publication PHP locale, HTTP, compatibilités, téléchargement, "
+        . "refus d’écrasement et approbation d’administration.\n";
 } finally {
     if (is_resource($server)) {
         proc_terminate($server);

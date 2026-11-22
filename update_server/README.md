@@ -24,6 +24,9 @@ Configurer :
 - `max_package_bytes` : limite par ZIP, 128 Mio par défaut.
 - `allow_loopback_http` : laisser `false` sur l'hébergement. L'exception n'est
   utilisable qu'avec le serveur PHP intégré et une connexion locale.
+- `admin_user` et `admin_password_hash` : compte unique du [mini-UI
+  d'administration](#mini-ui-dadministration-et-approbation). Laisser
+  l'empreinte vide désactive l'interface sans bloquer l'API de publication.
 
 Ajuster aussi les limites de l'hébergement : `upload_max_filesize`,
 `post_max_size` (plus grand que le ZIP pour le multipart), limite HTTP du
@@ -36,6 +39,22 @@ Le `.htaccess` conserve l'en-tête Authorization pour Apache/FastCGI. Vérifier
 sa transmission sur l'hébergement ; aucun token dans une URL ou un cookie ne
 sert de solution de repli. HTTPS doit être reconnu via `HTTPS=on` ou `1` : les
 en-têtes `X-Forwarded-*` fournis par le client ne sont pas utilisés.
+
+### Compte d'administration
+
+Le mini-UI n'a qu'un compte, défini dans `configuration.php`. Générer son
+empreinte Argon2id sur la machine de publication, sans jamais écrire le mot de
+passe en argument de commande :
+
+```bash
+php update_server/tools/admin-password.php
+```
+
+L'outil lit le mot de passe sur l'entrée standard (12 caractères au moins) et
+n'affiche que la ligne `'admin_password_hash' => '…',` à reporter dans la
+configuration serveur. La saisie n'est recopiée ni dans un fichier ni dans une
+sortie. Changer le mot de passe : relancer l'outil et remplacer l'empreinte ;
+les sessions en cours restent valides jusqu'à leur expiration (8 heures).
 
 ## Tokens de publication
 
@@ -75,18 +94,63 @@ Le serveur vérifie la clé reconnue, la signature, la taille, le SHA-256, les
 chemins et la version contenue dans le ZIP, sans extraction ni exécution PHP.
 Les notes sont également vérifiées avec leur taille et leur SHA-256 signés.
 Les uploads ne choisissent jamais les chemins de stockage ni les fichiers PHP
-à inclure. Un verrou exclusif non bloquant protège la publication ; une
+à inclure. Un verrou exclusif non bloquant protège toute mutation d'état ; une
 opération concurrente reçoit HTTP 409. Le paquet est copié dans un dossier
-privé aléatoire, puis l'ensemble paquet/manifeste/notes est rendu visible par un
-renommage atomique sous `storage/releases/v<version_string>/`.
+privé aléatoire, puis l'ensemble paquet/manifeste/notes est déplacé par un
+renommage atomique dans l'état « en attente ». **Un envoi réussi ne rend donc
+rien public** : la release attend l'approbation décrite ci-dessous.
 
-Une version publiée est immuable, même pour un envoi identique : HTTP 409.
-Pour corriger une release, fabriquer et publier une nouvelle version. Une
-interruption réseau peut survenir après la publication effective : consulter
-le manifeste distant et son SHA-256 avant de réessayer. Les échecs ordinaires
-nettoient leur dossier temporaire ; un arrêt forcé de PHP peut laisser un
-`.incoming-*` privé et invisible au catalogue. Le nettoyage de ces restes
-n'est pas automatisé.
+Une version ne change jamais de numéro ni de contenu : un envoi identique
+reçoit HTTP 409, quel que soit son état. Pour corriger une release, fabriquer
+et envoyer une nouvelle version. Une interruption réseau peut survenir après
+l'enregistrement effectif : vérifier l'état dans le mini-UI avant de réessayer.
+Les échecs ordinaires nettoient leur dossier temporaire ; un arrêt forcé de
+PHP peut laisser un `.incoming-*` privé et invisible. Le nettoyage de ces
+restes n'est pas automatisé.
+
+## Mini-UI d'administration et approbation
+
+Le mini-UI est servi par la même route que l'API, après authentification :
+`https://update.example.org/index.php?action=admin`. Il est réservé au compte
+`admin_user` et reste inactif tant que `admin_password_hash` est vide.
+
+```text
+en attente ──Approuver Bêta──▶ bêta ──Promouvoir en Prod──▶ prod
+           └─Approuver Prod─────────────────────────────────▶ prod
+           └─Refuser : suppression physique
+```
+
+| État | Servi par défaut | Servi avec `?action=releases&channel=…` | Boutons |
+| --- | --- | --- | --- |
+| en attente | non | non | Approuver Bêta, Approuver Prod, Refuser |
+| bêta | non | `channel=beta` | Promouvoir en Prod |
+| prod | oui, par défaut et `channel=prod` | oui | aucun |
+
+- **En attente** : état initial de toute proposition envoyée. Le dossier reste
+  sous `storage/pending/` ; le catalogue, le manifeste et le paquet répondent
+  HTTP 404 pour cette version.
+- **Bêta** : servie seulement aux installations qui demandent la bêta ; elle
+  sert à essayer une release sur une instance de confiance avant les clients.
+- **Prod** : servie par défaut, donc à toutes les installations.
+- **Transitions** : une bêta passe en prod ; un retour prod → bêta ou
+  bêta → attente est refusé (HTTP 409). L'identité servie à une installation ne
+  change donc jamais d'état en arrière. Une version refusée est supprimée avec
+  ses fichiers ; son numéro redevient libre pour un nouvel envoi.
+- **Pas de rétention automatique** : une proposition reste affichée jusqu'à
+  l'approbation ou le refus. Réexaminer de temps en temps la liste.
+- **Notes** : affichées en texte simple (Markdown non interprété), échappées,
+  avant toute décision.
+
+Les mutations sont des `POST` portant un jeton CSRF dérivé de la session, puis
+redirigées par HTTP 303 : un rechargement ne rejoue jamais l'action. La session
+est un jeton aléatoire de 256 bits conservé sous `storage/sessions/`, transmis
+par le cookie `HttpOnly`, `Secure`, `SameSite=Strict` : un cookie inventé ne
+vaut pas session. Cinq échecs de connexion sur une fenêtre de quinze minutes
+renvoient HTTP 429, ce qui ralentit une recherche de mot de passe sans blocage
+définitif. Les pages portent une CSP à nonce et n'affichent aucun chemin privé.
+
+En l'absence de session, une erreur d'administration est rendue comme une page
+de refus ; les réponses JSON de l'API ne changent pas.
 
 ## Protocole HTTP, schéma 1
 
@@ -95,12 +159,20 @@ aucune réécriture d'URL spécifique n'est nécessaire.
 
 | Requête | Résultat |
 | --- | --- |
-| `POST ?action=publish` | Multipart `manifest` (texte de l'enveloppe JSON), `package` (ZIP) et `notes` (Markdown), Bearer token requis. HTTP 201 avec `published` et `sha256`. |
-| `GET ?action=releases` | Catalogue `schema_version: 1`, `releases` : enveloppes signées, triées par version croissante. |
+| `POST ?action=publish` | Multipart `manifest` (texte de l'enveloppe JSON), `package` (ZIP) et `notes` (Markdown), Bearer token requis. HTTP 201 avec `published` et `sha256` : la version est enregistrée **en attente**, pas encore distribuée. |
+| `GET ?action=releases` | Catalogue `schema_version: 1`, `releases` : enveloppes signées en prod uniquement, triées par version croissante. |
 | `GET ?action=releases&source=1.0.0&php=8.4.27` | Releases dont la liste inclut exactement la source et dont les bornes PHP conviennent. Fournir ensemble les deux filtres. |
+| `GET ?action=releases&channel=prod` | Même catalogue explicite ; valeur par défaut. |
+| `GET ?action=releases&channel=beta` | Releases en bêta et en prod. La bêta n'est jamais servie sans cette demande. |
 | `GET ?action=manifest&version=1.0.1` | Enveloppe signée de la release. |
 | `GET ?action=notes&version=1.0.1` | Markdown original, sans rendu HTML, en téléchargement. HTTP 404 pour une ancienne release sans notes. |
 | `GET ?action=package&version=1.0.1` | ZIP public de la release, servi en flux depuis le stockage privé. |
+
+Sans session, `manifest`, `notes` et `package` d'une version en bêta restent
+accessibles à qui connaît son numéro : la bêta est publique, elle n'est
+simplement pas proposée. Une version en attente n'a aucun accès public.
+Le filtre `channel` ne remplace jamais les contrôles de signature ni de
+compatibilité ; il choisit seulement l'état interrogé.
 
 Les téléchargements sont publics ; seul l'envoi exige un token. Les erreurs
 n'exposent ni chemins ni traces : 400 paramètres/HTTPS, 401 authentification,
@@ -229,7 +301,10 @@ factices sous `/tmp`, nettoyés ensuite. Il n'utilise ni SQL, ni secrets réels,
 ni données du site. Il couvre la publication par le vrai client PHP, les
 signatures, tokens, filtres, téléchargements, chemins, doublons et concurrence.
 Les paramètres HTTPS, upload et Authorization du mutualisé restent à vérifier
-sur l'hébergement avec Yann.
+sur l'hébergement avec Yann. Le test couvre aussi le mini-UI : connexion,
+cookie et CSRF, approbation bêta puis promotion en prod, refus d'une version
+en prod, suppression physique d'une proposition, déconnexion et compte
+désactivé.
 
 ## Validation du déploiement avant les clés définitives
 

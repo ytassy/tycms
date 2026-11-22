@@ -71,6 +71,11 @@ ajoutée à la confiance locale.
 ## Sélection et serveurs de secours
 
 Le client demande le catalogue complet et vérifie **toutes** ses enveloppes.
+Le serveur de distribution ne sert par défaut que les versions en prod : une
+version en attente d'approbation et une version en bêta n'y figurent pas. Le
+choix du canal bêta côté client (paramètre `channel` du catalogue et réglage
+local) relève d'un lot ultérieur ; en attendant, la bêta s'essaie depuis le
+mini-UI du serveur ou avec une installation dédiée à la validation.
 Sur une release stable, il filtre ensuite localement : une cible doit être strictement supérieure à la
 source, accepter la source via `source_versions` et accepter le PHP réel :
 borne minimale incluse, borne maximale exclue. La première installation reste

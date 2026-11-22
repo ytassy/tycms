@@ -64,12 +64,20 @@ bundles sont exclus. Les liens symboliques sont refusés.
 
 ## Publication séparée
 
-La fabrication et la publication sont deux commandes distinctes :
+La fabrication et la proposition au serveur sont deux commandes distinctes :
 
 ```bash
 ./build/build.sh
 php build/publish.php
 ```
+
+`publish.php` **propose** la version : le serveur la range en attente
+d'approbation et ne la distribue pas encore. La réussite affiche
+`Proposition enregistrée : X.Y.Z, en attente d'approbation`. Un
+administrateur doit ensuite l'approuver en bêta ou en prod depuis le
+[mini-UI du serveur](../update_server/README.md#mini-ui-dadministration-et-approbation).
+Avant cette approbation, le catalogue reste sans changement pour tous les
+sites installés.
 
 Sans ZIP en argument, la publication liste les ZIP `tycms-X_Y_Z.zip` disponibles
 dans `build/dist/`, du plus récent au plus ancien. Choisir un numéro, puis
@@ -219,8 +227,10 @@ permet au serveur et aux consommateurs de vérifier leur signature.
 
    Le client lit aussi `tycms-1_0_0.build.json` et `tycms-1_0_0.md` dans le
    même dossier. Il signe le manifeste et envoie les fichiers avec le token.
-   Une réussite affiche `Version publiée : 1.0.0` et l'empreinte du ZIP.
-   Cette commande ne met à jour aucun site Tycms.
+   Une réussite affiche `Proposition enregistrée : 1.0.0, en attente d'approbation`
+   et l'empreinte du ZIP. Approuver la version dans l'interface
+   d'administration du serveur de validation pour que les installations de
+   test la voient. Cette commande ne met à jour aucun site Tycms.
 
 6. Consulter le catalogue et le manifeste depuis chacun des domaines :
 
