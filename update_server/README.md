@@ -193,8 +193,9 @@ Le payload signé contient :
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "type": "system",
+  "channel": "prod",
   "version": "1.0.1",
   "version_string": "1_0_1",
   "source_versions": ["1.0.0"],
@@ -212,6 +213,12 @@ Le payload signé contient :
   }
 }
 ```
+
+`channel` vaut `prod` ou `beta`. Le build écrit toujours `prod` : le canal est
+un choix de diffusion décidé à l'approbation sur le serveur, jamais par le poste
+qui publie. Le schéma `2` exige ce champ ; un manifeste `schema_version: 1`
+reste lu et vaut `prod`, pour que les releases déjà signées continuent d'être
+servies sans réécriture.
 
 Versions stables `X.Y.Z` uniquement. La première installation reste toujours
 permise. `"*"` couvre toute version antérieure ; une liste vide signifie

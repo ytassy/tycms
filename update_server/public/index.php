@@ -164,7 +164,10 @@ try {
     if ($action === 'releases') {
         $source = $_GET['source'] ?? null;
         $php = $_GET['php'] ?? null;
-        if (($source !== null && !is_string($source)) || ($php !== null && !is_string($php))) {
+        // Le canal est un choix explicite du client : absent, seules les releases de prod sont servies.
+        $channel = $_GET['channel'] ?? null;
+        if (($source !== null && !is_string($source)) || ($php !== null && !is_string($php))
+            || ($channel !== null && !is_string($channel))) {
             throw new HttpError(400, 'Filtres invalides.');
         }
         try {
@@ -177,7 +180,8 @@ try {
         } catch (RuntimeException) {
             throw new HttpError(400, 'Filtres invalides.');
         }
-        $respond(['schema_version' => 1, 'releases' => $repository->releases($source, $php)]);
+        // Le catalogue lui-même reste en v1 : il ne transporte que des enveloppes signées.
+        $respond(['schema_version' => 1, 'releases' => $repository->releases($source, $php, $channel)]);
     }
     if (!in_array($action, ['manifest', 'package', 'notes'], true)) {
         throw new HttpError(404, 'Action inconnue.');

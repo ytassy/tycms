@@ -64,7 +64,7 @@ est un lot à part (A2 protocole, A3 client), jamais activable par une URL.
 | A | Serveur : états, approbation, mini-UI, compte admin | Livré |
 | B | `publish.php` annonce une proposition en attente | Livré |
 | C | CI cœur : contrôles et release sur `push prod_*` | Livré |
-| A2 | Protocole : `schema_version: 2` avec `channel`, lecture v1 | À faire |
+| A2 | Protocole : `schema_version: 2` avec `channel`, lecture v1 | Livré |
 | A3 | Client : réglage `update_channel`, filtre bêta | À faire |
 | F | Notifications Telegram / Slack / Discord (webhooks) | À faire |
 | G | Tickets GitHub : analyse read-only, correction après étiquette | À faire |
@@ -98,6 +98,21 @@ hors du dépôt, `verify-artifacts.php` contrôle les trois compagnons du build.
 Deux règles s'y imposent : aucun secret en argument de commande, aucune
 écriture sous le dépôt. Les workflows n'ont plus de code PHP en ligne. Les workflows ne s'arrêtent sur aucun test d'intégration MySQL :
 la suite `integration` exige une base dédiée et un compte de test.
+
+## Protocole de distribution, schéma 2
+
+Le manifeste signé porte `schema_version: 2` et un `channel` (`prod` ou
+`beta`). Le build écrit **toujours `prod`** : le canal est décidé à
+l'approbation sur le serveur, jamais par le poste qui publie. Le serveur sert
+la prod par défaut et n'ajoute la bêta que si le client le demande
+(`?action=releases&channel=beta`).
+
+Un manifeste `schema_version: 1` reste **lu et traité comme prod**. C'est
+indispensable : les installations déjà en service (dont la production de
+`tests.yanntassy.fr`, en 1.1.5) refusent toute autre version de schéma. Elles
+ne pourront lire la v2 qu'après avoir installé une release dont le client
+accepte les deux — c'est l'objet du lot A3. Tant que ce lot n'est pas publié,
+une release v2 ne doit pas être la seule proposée.
 
 ## Limites ouvertes
 

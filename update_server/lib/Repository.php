@@ -393,20 +393,31 @@ final class Repository
             'package' => $directory . '/package.zip', 'notes' => $notes];
     }
 
-    public function releases(?string $source, ?string $php): array
+    public function releases(?string $source, ?string $php, ?string $channel = null): array
     {
         if (($source === null) !== ($php === null)) {
             throw new HttpError(400, 'Fournir ensemble source et php.');
+        }
+        // Sans demande explicite, seules les releases de prod sont proposées.
+        $channel ??= Protocol::CHANNEL_PROD;
+        if (!in_array($channel, [Protocol::CHANNEL_PROD, Protocol::CHANNEL_BETA], true)) {
+            throw new HttpError(400, 'Canal invalide.');
         }
         if ($source !== null) {
             Protocol::version($source);
             Protocol::version($php);
         }
+        // La bêta n'est ajoutée qu'à la demande : un client qui n'en parle pas ne la voit jamais.
+        $states = $channel === Protocol::CHANNEL_BETA
+            ? [self::CHANNEL_BETA, self::CHANNEL_PROD]
+            : [self::CHANNEL_PROD];
         $found = [];
-        foreach ($this->entries(self::CHANNEL_PROD) as $version) {
-            $release = $this->release($version, self::CHANNEL_PROD);
-            if ($source === null || Protocol::compatible($release['manifest'], $source, $php)) {
-                $found[$version] = json_decode($release['envelope'], true, 16, JSON_THROW_ON_ERROR);
+        foreach ($states as $state) {
+            foreach ($this->entries($state) as $version) {
+                $release = $this->release($version, $state);
+                if ($source === null || Protocol::compatible($release['manifest'], $source, $php)) {
+                    $found[$version] = json_decode($release['envelope'], true, 16, JSON_THROW_ON_ERROR);
+                }
             }
         }
         uksort($found, 'version_compare');

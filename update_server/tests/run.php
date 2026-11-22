@@ -500,17 +500,89 @@ try {
     // Compte absent : l'interface signale l'absence de configuration sans exposer de secret.
     check(!Admin::configured(['admin_user' => 'admin', 'admin_password_hash' => 'motdepasse']), 'Empreinte faible acceptée.');
     $noAdmin = array_replace($config, ['admin_password_hash' => '']);
-    $adminRequestSession = '';
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($noAdmin, true) . ';');
-    // Le formulaire de connexion exige l'absence de session : une session ouverte rejoint le pilotage.
-    [$status, $body] = adminRequest($url . '?action=login', ['user' => 'admin', 'password' => $adminPassword],
-        str_repeat('b', 64));
+
+    // Sans compte configuré, une session encore valide n'ouvre plus le pilotage des versions.
+    [$status, $body] = adminRequest($url . '?action=admin', null, $session);
+    check($status === 200 && str_contains($body, 'Connexion requise')
+        && !str_contains($body, 'Approuver'), 'Pilotage accessible sans compte configuré.');
+
+    // Seul un POST de connexion sans session exercé la configuration : avec une session, la
+    // requête rejoint le pilotage sans relire le compte.
+    [$status, $body] = adminRequest($url . '?action=login', ['user' => 'admin', 'password' => $adminPassword]);
     check($status === 200 && str_contains($body, 'Compte d’administration non configuré')
         && !str_contains($body, $adminPassword), 'Compte désactivé accepté.');
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
 
     // Après ces essais, le catalogue public ne contient que les versions approuvées en prod.
     check(count($repository->releases(null, null)) === 2, 'Catalogue public incohérent après approbation.');
+
+    // ---- Schéma 2 et canaux : la bêta n'est servie qu'à un client qui la demande. ----
+    // Le build produit désormais un manifeste v2 de prod ; la fixture historique reste v1 ci-dessous.
+    check(($manifest['schema_version'] ?? null) === 2 && Protocol::channel($manifest) === Protocol::CHANNEL_PROD,
+        'Le build n’a pas produit un manifeste v2 de prod.');
+    $betaManifest = array_replace($manifest, ['schema_version' => 2, 'channel' => 'beta']);
+    Protocol::validate($betaManifest);
+    check(Protocol::channel($betaManifest) === 'beta', 'Canal bêta ignoré.');
+    foreach ([null, '', 'canal', 'PROD', ['prod']] as $invalid) {
+        refused(fn() => Protocol::validate(array_replace($manifest, ['schema_version' => 2, 'channel' => $invalid])),
+            'Canal v2 invalide accepté.');
+    }
+    refused(fn() => Protocol::validate(array_replace($manifest, ['schema_version' => 3])), 'Schéma futur accepté.');
+    refused(fn() => Protocol::validate(array_replace($manifest, ['schema_version' => '1'])), 'Schéma texte accepté.');
+    // La v1 reste valide sans canal : les releases déjà signées restent lisibles.
+    $legacyManifest = ['schema_version' => 1] + array_diff_key($manifest, ['schema_version' => true, 'channel' => true]);
+    Protocol::validate($legacyManifest);
+    check(Protocol::channel($legacyManifest) === Protocol::CHANNEL_PROD, 'Manifeste v1 sans canal non traité comme prod.');
+    check(!array_key_exists('channel', $legacyManifest), 'La validation a modifié le manifeste reçu.');
+
+    // Une release bêta coexiste avec les releases de prod du catalogue.
+    $betaZip = $root . '/tycms-1_0_4.zip';
+    copy($zipPath, $betaZip);
+    $archive = new ZipArchive();
+    $archive->open($betaZip, ZipArchive::OVERWRITE);
+    foreach (['index.php', 'configuration.base.php', 'composer.json', 'composer.lock', 'vendor/autoload.php'] as $file) {
+        $archive->addFromString('releases/v1_0_4/' . $file, '<?php // fixture');
+    }
+    $archive->addFromString('releases/v1_0_4/version.php', "<?php\ndefine('APP_VERSION', '1.0.4');\ndefine('APP_VERSION_STRING', '1_0_4');\n");
+    foreach (['public/index.php', 'public/.htaccess', 'updater/index.php', 'var/releases-states.json'] as $file) {
+        $archive->addFromString($file, 'fixture');
+    }
+    $archive->close();
+    file_put_contents($root . '/version.md', $secondNotes);
+    ob_start();
+    finishReleaseArtifacts($betaZip, $root . '/version.md',
+        ['version' => '1.0.4', 'version_string' => '1_0_4', 'source_versions' => '*',
+            'php_min' => '8.4.1', 'php_max_exclusive' => '8.6.0'], $root);
+    ob_end_clean();
+    $betaBuilt = json_decode(file_get_contents($root . '/tycms-1_0_4.build.json'), true, 16, JSON_THROW_ON_ERROR);
+    check(($betaBuilt['schema_version'] ?? null) === 2 && ($betaBuilt['channel'] ?? null) === 'prod',
+        'Le build ne produit pas un manifeste v2 de prod.');
+    $betaEnvelope = Protocol::sign(array_replace($betaBuilt, ['channel' => 'beta']), 'test-key', $secret);
+    // Les notes figées de 1.0.4 sont produites avec ce build : relire le Markdown correspondant.
+    $betaNotes = file_get_contents($root . '/tycms-1_0_4.md');
+    [$betaStatus, $betaBody] = request($url . '?action=publish', $token, $betaZip, $betaEnvelope, $betaNotes);
+    check($betaStatus === 201, 'Proposition bêta refusée (HTTP ' . $betaStatus . ' : ' . $betaBody . ').');
+    check($repository->approve('1.0.4', Repository::CHANNEL_BETA)['version'] === '1.0.4', 'Approbation bêta refusée.');
+    // Le catalogue renvoie les enveloppes déjà décodées : les vérifier avant d'en lire la version.
+    $versions = static function (array $envelopes) use ($public): array {
+        return array_map(static fn(array $envelope): string
+            => Protocol::verify(json_encode($envelope, JSON_THROW_ON_ERROR), ['test-key' => $public])['version'], $envelopes);
+    };
+    $prodOnly = $versions(json_decode(request($url . '?action=releases')[1], true)['releases']);
+    check(count($prodOnly) === 2 && !in_array('1.0.4', $prodOnly, true),
+        'Release bêta servie à un client qui ne la demande pas.');
+    $withBeta = $versions(json_decode(request($url . '?action=releases&channel=beta')[1], true)['releases']);
+    check(count($withBeta) === 3 && in_array('1.0.4', $withBeta, true), 'Release bêta absente du canal bêta.');
+    check(count(json_decode(request($url . '?action=releases&channel=prod')[1], true)['releases']) === 2,
+        'Canal prod explicite différent du défaut.');
+    check(request($url . '?action=releases&channel=canal')[0] === 400, 'Canal inconnu accepté par la route.');
+    check(request($url . '?action=releases&channel[]=beta')[0] === 400, 'Canal non scalaire accepté.');
+    check(json_decode(request($url . '?action=releases&source=1.0.0&php=8.4.1&channel=beta')[1], true)['releases'] !== [],
+        'Filtres source/PHP ignorés avec la bêta.');
+
+    // Les essais de canal ont besoin d'HTTP local : restaurer la configuration avant la suite.
+    file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($config, true) . ';');
 
     $revoked = array_replace($config, ['publish_token_sha256' => []]);
     file_put_contents($root . '/server/configuration.php', '<?php return ' . var_export($revoked, true) . ';');

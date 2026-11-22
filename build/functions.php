@@ -487,7 +487,9 @@ function finishReleaseArtifacts(string $zip, string $notes, array $metadata, str
     if (!is_string($contents) || strlen($contents) < 1 || strlen($contents) > Protocol::MAX_NOTES_BYTES) {
         throw new RuntimeException('Notes de version absentes ou trop volumineuses.');
     }
-    $manifest = ['schema_version' => 1, 'type' => 'system'] + $metadata + [
+    // Manifeste v2 : le build produit une release de prod ; le canal reste modifiable sur le serveur.
+    $manifest = ['schema_version' => Protocol::SCHEMA_VERSION, 'type' => 'system',
+        'channel' => Protocol::CHANNEL_PROD] + $metadata + [
         'archive' => ['filename' => $base . '.zip', 'bytes' => filesize($zip), 'sha256' => hash_file('sha256', $zip)],
         'release_notes' => ['filename' => $base . '.md', 'bytes' => strlen($contents), 'sha256' => hash('sha256', $contents)],
     ];

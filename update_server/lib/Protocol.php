@@ -13,6 +13,13 @@ final class Protocol
     public const MAX_MANIFEST_BYTES = 65536;
     public const MAX_NOTES_BYTES = 262144;
 
+    /** Schéma de manifeste produit et lu par ce serveur. */
+    public const SCHEMA_VERSION = 2;
+    /** Schémas acceptés à la lecture : une release v1 reste un manifeste de prod valide. */
+    public const SCHEMA_VERSIONS = [1, 2];
+    public const CHANNEL_BETA = 'beta';
+    public const CHANNEL_PROD = 'prod';
+
     public static function version(mixed $value): string
     {
         if (!is_string($value) || strlen($value) > 48
@@ -85,8 +92,16 @@ final class Protocol
 
     public static function validate(array $manifest): void
     {
-        if (($manifest['schema_version'] ?? null) !== 1 || ($manifest['type'] ?? null) !== 'system') {
+        // La v1 ne porte pas de canal : elle est lue comme une release de prod.
+        // La v2 l'exige explicitement, pour qu'aucune release ne soit servie au
+        // mauvais public par simple omission.
+        if (!in_array($manifest['schema_version'] ?? null, self::SCHEMA_VERSIONS, true)
+            || ($manifest['type'] ?? null) !== 'system') {
             throw new RuntimeException('Schéma de manifeste inconnu.');
+        }
+        if ($manifest['schema_version'] === self::SCHEMA_VERSION
+            && !in_array($manifest['channel'] ?? null, [self::CHANNEL_BETA, self::CHANNEL_PROD], true)) {
+            throw new RuntimeException('Canal de publication invalide.');
         }
         $metadata = self::releaseMetadata($manifest);
         $suffix = $metadata['version_string'];
@@ -148,6 +163,14 @@ final class Protocol
             || !is_string($notes['sha256'] ?? null) || preg_match('/\A[a-f0-9]{64}\z/', $notes['sha256']) !== 1) {
             throw new RuntimeException('Identité des notes de version invalide.');
         }
+    }
+
+    /** Canal effectif d'un manifeste validé : un manifeste v1 est une release de prod. */
+    public static function channel(array $manifest): string
+    {
+        return ($manifest['schema_version'] ?? null) === self::SCHEMA_VERSION
+            ? ($manifest['channel'] ?? self::CHANNEL_PROD)
+            : self::CHANNEL_PROD;
     }
 
     public static function compatible(array $manifest, string $source, string $php): bool
