@@ -44,8 +44,10 @@ jobs:
 
       # Le paquet est fabriqué dans une image isolée, sans accès réseau pendant
       # la préparation et sans les secrets de publication.
+      # `./build/build.sh` demande une confirmation et s'arrête en code 0 sans
+      # entrée interactive : la CI utilise le point d'entrée sans question.
       - name: Fabriquer la release
-        run: ./build/build.sh
+        run: bash docker/build/build.sh
 
       # La version vient de version.json ; les trois compagnons doivent exister.
       - name: Vérifier les artefacts

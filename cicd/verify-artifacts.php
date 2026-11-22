@@ -57,11 +57,19 @@ try {
         'tycms-' . $suffix . '.build.json',
         'tycms-' . $suffix . '.md',
     ];
+    $missing = [];
     foreach ($expected as $name) {
         $path = $real . '/' . $name;
         if (!is_file($path) || is_link($path) || filesize($path) === 0) {
-            throw new RuntimeException('Artefact absent ou vide : ' . $name);
+            $missing[] = $name;
         }
+    }
+    if ($missing !== []) {
+        // Lister ce qui est présent aide à voir un build annulé ou une version mal incrémentée.
+        $present = array_values(array_filter(scandir($real) ?: [], static fn(string $name): bool
+            => preg_match('/\Atycms-.+\.(?:zip|build\.json|md)\z/', $name) === 1));
+        throw new RuntimeException('Artefacts manquants pour ' . $version . ' : ' . implode(', ', $missing)
+            . '. Présents dans ' . $directory . ' : ' . ($present === [] ? 'aucun' : implode(', ', $present)) . '.');
     }
 
     // Exposer la version au workflow seulement après les contrôles.
