@@ -68,7 +68,7 @@ profondeur). Le réglage est local, jamais activable par une URL.
 | C | CI cœur : contrôles et release sur `push prod_*` | Livré |
 | A2 | Protocole : `schema_version: 2` avec `channel`, lecture v1 | Livré |
 | A3 | Client : réglage `update_channel`, filtre bêta | Livré |
-| F | Notifications Telegram / Slack / Discord (webhooks) | À faire |
+| F | Notifications Telegram / Slack / Discord (webhooks) | Livré |
 | G | Tickets GitHub : analyse read-only, correction après étiquette | À faire |
 | H | `security_X` : analyse différentielle avec SHA analysé | À faire |
 | D | CI extensions : build puis dépôt catalogue | À faire |
@@ -115,6 +115,17 @@ indispensable : les installations déjà en service (dont la production de
 ne pourront lire la v2 qu'après avoir installé une release dont le client
 accepte les deux — c'est l'objet du lot A3. Tant que ce lot n'est pas publié,
 une release v2 ne doit pas être la seule proposée.
+
+## Notifications des workflows
+
+`cicd/notify.php`, appelé en fin de workflow, envoie vers Telegram, Slack ou
+Discord selon les secrets présents. Politique retenue : silence sur un `push`
+en `dev_*` (GitHub prévient déjà par e-mail), échec **et** succès sur `prod_*`,
+échec et succès pour les autres événements (tickets, sécurité). Aucun canal
+configuré : le script ne fait rien. Une notification manquée ne fait jamais
+échouer le workflow.
+
+Le serveur de distribution ne notifie pas : son propriétaire le gère seul.
 
 ## Limites ouvertes
 

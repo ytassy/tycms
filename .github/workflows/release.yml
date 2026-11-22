@@ -93,3 +93,16 @@ jobs:
       - name: Effacer les secrets de la machine
         if: always()
         run: rm -rf "$RUNNER_TEMP/tycms-publication"
+
+      # Notifier la fin du workflow : succès (proposition déposée) et échec.
+      # Le script ne fait jamais échouer le job ; sans secret, il ne fait rien.
+      - name: Notifier le résultat
+        if: always()
+        env:
+          TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          NOTIFY_STATUS: ${{ job.status }}
+          NOTIFY_VERSION: ${{ steps.version.outputs.version }}
+          NOTIFY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: php cicd/notify.php

@@ -110,3 +110,15 @@ jobs:
             --env HOME=/tmp \
             "$NODE_IMAGE" \
             node --test tests/*.test.js
+
+      # Notifier la fin du workflow, sauf sur `dev_*` (GitHub prévient par e-mail).
+      # Le script ne fait jamais échouer le job : une alerte manquée ne casse rien.
+      - name: Notifier un échec
+        if: failure()
+        env:
+          TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          NOTIFY_STATUS: ${{ job.status }}
+          NOTIFY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: php cicd/notify.php
