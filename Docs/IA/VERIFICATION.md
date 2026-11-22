@@ -44,6 +44,17 @@ les propriétés à hooks ; un PHP plus ancien sur l'hôte ne suffit pas à vali
 le code. Les tests qui créent `Application` sans démarrage doivent enregistrer
 les types de formulaire utilisés ; voir [Formulaires](../FORMS.md#types-de-champs-dextension).
 
+Le résultat de référence est celui **dans l'image de développement**
+(`docker/dev/test.sh`), la même que l'intégration continue construit. Un PHP
+d'hôte plus récent sérialise l'HTML et le rendu différemment : un test vert sur
+l'hôte peut échouer en CI, et inversement.
+
+Un test qui compare du HTML resérialisé par `DOMDocument::saveHTML()` ne doit pas
+dépendre de la forme d'un attribut booléen : selon la version de libxml, un
+`hidden` d'origine revient en `hidden` ou en `hidden=""`, sans changer le rendu.
+Comparer ce qui est rendu — texte du fragment, attributs `data-*` — plutôt que
+la chaîne complète. Exemple : `ShortCodeTest::testDiagramKeepsIndentation…`.
+
 ## Frontend et build
 
 ```bash

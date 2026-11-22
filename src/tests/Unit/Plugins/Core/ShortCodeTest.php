@@ -61,7 +61,36 @@ final class ShortCodeTest extends FrameworkTestCase
         self::assertStringContainsString('data-mermaid-theme="forest"', $html);
         self::assertStringContainsString('width:600px', $html);
         self::assertStringContainsString("mindmap\n  root(([[USER_name]]))", $html);
-        self::assertSame($html, $helper->applyShortCodes($html, 7));
+        self::assertSame("mindmap\n  root(([[USER_name]]))", self::diagramSource($html));
+
+        // Le second passage conserve le diagramme : même source, mêmes attributs.
+        // La comparaison porte sur ce qui est rendu, pas sur la sérialisation HTML
+        // brute : libxml ajoute ou retire la valeur vide d'un attribut booléen selon
+        // sa version (« hidden » ou « hidden="" »), sans changer le rendu.
+        $second = $helper->applyShortCodes($html, 7);
+        self::assertSame(self::diagramSource($html), self::diagramSource($second));
+        self::assertSame(self::diagramAttributes($html), self::diagramAttributes($second));
+        self::assertSame(1, substr_count($second, 'data-shortcode-diagram="1"'));
+    }
+
+    /** Source brute du diagramme, telle qu'elle sera rendue par Mermaid. */
+    private static function diagramSource(string $html): string
+    {
+        preg_match('~<pre class="tytools-mermaid-source"[^>]*>(.*?)</pre>~s', $html, $match);
+        return html_entity_decode($match[1] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    /** Attributs de la balise du diagramme, dans l'ordre du rendu. */
+    private static function diagramAttributes(string $html): array
+    {
+        preg_match('~<div id="[^"]+" class="tytools-mermaid"[^>]*>~', $html, $match);
+        preg_match_all('~([a-z-]+)="([^"]*)"~', $match[0] ?? '', $attributes, PREG_SET_ORDER);
+        return array_values(array_filter(array_map(
+            static fn(array $attribute): string|false => str_starts_with($attribute[1], 'data-')
+                ? $attribute[1] . '=' . $attribute[2]
+                : false,
+            $attributes
+        ), static fn(string|false $attribute): bool => $attribute !== false));
     }
 
     public function testDiagramRejectsUnknownAndRepeatedOptions(): void

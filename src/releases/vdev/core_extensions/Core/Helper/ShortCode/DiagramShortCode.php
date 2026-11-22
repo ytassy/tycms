@@ -199,7 +199,9 @@ final class DiagramShortCode
             . '" data-mermaid-theme="' . $options['theme']
             . '" data-mermaid-sketch="' . $options['sketch']
             . '" data-mermaid-wrap-width="' . $options['wrapwidth'] . '">'
-            . '<pre class="tytools-mermaid-source" hidden="">'
+            // Attribut booléen sans valeur : la sortie reste identique après un nouveau
+            // passage dans le parseur HTML, quelle que soit la version de libxml.
+            . '<pre class="tytools-mermaid-source" hidden>'
             . htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
             . '</pre><div class="tytools-mermaid-output" role="img" aria-label="Diagramme Mermaid">Diagramme Mermaid : activez JavaScript pour l’afficher.</div></div>';
     }
