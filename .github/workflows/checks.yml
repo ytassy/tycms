@@ -86,14 +86,13 @@ jobs:
             --entrypoint php "$PHP_IMAGE" \
             update_server/tests/run.php
 
-      # Dépendances Node dans un volume nommé, hors du dépôt. Le volume appartient
-      # à root : npm s'exécute donc en root, sur des fichiers jetables, jamais sur
-      # les sources montées en écriture ailleurs qu'en lecture seule.
+      # Dépendances Node dans `src/ria/node_modules`, comme en local : ce dossier est
+      # ignoré par Git et le runner est jetable. Pas de volume nommé : Docker ne peut
+      # pas le monter sous un chemin monté en lecture seule.
       - name: Installer les dépendances Node
         run: |
           docker run --rm \
-            --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria,readonly" \
-            --mount "type=volume,src=tycms-ci-node_modules,dst=/workspace/src/ria/node_modules" \
+            --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria" \
             --workdir /workspace/src/ria \
             --env HOME=/tmp --env npm_config_cache=/tmp/tycms-npm \
             "$NODE_IMAGE" \
@@ -103,8 +102,7 @@ jobs:
       - name: Frontend unitaire
         run: |
           docker run --rm \
-            --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria,readonly" \
-            --mount "type=volume,src=tycms-ci-node_modules,dst=/workspace/src/ria/node_modules" \
+            --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria" \
             --workdir /workspace/src/ria \
             --env HOME=/tmp \
             "$NODE_IMAGE" \
