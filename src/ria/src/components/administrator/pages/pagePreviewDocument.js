@@ -11,7 +11,7 @@ export function pagePreviewDocument(result, locale, origin, { resizeToken = null
 	// Ne conserver que les origines HTTPS et le jeton contrôlé du mode « tous HTTPS ».
 	const sources = resource => {
 		const values = result?.security_sources?.[resource]
-		if (!Array.isArray(values)) return ''
+		if (!Array.isArray(values)) return []
 		return [...new Set(values.filter(value => {
 			if (resource === 'iframe' && value === 'https:') return true
 			if (typeof value !== 'string') return false
@@ -19,9 +19,25 @@ export function pagePreviewDocument(result, locale, origin, { resizeToken = null
 				const url = new URL(value)
 				return url.protocol === 'https:' && url.origin === value
 			} catch { return false }
-		}))].join(' ')
+		}))]
 	}
-	const policy = `default-src 'none'; script-src ${assets}${resizeToken ? ` ${resizeScript}` : ''}; script-src-attr 'none'; style-src ${origin} 'unsafe-inline' ${sources('style')}; img-src ${origin} data: ${sources('image')}; font-src ${origin} data: ${sources('font')}; media-src ${origin} ${sources('media')}; frame-src ${origin} ${sources('iframe')}; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`
+	// Les directives sont jointes avec un seul espace : aucune source vide ne doit
+	// laisser d'espace parasite avant le point-virgule.
+	const directive = (...values) => values.filter(Boolean).join(' ')
+	const policy = [
+		"default-src 'none'",
+		`script-src ${directive(assets, resizeToken ? resizeScript : '')}`,
+		"script-src-attr 'none'",
+		`style-src ${directive(origin, "'unsafe-inline'", ...sources('style'))}`,
+		`img-src ${directive(origin, 'data:', ...sources('image'))}`,
+		`font-src ${directive(origin, 'data:', ...sources('font'))}`,
+		`media-src ${directive(origin, ...sources('media'))}`,
+		`frame-src ${directive(origin, ...sources('iframe'))}`,
+		"connect-src 'none'",
+		"object-src 'none'",
+		"base-uri 'none'",
+		"form-action 'none'",
+	].join('; ')
 	return `<!doctype html><html lang="${escape(locale)}"${resizeToken ? ` data-page-canvas-token="${escape(resizeToken)}"` : ''}><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 		<meta http-equiv="Content-Security-Policy" content="${escape(policy)}">
 		<link rel="stylesheet" href="${escape(coreAssets)}css/index.css">

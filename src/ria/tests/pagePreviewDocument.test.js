@@ -53,6 +53,8 @@ test('les paramètres d’aperçu ne peuvent pas injecter de directive CSP', () 
 
 test('sans politique serveur les aperçus n’autorisent aucune origine externe', () => {
 	const html = pagePreviewDocument({ html: '', css: '' }, 'fr', 'https://site.test', { assetsBase })
-	assert.ok(html.includes('frame-src https://site.test ;'))
+	// Une directive sans source externe ne doit pas laisser d'espace avant le point-virgule.
+	assert.ok(html.includes('frame-src https://site.test;'))
+	assert.ok(!html.includes('  '), 'aucun espace double dans la politique')
 	assert.ok(!html.includes('frame-src https://site.test https:;'))
 })

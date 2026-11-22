@@ -86,13 +86,14 @@ jobs:
             --entrypoint php "$PHP_IMAGE" \
             update_server/tests/run.php
 
-      # Dépendances Node dans `src/ria/node_modules`, comme en local : ce dossier est
-      # ignoré par Git et le runner est jetable. Pas de volume nommé : Docker ne peut
-      # pas le monter sous un chemin monté en lecture seule.
+      # Mêmes montages que `docker/dev/docker-compose.yml` : les tests frontend
+      # importent aussi `src/tools` et le `version.php` de la release.
       - name: Installer les dépendances Node
         run: |
           docker run --rm \
             --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria" \
+            --mount "type=bind,src=$PWD/src/tools,dst=/workspace/src/tools,readonly" \
+            --mount "type=bind,src=$PWD/src/releases/vdev/version.php,dst=/workspace/src/releases/vdev/version.php,readonly" \
             --workdir /workspace/src/ria \
             --env HOME=/tmp --env npm_config_cache=/tmp/tycms-npm \
             "$NODE_IMAGE" \
@@ -103,6 +104,8 @@ jobs:
         run: |
           docker run --rm \
             --mount "type=bind,src=$PWD/src/ria,dst=/workspace/src/ria" \
+            --mount "type=bind,src=$PWD/src/tools,dst=/workspace/src/tools,readonly" \
+            --mount "type=bind,src=$PWD/src/releases/vdev/version.php,dst=/workspace/src/releases/vdev/version.php,readonly" \
             --workdir /workspace/src/ria \
             --env HOME=/tmp \
             "$NODE_IMAGE" \
