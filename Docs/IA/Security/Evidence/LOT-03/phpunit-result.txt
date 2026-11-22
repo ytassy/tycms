@@ -1,0 +1,8 @@
+PHPUnit 13.3.6 by Sebastian Bergmann and contributors.
+
+Runtime:       PHP 8.5.4
+Configuration: /tmp/tyframework-security-lot03-p6i6dgav/phpunit.xml
+
+Time: 00:00.053, Memory: 24.00 MB
+
+OK (111 tests, 327 assertions)

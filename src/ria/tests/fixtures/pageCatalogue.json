@@ -1,0 +1,855 @@
+[
+    {
+        "id": "core.row",
+        "label": "Ligne",
+        "category": "Structure",
+        "defaults": {},
+        "propsSchema": {
+            "type": "object",
+            "properties": [],
+            "additionalProperties": false
+        },
+        "zones": {
+            "columns": {
+                "label": "Colonne",
+                "formVue": "core\/column",
+                "kind": "column",
+                "min": 1,
+                "max": 100,
+                "initial": 1,
+                "defaults": {
+                    "sizes": {
+                        "xs": 12
+                    }
+                }
+            }
+        },
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/row",
+        "canvasVue": "core\/row",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.tabs",
+        "label": "Tabs (onglets)",
+        "category": "Structure",
+        "defaults": {
+            "mode": "bootstrap"
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string"
+                },
+                "default_tab": {
+                    "type": "string"
+                },
+                "tabs_style": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {
+            "tabs": {
+                "label": "Onglet",
+                "formVue": "core\/tabs",
+                "kind": "tab",
+                "min": 1,
+                "max": 100,
+                "initial": 2,
+                "defaults": {
+                    "label": "Onglet",
+                    "icon": ""
+                }
+            }
+        },
+        "nodeReferenceFields": {
+            "default_tab": "one"
+        },
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/tabs",
+        "canvasVue": "core\/tabs",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.accordion",
+        "label": "Accordéon",
+        "category": "Structure",
+        "defaults": {
+            "mode": "bootstrap",
+            "single_open": true,
+            "open_panels": []
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string"
+                },
+                "single_open": {
+                    "type": "boolean"
+                },
+                "open_panels": {
+                    "type": "array"
+                },
+                "show_arrow": {
+                    "type": "boolean"
+                },
+                "arrow_icon": {
+                    "type": "string"
+                },
+                "arrow_position": {
+                    "type": "string"
+                },
+                "arrow_rotation": {
+                    "type": "integer"
+                },
+                "accordion_style": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {
+            "panels": {
+                "label": "Panneau",
+                "formVue": "core\/accordion",
+                "kind": "panel",
+                "min": 1,
+                "max": 100,
+                "initial": 2,
+                "defaults": {
+                    "label": "Panneau",
+                    "icon": ""
+                }
+            }
+        },
+        "nodeReferenceFields": {
+            "open_panels": "many"
+        },
+        "exclusiveReferenceFields": {
+            "open_panels": "single_open"
+        },
+        "formVue": "core\/accordion",
+        "canvasVue": "core\/accordion",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.timeline",
+        "label": "Timeline (chronologie)",
+        "category": "Structure",
+        "defaults": {
+            "layout": "alternate",
+            "label_position": "above",
+            "mobile_breakpoint": "md",
+            "marker": "dot",
+            "line_style": "solid",
+            "show_pointer": true,
+            "timeline_style": {}
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "layout": {
+                    "type": "string",
+                    "enum": [
+                        "alternate",
+                        "left",
+                        "right"
+                    ]
+                },
+                "label_position": {
+                    "type": "string",
+                    "enum": [
+                        "above",
+                        "opposite"
+                    ]
+                },
+                "mobile_breakpoint": {
+                    "type": "string",
+                    "enum": [
+                        "sm",
+                        "md",
+                        "lg"
+                    ]
+                },
+                "marker": {
+                    "type": "string",
+                    "enum": [
+                        "dot",
+                        "number",
+                        "icon"
+                    ]
+                },
+                "line_style": {
+                    "type": "string",
+                    "enum": [
+                        "solid",
+                        "dashed",
+                        "dotted"
+                    ]
+                },
+                "show_pointer": {
+                    "type": "boolean"
+                },
+                "timeline_style": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {
+            "steps": {
+                "label": "Étape",
+                "formVue": "core\/timeline",
+                "kind": "zone",
+                "min": 1,
+                "max": 100,
+                "initial": 3,
+                "defaults": {
+                    "label": "Étape",
+                    "icon": ""
+                }
+            }
+        },
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/timeline",
+        "canvasVue": "core\/timeline",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.testimonials",
+        "label": "Testimonials (témoignages)",
+        "category": "Contenu",
+        "defaults": {
+            "mode": "carousel",
+            "columns_desktop": 3,
+            "columns_tablet": 2,
+            "columns_mobile": 1,
+            "align": "center",
+            "author_position": "outside",
+            "portrait_position": "author",
+            "portrait_shape": "circle",
+            "equal_height": true,
+            "show_quotes": false,
+            "show_arrows": true,
+            "show_dots": true,
+            "autoplay": false,
+            "interval": 6000,
+            "testimonials_style": {},
+            "testimonials": [
+                {
+                    "text": "",
+                    "author": "",
+                    "role": "",
+                    "portrait": "",
+                    "rating": 5
+                }
+            ]
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "grid",
+                        "carousel"
+                    ]
+                },
+                "align": {
+                    "type": "string",
+                    "enum": [
+                        "left",
+                        "center"
+                    ]
+                },
+                "author_position": {
+                    "type": "string",
+                    "enum": [
+                        "inside",
+                        "outside"
+                    ]
+                },
+                "portrait_position": {
+                    "type": "string",
+                    "enum": [
+                        "top",
+                        "author"
+                    ]
+                },
+                "portrait_shape": {
+                    "type": "string",
+                    "enum": [
+                        "circle",
+                        "rounded",
+                        "square"
+                    ]
+                },
+                "columns_desktop": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                },
+                "columns_tablet": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                },
+                "columns_mobile": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                },
+                "equal_height": {
+                    "type": "boolean"
+                },
+                "show_quotes": {
+                    "type": "boolean"
+                },
+                "show_arrows": {
+                    "type": "boolean"
+                },
+                "show_dots": {
+                    "type": "boolean"
+                },
+                "autoplay": {
+                    "type": "boolean"
+                },
+                "interval": {
+                    "type": "integer",
+                    "minimum": 2000,
+                    "maximum": 60000
+                },
+                "testimonials": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100
+                },
+                "testimonials_style": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/testimonials",
+        "canvasVue": "core\/testimonials",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.heading",
+        "label": "Titre",
+        "category": "Contenu",
+        "defaults": {
+            "level": 2,
+            "text": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "level": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": null,
+        "canvasVue": "core\/heading",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "text",
+                "label": "Titre",
+                "type": "text",
+                "localized": true
+            }
+        ]
+    },
+    {
+        "id": "core.rich-text",
+        "label": "Texte riche",
+        "category": "Contenu",
+        "defaults": {
+            "content": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/rich-text",
+        "canvasVue": "core\/rich-text",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "content",
+                "label": "Contenu",
+                "type": "rich",
+                "localized": true,
+                "maxLength": 500000
+            }
+        ]
+    },
+    {
+        "id": "core.html",
+        "label": "HTML personnalisé",
+        "category": "Contenu",
+        "defaults": {
+            "content": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/html",
+        "canvasVue": "core\/html",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "content",
+                "label": "Contenu HTML",
+                "type": "html",
+                "localized": true,
+                "maxLength": 500000
+            }
+        ]
+    },
+    {
+        "id": "core.image",
+        "label": "Image",
+        "category": "Médias",
+        "defaults": {
+            "src": "",
+            "alt": "",
+            "click_action": "none"
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "src": {
+                    "type": "string"
+                },
+                "alt": {
+                    "type": "string"
+                },
+                "click_action": {
+                    "type": "string"
+                },
+                "width": {
+                    "type": "string"
+                },
+                "max_width": {
+                    "type": "string"
+                },
+                "max_height": {
+                    "type": "string"
+                },
+                "href": {
+                    "type": "string"
+                },
+                "link_type": {
+                    "type": "string"
+                },
+                "menu_item_id": {
+                    "type": "integer"
+                },
+                "link_new_tab": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/image",
+        "canvasVue": "core\/image",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "alt",
+                "label": "Texte alternatif",
+                "type": "text",
+                "localized": true
+            }
+        ]
+    },
+    {
+        "id": "core.video",
+        "label": "Vidéo",
+        "category": "Médias",
+        "defaults": {
+            "source": "media",
+            "src": "",
+            "library_id": "",
+            "video_id": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "source": {
+                    "type": "string"
+                },
+                "src": {
+                    "type": "string"
+                },
+                "library_id": {
+                    "type": "string"
+                },
+                "video_id": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/video",
+        "canvasVue": "core\/video",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.audio",
+        "label": "Audio",
+        "category": "Médias",
+        "defaults": {
+            "src": "",
+            "audio_style": {}
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "src": {
+                    "type": "string"
+                },
+                "audio_style": {
+                    "type": "object",
+                    "properties": {
+                        "height": {
+                            "type": "integer",
+                            "minimum": 44,
+                            "maximum": 200
+                        },
+                        "color": {
+                            "type": "string"
+                        },
+                        "background_color": {
+                            "type": "string"
+                        },
+                        "accent_color": {
+                            "type": "string"
+                        },
+                        "track_color": {
+                            "type": "string"
+                        },
+                        "border_radius": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/audio",
+        "canvasVue": "core\/audio",
+        "canvasMode": "vue",
+        "publicVueId": "core\/audio",
+        "editorFields": []
+    },
+    {
+        "id": "core.mermaid",
+        "label": "Mermaid",
+        "category": "Contenu",
+        "defaults": {
+            "diagram": "flowchart LR\n    A[Début] --> B[Fin]",
+            "options": {}
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "diagram": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/mermaid",
+        "canvasVue": "core\/mermaid",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.diagram",
+        "label": "Diagramme diagrams.net",
+        "category": "Contenu",
+        "defaults": {
+            "svg": "",
+            "alt": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "svg": {
+                    "type": "string"
+                },
+                "alt": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/diagram",
+        "canvasVue": "core\/diagram",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "alt",
+                "label": "Texte alternatif",
+                "type": "text",
+                "localized": true
+            }
+        ]
+    },
+    {
+        "id": "core.file-list",
+        "label": "Liste de fichiers",
+        "category": "Contenu",
+        "defaults": {
+            "folder": null,
+            "compact": false,
+            "show_date": true,
+            "show_size": true,
+            "show_thumbnails": false,
+            "show_open": true,
+            "show_download": true,
+            "sort_1": "name",
+            "direction_1": "asc",
+            "first_1": "",
+            "sort_2": "name",
+            "direction_2": "asc",
+            "first_2": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "compact": {
+                    "type": "boolean"
+                },
+                "show_date": {
+                    "type": "boolean"
+                },
+                "show_size": {
+                    "type": "boolean"
+                },
+                "show_thumbnails": {
+                    "type": "boolean"
+                },
+                "show_open": {
+                    "type": "boolean"
+                },
+                "show_download": {
+                    "type": "boolean"
+                },
+                "sort_1": {
+                    "type": "string"
+                },
+                "direction_1": {
+                    "type": "string"
+                },
+                "first_1": {
+                    "type": "string"
+                },
+                "sort_2": {
+                    "type": "string"
+                },
+                "direction_2": {
+                    "type": "string"
+                },
+                "first_2": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/file-list",
+        "canvasVue": "core\/file-list",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.button",
+        "label": "Bouton",
+        "category": "Navigation",
+        "defaults": {
+            "text": "",
+            "href": ""
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "variant": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "string"
+                },
+                "button_style": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "href": {
+                    "type": "string"
+                },
+                "link_type": {
+                    "type": "string"
+                },
+                "menu_item_id": {
+                    "type": "integer"
+                },
+                "link_new_tab": {
+                    "type": "boolean"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": "core\/button",
+        "canvasVue": "core\/button",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": [
+            {
+                "name": "text",
+                "label": "Libellé",
+                "type": "text",
+                "localized": true
+            }
+        ]
+    },
+    {
+        "id": "core.hr",
+        "label": "Séparateur",
+        "category": "Structure",
+        "defaults": {},
+        "propsSchema": {
+            "type": "object"
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": null,
+        "canvasVue": "core\/hr",
+        "canvasMode": "vue",
+        "publicVueId": null,
+        "editorFields": []
+    },
+    {
+        "id": "core.menu",
+        "label": "Menu",
+        "category": "Navigation",
+        "defaults": {
+            "menu_id": 0,
+            "display_type": "simple"
+        },
+        "propsSchema": {
+            "type": "object",
+            "properties": {
+                "menu_id": {
+                    "type": "integer"
+                },
+                "display_type": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "zones": {},
+        "nodeReferenceFields": {},
+        "exclusiveReferenceFields": {},
+        "formVue": null,
+        "canvasVue": null,
+        "canvasMode": "api",
+        "publicVueId": null,
+        "editorFields": []
+    }
+]

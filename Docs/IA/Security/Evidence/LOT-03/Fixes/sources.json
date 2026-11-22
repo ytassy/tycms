@@ -1,0 +1,17 @@
+{
+  "revision_base": "50cdf55d5ead8891835996b9824f5f649e7b5cf3",
+  "etat": "Correctifs locaux non commités ; empreintes des sources après correction et du client API relu",
+  "sha256": {
+    "src/releases/vdev/core_extensions/Core/Controllers/SpaceController.php": "7848606d7536f51deb151361fecf96c10b1265787639fc9119b05f64c5685519",
+    "src/releases/vdev/core_extensions/Core/Controllers/UserController.php": "94206250ffcce8cefa62314828fde3c5c28c1dee12b7e45ff06f77f613e7565f",
+    "src/releases/vdev/core_extensions/Core/Views/SpaceChoose.php": "382ba2c19bd57048afcdbb242dedf779a3981c34d56b55b72a2c692c04cbd9a5",
+    "src/releases/vdev/core_extensions/Core/Views/tmpl/space_choose.php": "b78fb6b7c7187860b70c0a17a59ac23994180b6bee6178a43707cc69eaa0ec14",
+    "src/releases/vdev/framework/ApplicationRouteRunner.php": "a21cf58b2313bd28286a1fb0fcc3a8882eca626c345c0c1789b703e377facef2",
+    "src/releases/vdev/framework/Response/RedirectResponse.php": "173f9f4c164547dfbc0c79aec62634a4b303e77d2c5e2136de93e38b2a0b3159",
+    "src/releases/vdev/framework/Routing/Router.php": "23771238d95d427c3d86584db34d0f59c6f9b3d9fc4bc1ba276ef24e83b94f80",
+    "src/tests/Unit/Response/RedirectResponseTest.php": "b070370b286fbe857fb849f797d7eb07448db43b12c612af0913ea7d38482731",
+    "src/tests/Unit/Routing/HttpSecurityTest.php": "095ac4aaa3cd5f4ab4c2aec67b962c2fd15a7bc3ac310ec6ccb46bd1f498d846",
+    "src/tests/Unit/Routing/RouterTest.php": "851de6b9f8763003b0dff809eafcfb0afa2a4baef546cdc599250e7de457aed6",
+    "src/ria/src/application/api.js": "3007111dd65f33736097c4fbdcaba01e5fd02f073a9550e12302b8a5e6100138"
+  }
+}

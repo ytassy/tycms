@@ -1,0 +1,9 @@
+<?php
+
+// Copy to test_db.local.php (ignored by Git) and fill only test credentials.
+return [
+    'host' => '127.0.0.1',
+    'database' => 'tycms_test_main',
+    'user' => 'tycms_test_runner',
+    'password' => 'replace-with-a-test-only-password',
+];

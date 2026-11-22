@@ -1,0 +1,15 @@
+.tytools-mermaid {
+    display: block;
+    box-sizing: border-box;
+}
+
+.tytools-mermaid-source[hidden] {
+    display: none !important;
+}
+
+.tytools-mermaid-output > svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+}

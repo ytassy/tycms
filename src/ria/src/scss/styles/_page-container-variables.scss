@@ -1,0 +1,29 @@
+// Chaque conteneur réinitialise les variables héritées d’un parent.
+@mixin page-container-variables {
+  --pt-tab-color: initial;
+  --pt-tab-background-color: initial;
+  --pt-tab-border-color: initial;
+  --pt-hover-color: initial;
+  --pt-hover-background-color: initial;
+  --pt-hover-border-color: initial;
+  --pt-active-color: initial;
+  --pt-active-background-color: initial;
+  --pt-active-border-color: initial;
+  --pt-body-color: initial;
+  --pt-body-background-color: initial;
+  --pt-body-border-color: initial;
+  --pt-tab-border-width: initial;
+  --pt-tab-border-style: initial;
+  --pt-tab-border-radius: initial;
+  --pt-tab-padding-top: initial;
+  --pt-tab-padding-right: initial;
+  --pt-tab-padding-bottom: initial;
+  --pt-tab-padding-left: initial;
+  --pt-body-border-width: initial;
+  --pt-body-border-style: initial;
+  --pt-body-border-radius: initial;
+  --pt-body-padding-top: initial;
+  --pt-body-padding-right: initial;
+  --pt-body-padding-bottom: initial;
+  --pt-body-padding-left: initial;
+}

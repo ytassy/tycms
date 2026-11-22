@@ -1,0 +1,10 @@
+{
+  "src/releases/vdev/composer.json": "aa744ec0a9c40fb35f9d9c52ad71d497e79bf70ac238bbe262fcde21cf35b863",
+  "src/releases/vdev/composer.lock": "e68550fade00169edf7467c869e8308d1ebc08c60a6dbea873aa9ae1c303ed08",
+  "src/ria/package.json": "904198f32fc56c020ca333d7be4028d8c04e4498d0f72417c45cb76cef135f5f",
+  "src/ria/package-lock.json": "dd0e079e72e3cd8d55006ba7174500392273a068a884ecbda71f70be63523263",
+  "src/tools/mermaid/package.json": "47f7155cd3897330a5eb798f25258be500d5ab94fce77af95f2dfbf26bffd3e8",
+  "src/tools/mermaid/package-lock.json": "acd12e0a8dbaca07e430592fccbbba2cc8db7a270d351daa9a1f1c57f51a5f28",
+  "src/extensions/plugins/Lms/frontend/package.json": "8b89bb7adbd4e57638bff56c8a428ba3d282f61681dd892c7678f5a2c975d82c",
+  "src/extensions/plugins/Lms/frontend/package-lock.json": "d68c0d64a317ddc402a36351c1a310e63d8c94ee0614934c118f966207735784"
+}

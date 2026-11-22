@@ -1,0 +1,22 @@
+{
+  "autorisation": "Yann : « Tu peux le corriger ? » ; synchronisation du verrou uniquement, sans changement de versions ni du packaging.",
+  "commande": "composer --no-plugins --no-scripts update --lock --no-install --no-progress --minimal-changes",
+  "environnement": "copie isolée, répertoire Composer/cache dédiés ; aucun vendor installé ni script exécuté",
+  "exit_code": 0,
+  "champs_json_modifies": [
+    "content-hash"
+  ],
+  "paquets_production_strictement_identiques": 36,
+  "paquets_developpement_strictement_identiques": 27,
+  "validation_finale": {
+    "commande": "composer --no-plugins --no-scripts validate --no-check-publish",
+    "exit_code": 0,
+    "avertissements_restants": [
+      "licence absente",
+      "larapack/dd déclaré dans require et require-dev"
+    ]
+  },
+  "audit": "aucun avis dans le rafraîchissement ; réponse audit JSON antérieure valable pour les mêmes 63 versions",
+  "build_complet_execute": false,
+  "nettoyage_google_modifie": false
+}

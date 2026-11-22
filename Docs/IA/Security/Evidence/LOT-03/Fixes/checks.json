@@ -1,0 +1,18 @@
+{
+  "liens_markdown_security_verifies": 245,
+  "liens_locaux_absents": [],
+  "json_valides": 31,
+  "lignes_csv": {
+    "PERIMETRE.csv": 1412,
+    "ROUTES.csv": 315,
+    "ASVS.csv": 345,
+    "Inventories/COMPOSER-CURRENT-LOT-02.csv": 63,
+    "Inventories/DEPENDANCES-LOT-02.csv": 503,
+    "Evidence/LOT-03/routes-before.csv": 308
+  },
+  "matrice_asvs": "Seule preuve_actuelle modifiée ; 345 exigences et leurs statuts conservés",
+  "empreintes_sources": "11 empreintes vérifiées",
+  "manifestes_verrous": "8 inchangés selon dependencies.json",
+  "diff_check": "git -c core.whitespace=cr-at-eol diff --check : code 0 ; nouveaux fichiers texte sans espaces finaux",
+  "limites": "Existence des chemins uniquement, ancres Markdown et liens distants non vérifiés ; aucun accès de production ou SQL."
+}

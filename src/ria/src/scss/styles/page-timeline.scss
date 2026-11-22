@@ -1,0 +1,72 @@
+.page-timeline {
+  container-type: inline-size;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+
+  > .page-timeline-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--pc-marker-size, 20px) minmax(0, 1fr);
+    column-gap: 24px;
+    padding: 0;
+    margin-bottom: var(--pc-gap, 32px);
+    &::before { content: ''; position: absolute; left: calc(var(--pc-marker-size, 20px) / 2); top: 0; bottom: calc(-1 * var(--pc-gap, 32px)); border-left: var(--pc-line-width, 2px) var(--pc-line-style, solid) var(--pc-line-color, #5144b8); transform: translateX(-50%); }
+    &:last-child { margin-bottom: 0; &::before { bottom: 0; } }
+  }
+  .page-timeline-marker { grid-column: 1; grid-row: 1; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; width: var(--pc-marker-size, 20px); height: var(--pc-marker-size, 20px); border-radius: 50%; border: 2px solid var(--pc-marker-color, #5144b8); background: var(--pc-background-color, #fff); color: var(--pc-marker-color, #5144b8); font-size: calc(var(--pc-marker-size, 20px) * .55); margin-top: 5px; }
+  .page-timeline-content { grid-column: 2; grid-row: 1; min-width: 0; }
+  .page-timeline-label { font-size: var(--pc-label-size, 20px); color: var(--pc-label-color, inherit); margin-bottom: 8px; overflow-wrap: anywhere; }
+  .page-timeline-card { position: relative; padding: var(--pc-padding, 20px); border: var(--pc-border-width, 1px) solid var(--pc-border-color, #dee2e6); border-radius: var(--pc-radius, 4px); background: var(--pc-background-color, #fff); color: var(--pc-color, inherit); box-shadow: var(--pc-shadow, none); min-width: 0; }
+  &--pointer .page-timeline-card::before { content: ''; position: absolute; width: 12px; height: 12px; background: var(--pc-background-color, #fff); border-left: var(--pc-border-width, 1px) solid var(--pc-border-color, #dee2e6); border-bottom: var(--pc-border-width, 1px) solid var(--pc-border-color, #dee2e6); top: 16px; left: -7px; transform: rotate(45deg); }
+}
+
+// Les requêtes portent sur la largeur du composant, y compris dans le canevas réduit.
+@mixin timeline-wide {
+  &.page-timeline--alternate > .page-timeline-step {
+    grid-template-columns: minmax(0, 1fr) var(--pc-marker-size, 20px) minmax(0, 1fr);
+    &::before { left: 50%; }
+    > .page-timeline-marker { grid-column: 2; }
+    > .page-timeline-content { grid-column: 1; }
+    &:nth-child(even) > .page-timeline-content { grid-column: 3; }
+    &:nth-child(odd) > .page-timeline-content > .page-timeline-label { text-align: right; }
+    &:nth-child(odd) > .page-timeline-content > .page-timeline-card::before { left: auto; right: -7px; transform: rotate(225deg); }
+  }
+  &.page-timeline--left > .page-timeline-step {
+    grid-template-columns: minmax(0, 1fr) var(--pc-marker-size, 20px);
+    &::before { left: auto; right: calc(var(--pc-marker-size, 20px) / 2); transform: translateX(50%); }
+    > .page-timeline-marker { grid-column: 2; }
+    > .page-timeline-content { grid-column: 1; }
+    > .page-timeline-content > .page-timeline-label { text-align: right; }
+    > .page-timeline-content > .page-timeline-card::before { left: auto; right: -7px; transform: rotate(225deg); }
+  }
+
+  // Déplier le conteneur place le nom et la carte sur la grille sans dupliquer le libellé.
+  // Ce mode reste dans les requêtes de largeur : sur mobile, le nom reste au-dessus.
+  &.page-timeline--labels-opposite > .page-timeline-step {
+    grid-template-columns: minmax(0, 1fr) var(--pc-marker-size, 20px) minmax(0, 1fr);
+    &::before { left: 50%; right: auto; transform: translateX(-50%); }
+    > .page-timeline-marker { grid-column: 2; }
+    > .page-timeline-content {
+      display: contents;
+      > .page-timeline-label { grid-column: 3; grid-row: 1; align-self: start; text-align: left; margin-bottom: 0; }
+      > .page-timeline-card { grid-column: 1; grid-row: 1; align-self: start; }
+    }
+  }
+
+  &.page-timeline--labels-opposite.page-timeline--right > .page-timeline-step,
+  &.page-timeline--labels-opposite.page-timeline--alternate > .page-timeline-step:nth-child(even) {
+    > .page-timeline-content {
+      > .page-timeline-label { grid-column: 1; text-align: right; }
+      > .page-timeline-card { grid-column: 3; }
+    }
+  }
+
+  &.page-timeline--labels-opposite.page-timeline--alternate > .page-timeline-step:nth-child(odd) > .page-timeline-content > .page-timeline-label {
+    text-align: left;
+  }
+}
+@container (min-width: 576px) { .page-timeline--break-sm { @include timeline-wide; } }
+@container (min-width: 768px) { .page-timeline--break-md { @include timeline-wide; } }
+@container (min-width: 992px) { .page-timeline--break-lg { @include timeline-wide; } }

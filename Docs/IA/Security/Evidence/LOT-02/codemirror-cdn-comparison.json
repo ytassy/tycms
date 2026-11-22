@@ -1,0 +1,23 @@
+[
+  {
+    "chemin": "docker/dev/adminer/codemirror/codemirror.js",
+    "version": "5.65.20",
+    "reference": "https://cdn.jsdelivr.net/npm/codemirror@5.65.20/lib/codemirror.min.js",
+    "identique_reference": true,
+    "sha256": "c4f9d49df7276944b57ca7400a8f8802dd00f6542ce06a3dc4537e30deeec85d"
+  },
+  {
+    "chemin": "docker/dev/adminer/codemirror/codemirror.css",
+    "version": "5.65.20",
+    "reference": "https://cdn.jsdelivr.net/npm/codemirror@5.65.20/lib/codemirror.min.css",
+    "identique_reference": true,
+    "sha256": "18acc2dba2c8c2b12660d1df5c5cef94bdfb09b2d0aedf61376c288029b0ecc0"
+  },
+  {
+    "chemin": "docker/dev/adminer/codemirror/javascript.js",
+    "version": "5.65.20",
+    "reference": "https://cdn.jsdelivr.net/npm/codemirror@5.65.20/mode/javascript/javascript.min.js",
+    "identique_reference": true,
+    "sha256": "5ea9c3a23895f62d5edaf321861fb7a06e8ef08b4b97ed0e965b5d605d4f9b9d"
+  }
+]

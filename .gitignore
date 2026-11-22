@@ -1,0 +1,21 @@
+
+0_ressources
+
+debug.log
+/src/logs/tycms/
+/src/tests/.runtime/
+/src/tests/test_db.local.php
+
+
+/src/updater_test/
+/src/public/assets_updater_test/
+/src/public/assets_core_v[0-9]*/
+
+/src/public/update_*.php
+
+src/releases/v[0-9]*/
+
+
+# Bundles des extensions, produits depuis leurs sources frontend.
+/src/public/assets/*/build/
+/src/public/assets/*/.vite/

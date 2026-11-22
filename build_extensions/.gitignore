@@ -1,0 +1,8 @@
+/temp/*
+!/temp/.gitkeep
+/dist/*
+!/dist/.gitkeep
+/.build.lock
+/signing.local.php
+
+/tycatalog-publish.local.php

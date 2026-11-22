@@ -1,0 +1,45 @@
+{
+  "revision": "b51758914201fd9ffc5cdcf3e7ebfa4602351e80",
+  "date_consultation": "2026-11-19",
+  "composer": "2.9.5",
+  "php": "8.5.4",
+  "environnement": "copies des deux fichiers Composer sous /tmp ; COMPOSER_HOME et cache isolés, sans configuration authentifiée, sans installation ni script/plugin",
+  "audit": {
+    "commande": "composer --no-plugins --no-scripts audit --locked --format=json",
+    "exit_code": 0,
+    "advisories": 0,
+    "abandoned": 0,
+    "reseau": "DNS indisponible dans le bac initial ; relance autorisée hors restriction réseau, réponse Packagist obtenue"
+  },
+  "validation": {
+    "commande": "composer --no-plugins --no-scripts validate --no-check-publish",
+    "exit_code": 2,
+    "cause": "content-hash du verrou désynchronisé après ajout de extra.google/apiclient-services",
+    "avertissements": [
+      "licence absente",
+      "larapack/dd dans require et require-dev"
+    ],
+    "lock_content_hash": "67bd8c8ec2695cfed40d0531b5b413a3",
+    "manifest_content_hash": "9794000f2057294307322ae7ca8ee6ae",
+    "sans_extra_content_hash": "67bd8c8ec2695cfed40d0531b5b413a3"
+  },
+  "plateforme": {
+    "commande": "composer --no-plugins --no-scripts check-platform-reqs --lock --format=json",
+    "exit_code": 0,
+    "portee": "PHP et extensions de l’hôte uniquement, pas Docker ni hébergement"
+  },
+  "lecture_statique": [
+    "13 nouveaux paquets, aucune autre version changée depuis le verrou corrigé",
+    "origines HTTPS GitHub et références de commits enregistrées ; aucun plugin Composer",
+    "hook Google vérifié chargeable dans le vendor local ; aucune exécution du nettoyage",
+    "build/functions.php: validate bloquant puis install --no-scripts, donc nettoyage Google désactivé dans le build",
+    "recherche de Google\\, Google_Client, League\\Flysystem et Aws\\ dans src (hors vendor/artefacts ignorés) : aucun appel applicatif identifié"
+  ],
+  "limites": [
+    "Pas de nouvelle installation, mise à jour de verrou ou exécution du hook destructif de nettoyage.",
+    "Pas de nouveaux tests PHPUnit/build ; les résultats initiaux restent des preuves de la campagne antérieure.",
+    "Pas d’authentification Google/AWS, d’appel API ou de vérification de politiques IAM/scopes.",
+    "Les audits npm, le scan de secrets global/historique, les images et les ZIP ne sont pas réexécutés.",
+    "La provenance des archives des treize ajouts n’a pas été vérifiée octet par octet."
+  ]
+}

@@ -1,0 +1,9 @@
+Composer could not detect the root package (ytassy/tycms) version, defaulting to '1.0.0'. See https://getcomposer.org/root-version
+Composer could not detect the root package (ytassy/tycms) version, defaulting to '1.0.0'. See https://getcomposer.org/root-version
+./composer.json is valid, but with a few warnings
+See https://getcomposer.org/doc/04-schema.md for details on the schema
+# Lock file errors
+- The lock file is not up to date with the latest changes in composer.json, it is recommended that you run `composer update` or `composer update <package name>`.
+# General warnings
+- No license specified, it is recommended to do so. For closed-source software you may use "proprietary" as license.
+- larapack/dd is required both in require and require-dev, this can lead to unexpected behavior

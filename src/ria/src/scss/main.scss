@@ -1,0 +1,16 @@
+@import 'bootstrap/overrides';
+@import 'bootstrap/scss/bootstrap';
+@import 'styles/tools.scss';
+@import 'styles/global.scss';
+@import 'styles/utils.scss';
+
+@import 'styles/page-container-variables';
+@import 'styles/page-tabs.scss';
+@import 'styles/page-accordion.scss';
+@import 'styles/page-file-list.scss';
+@import 'styles/page-testimonials.scss';
+@import 'styles/page-timeline.scss';
+@import 'styles/main-template.scss';
+
+// Variantes visuelles de l'administration, indépendantes de la template du site.
+@import 'themes/admin/index';

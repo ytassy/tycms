@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit bootstrap="../../../../../../src/tests/bootstrap.php" cacheDirectory="/tmp/tycms-security-fixes-phpunit">
+    <testsuites>
+        <testsuite name="security-fixes">
+            <directory>../../../../../../src/tests/Unit/Routing</directory>
+            <directory>../../../../../../src/tests/Unit/Request</directory>
+            <directory>../../../../../../src/tests/Unit/Response</directory>
+            <directory>../../../../../../src/tests/Unit/Plugins/Security</directory>
+            <file>../../../../../../src/tests/Unit/Plugins/Core/SpaceSelectionTest.php</file>
+            <file>../../../../../../src/tests/Unit/Plugins/Core/SsoTest.php</file>
+            <file>../../../../../../src/tests/Unit/Plugins/Core/MyAccountTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

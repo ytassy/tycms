@@ -1,0 +1,73 @@
+{
+    "advisories": {
+        "symfony/filesystem": [
+            {
+                "advisoryId": "PKSA-g499-cm4q-v35y",
+                "packageName": "symfony/filesystem",
+                "affectedVersions": ">=5.4.0,<5.4.56|>=6.0.0,<6.1.0|>=6.1.0,<6.2.0|>=6.2.0,<6.3.0|>=6.3.0,<6.4.0|>=6.4.0,<6.4.50|>=7.0.0,<7.1.0|>=7.1.0,<7.2.0|>=7.2.0,<7.3.0|>=7.3.0,<7.4.0|>=7.4.0,<7.4.23|>=8.0.0,<8.1.0|>=8.1.0,<8.1.11",
+                "title": "Filesystem Path Treats Any Prefix Before \"://\" as a Root, Letting Paths Escape Their Base Directory",
+                "cve": null,
+                "link": "https://github.com/symfony/symfony/security/advisories/GHSA-6prc-h956-hxjq",
+                "reportedAt": "2026-11-04T00:00:00+00:00",
+                "sources": [
+                    {
+                        "name": "FriendsOfPHP/security-advisories",
+                        "remoteId": "symfony/filesystem/2026-11-04-18.yaml"
+                    }
+                ],
+                "severity": null
+            }
+        ],
+        "symfony/html-sanitizer": [
+            {
+                "advisoryId": "PKSA-wwnc-rwy3-v11m",
+                "packageName": "symfony/html-sanitizer",
+                "affectedVersions": ">=6.1.0,<6.2.0|>=6.2.0,<6.3.0|>=6.3.0,<6.4.0|>=6.4.0,<6.4.50|>=7.0.0,<7.1.0|>=7.1.0,<7.2.0|>=7.2.0,<7.3.0|>=7.3.0,<7.4.0|>=7.4.0,<7.4.23|>=8.0.0,<8.1.0|>=8.1.0,<8.1.11",
+                "title": "HtmlSanitizer Does Not URL-Sanitize srcset and imagesrcset: Media Scheme and Host Allow-List Bypass",
+                "cve": "CVE-2026-121949",
+                "link": "https://github.com/symfony/symfony/security/advisories/GHSA-q8jq-xrf4-v5j8",
+                "reportedAt": "2026-11-04T11:23:22+00:00",
+                "sources": [
+                    {
+                        "name": "FriendsOfPHP/security-advisories",
+                        "remoteId": "symfony/html-sanitizer/CVE-2026-121949.yaml"
+                    }
+                ],
+                "severity": null
+            },
+            {
+                "advisoryId": "PKSA-4z5q-y2w8-bwqq",
+                "packageName": "symfony/html-sanitizer",
+                "affectedVersions": ">=6.1.0,<6.2.0|>=6.2.0,<6.3.0|>=6.3.0,<6.4.0|>=6.4.0,<6.4.50|>=7.0.0,<7.1.0|>=7.1.0,<7.2.0|>=7.2.0,<7.3.0|>=7.3.0,<7.4.0|>=7.4.0,<7.4.23|>=8.0.0,<8.1.0|>=8.1.0,<8.1.11",
+                "title": "HtmlSanitizer MetaRefreshAttributeSanitizer Matches Only a Narrow Subset of the Browser Refresh Grammar: Incomplete Fix for CVE-2026-48761",
+                "cve": "CVE-2026-121373",
+                "link": "https://github.com/symfony/symfony/security/advisories/GHSA-wm2w-4mgj-vw33",
+                "reportedAt": "2026-11-04T11:23:22+00:00",
+                "sources": [
+                    {
+                        "name": "FriendsOfPHP/security-advisories",
+                        "remoteId": "symfony/html-sanitizer/CVE-2026-121373.yaml"
+                    }
+                ],
+                "severity": null
+            },
+            {
+                "advisoryId": "PKSA-n87g-t5cn-m1yq",
+                "packageName": "symfony/html-sanitizer",
+                "affectedVersions": ">=6.1.0,<6.2.0|>=6.2.0,<6.3.0|>=6.3.0,<6.4.0|>=6.4.0,<6.4.50|>=7.0.0,<7.1.0|>=7.1.0,<7.2.0|>=7.2.0,<7.3.0|>=7.3.0,<7.4.0|>=7.4.0,<7.4.23|>=8.0.0,<8.1.0|>=8.1.0,<8.1.11",
+                "title": "CVE-2026-118517: HtmlSanitizer allowLinkHosts() / allowMediaHosts() Bypass via URLs Without a Well-Formed Authority: Incomplete Fix for CVE-2026-45066",
+                "cve": "CVE-2026-118517",
+                "link": "https://symfony.com/cve-2026-118517",
+                "reportedAt": "2026-11-04T11:23:22+00:00",
+                "sources": [
+                    {
+                        "name": "FriendsOfPHP/security-advisories",
+                        "remoteId": "symfony/html-sanitizer/CVE-2026-118517.yaml"
+                    }
+                ],
+                "severity": null
+            }
+        ]
+    },
+    "abandoned": []
+}

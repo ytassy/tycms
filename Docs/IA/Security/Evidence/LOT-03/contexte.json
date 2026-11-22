@@ -1,0 +1,36 @@
+{
+  "revision": "1aff26d92a78bccc5d66b067f13dd7614f58e6bc",
+  "date_analyse": "2026-11-19",
+  "arbre_propre_au_depart": true,
+  "autorisation": "lot 03 en analyse seule ; uniquement documentation et preuves, aucun code applicatif/dépendance corrigé",
+  "hebergement_cible": "mutualisé ; Yann estime les en-têtes normalement protégés ; aucune configuration serveur attestant leur nettoyage fournie",
+  "environnement": "PHP 8.5.4 hôte, PHPUnit 13.3.6 ; tests/Support/Configuration.php sans configuration locale ; applications non initialisées, SQL remplacé par doublures et sessions en mémoire",
+  "reproduction": "Aucun serveur HTTP, navigateur, accès SQL ou appel de production ; en-têtes de transport simulés via superglobales en mémoire.",
+  "resultats": {
+    "tests_existants": 111,
+    "assertions_existantes": 327,
+    "sondes": 6,
+    "assertions_sondes": 24,
+    "echecs": 0,
+    "notices_sur_execution_finale": 0
+  },
+  "commandes": {
+    "tests_existants": "php src/releases/vdev/vendor/bin/phpunit --configuration <temp>/phpunit.xml --do-not-record-test-run-history --no-progress",
+    "cibles": [
+      "src/tests/Unit/Routing",
+      "src/tests/Unit/Request",
+      "src/tests/Unit/Plugins/Security",
+      "src/tests/Unit/Plugins/Core/CronDispatcherTest.php",
+      "src/tests/Unit/Plugins/Core/CronTickTest.php"
+    ],
+    "sondes": "TY_SECURITY_OUTPUT=<temp>/probes.json php src/releases/vdev/vendor/bin/phpunit --no-configuration --bootstrap src/tests/bootstrap.php --do-not-record-test-run-history --no-progress Docs/IA/Security/Evidence/LOT-03/HttpAuditTest.php",
+    "inventaire": "php Docs/IA/Security/Evidence/LOT-03/extract-routes.php"
+  },
+  "limites": [
+    "Tests locaux des couches PHP ; pas de preuve de comportement navigateur/Apache sur un déploiement.",
+    "Les URL de menus, extensions réellement installées et politiques serveur n’ont pas été lues en SQL/production.",
+    "Les ACL métier, callbacks fédérés complets et authentifications des scénarios restent aux lots 04/07/12.",
+    "Les en-têtes HSTS, TLS, CORS et limites effectives de requête de l’hébergement restent au lot 16.",
+    "Les points du lot 02 restent ouverts ; aucun nouvel audit des dépendances ni nouveau scan de secrets."
+  ]
+}

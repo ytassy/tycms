@@ -1,0 +1,75 @@
+// Contrat des tokens de l'interface d'administration.
+//
+// Les valeurs par défaut reproduisent le rendu historique. Un skin ne doit
+// modifier que ces tokens et quelques règles structurelles : le HTML reste
+// celui de Bootstrap et des composants existants.
+
+@mixin admin-token-defaults {
+    // Structure
+    --admin-sidebar-width: 280px;
+    --admin-sidebar-padding: 1.5rem;
+    --admin-content-padding: 1.5rem;
+    --admin-content-padding-editor: 0.5rem;
+    --admin-border-width: 2px;
+
+    // Surfaces
+    --admin-sidebar-bg: transparent;
+    --admin-content-bg: #ffffff;
+    --admin-border-color: rgba(148, 163, 184, 0.2);
+    --admin-shadow-sm: none;
+    --admin-shadow: none;
+
+    // Menu
+    --admin-menu-item-gap: 5px;
+    --admin-menu-item-padding: 2px;
+    --admin-menu-hover-bg: #ededed;
+    --admin-menu-active-bg: #ededed;
+    --admin-menu-active-color: inherit;
+    --admin-menu-active-border: #838383;
+    --admin-menu-active-border-width: 2px;
+    --admin-menu-title-border: #000000;
+    --admin-menu-title-margin: 10px 0 10px 0;
+    --admin-menu-title-color: inherit;
+    --admin-menu-title-transform: none;
+}
+
+@mixin admin-modern-tokens {
+    // Structure plus aérée, pensée pour les écrans denses de l'administration.
+    --admin-sidebar-padding: 1.25rem 1rem;
+    --admin-content-padding: 1.75rem;
+    --admin-content-padding-editor: 0.75rem;
+    --admin-border-width: 1px;
+
+    // Les surfaces suivent la palette du site : le skin ne fige pas les couleurs.
+    --admin-sidebar-bg: var(--bs-body-bg);
+    --admin-content-bg: var(--bs-tertiary-bg);
+    --admin-border-color: var(--bs-border-color-translucent);
+    --admin-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+    --admin-shadow: 0 4px 12px rgba(16, 24, 40, 0.08);
+
+    // Menu
+    --admin-menu-item-gap: 0.25rem;
+    --admin-menu-item-padding: 0.5rem 0.75rem;
+    --admin-menu-hover-bg: var(--bs-secondary-bg);
+    --admin-menu-active-bg: var(--bs-primary-bg-subtle);
+    --admin-menu-active-color: var(--bs-primary-text-emphasis);
+    --admin-menu-active-border: var(--bs-primary);
+    --admin-menu-active-border-width: 0px;
+    --admin-menu-title-border: transparent;
+    --admin-menu-title-margin: 1.5rem 0.75rem 0.5rem 0.75rem;
+    --admin-menu-title-color: var(--bs-secondary-color);
+    --admin-menu-title-transform: uppercase;
+
+    // Remapper localement les tokens Bootstrap : les composants existants
+    // suivent le skin sans que leur HTML soit modifié. Ces déclarations sont
+    // portées par la racine admin, donc elles gagnent sur :root quel que soit
+    // l'ordre entre le bundle et le CSS généré par la template.
+    --bs-border-radius-sm: 0.375rem;
+    --bs-border-radius: 0.5rem;
+    --bs-border-radius-lg: 0.75rem;
+    --bs-border-radius-xl: 1rem;
+    --bs-border-radius-xxl: 1.5rem;
+    --bs-box-shadow-sm: var(--admin-shadow-sm);
+    --bs-box-shadow: var(--admin-shadow);
+    --bs-box-shadow-lg: 0 12px 32px rgba(16, 24, 40, 0.14);
+}

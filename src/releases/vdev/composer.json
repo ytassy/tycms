@@ -1,0 +1,59 @@
+{
+    "name": "ytassy/tycms",
+    "type": "library",
+    "require": {
+        "php": "^8.4",
+        "ext-openssl": "*",
+        "ext-curl": "*",
+        "larapack/dd": "^1.1",
+        "symfony/html-sanitizer": "^8.1",
+        "scssphp/scssphp": "^2.1",
+        "league/oauth2-google": "^5.0",
+        "league/oauth2-client": "^2.9",
+        "firebase/php-jwt": "^7.2",
+        "phpmailer/phpmailer": "^7.0",
+        "aws/aws-sdk-php": "^3.271",
+        "google/apiclient": "^2.20"
+    },
+    "require-dev": {
+        "larapack/dd": "^1.1",
+        "phpunit/phpunit": "^13.3"
+    },
+    "scripts": {
+        "test": "@php vendor/bin/phpunit --configuration phpunit.xml",
+        "test:db:prepare": "@php ../../tools/test_db_prepare.php --reset",
+        "pre-autoload-dump": [
+            "Google\\Task\\Composer::cleanup",
+            "Aws\\Script\\Composer\\Composer::removeUnusedServices"
+        ]
+    },
+    "autoload": {
+        "psr-4": {
+            "YTassy\\Tycms\\": "framework/",
+            "YTassy\\Tycms\\Modules\\": "../../extensions/modules/",
+            "YTassy\\Tycms\\Plugins\\": "../../extensions/plugins/",
+            "YTassy\\Tycms\\Templates\\": "../../extensions/templates/",
+            "YTassy\\Tycms\\CoreExts\\": "core_extensions/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "YTassy\\Tycms\\Tests\\": "../../tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Yann Tassy",
+            "email": "tassy.yann@gmail.com"
+        }
+    ],
+    "extra": {
+        "google/apiclient-services": [
+			"Calendar", "Drive", "Docs", "Sheets", "Slides", "Forms",
+            "Gmail", "PeopleService", "Tasks", "YouTube"
+        ],
+        "aws/aws-sdk-php": [
+            "S3"
+        ]
+    }
+}

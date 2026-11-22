@@ -1,0 +1,110 @@
+[
+  {
+    "paquet": "video.js",
+    "version": "8.23.4",
+    "chemin": "src/public/assets_core_vdev/plg_core/videojs/video-8.23.4.min.js",
+    "sha256": "acd0a81a4cc78928f1530598762ed783ee916674bf3a0bf2a6c26a6c0b16ed4b",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "vue3-sfc-loader",
+    "version": "0.9.5",
+    "chemin": "src/public/assets_updater/vendor/vue3-sfc-loader.js",
+    "sha256": "01157411a87ceb2695d6ab26295347f37144a7194550e359e4dc9ab378d5773b",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "vue",
+    "version": "3.5.43",
+    "chemin": "src/public/assets_updater/vendor/vue.runtime.global.prod.js",
+    "sha256": "f2f1547993b942e5e24f2d6e63577b21739a37a920e09c656b0e87eb0ad55175",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "bootstrap",
+    "version": "5.3.8",
+    "chemin": "src/public/assets_updater/vendor/bootstrap.min.css",
+    "sha256": "d85327d99c7a3ee1f9b5d0500d1370acea3ad2db39c163c2f51f232baedbdede",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "bootstrap",
+    "version": "5.3.8",
+    "chemin": "src/public/assets_core_vdev/tpl_main/js/bootstrap.bundle.min.js",
+    "sha256": "e4fd49181388c48ec5040bd3fe66f57c29c8e67fcd8502b3354b96ec7ab47cc7",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "codemirror",
+    "version": "5.65.20",
+    "chemin": "docker/dev/adminer/codemirror/codemirror.js",
+    "sha256": "c4f9d49df7276944b57ca7400a8f8802dd00f6542ce06a3dc4537e30deeec85d",
+    "identique_npm": false,
+    "identique_hors_crlf": false,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "codemirror",
+    "version": "5.65.20",
+    "chemin": "docker/dev/adminer/codemirror/codemirror.css",
+    "sha256": "18acc2dba2c8c2b12660d1df5c5cef94bdfb09b2d0aedf61376c288029b0ecc0",
+    "identique_npm": false,
+    "identique_hors_crlf": false,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "codemirror",
+    "version": "5.65.20",
+    "chemin": "docker/dev/adminer/codemirror/javascript.js",
+    "sha256": "5ea9c3a23895f62d5edaf321861fb7a06e8ef08b4b97ed0e965b5d605d4f9b9d",
+    "identique_npm": false,
+    "identique_hors_crlf": false,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "@fortawesome/fontawesome-free",
+    "version": "7.3.1",
+    "chemin": "src/public/assets_core_vdev/tpl_main/fa/css/fontawesome.min.css",
+    "sha256": "405bfb2a5312e363b88650a68ed90b6c06c41d5cfa3cbf5c68251cafafb3c078",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "@fortawesome/fontawesome-free",
+    "version": "7.3.1",
+    "chemin": "src/public/assets_core_vdev/tpl_main/fa/css/solid.min.css",
+    "sha256": "01219b97103029774a3e8cb1b22803490beec1df828895dfd9c5fd0d4798da25",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "@fortawesome/fontawesome-free",
+    "version": "7.3.1",
+    "chemin": "src/public/assets_core_vdev/tpl_main/fa/css/regular.min.css",
+    "sha256": "8ce72fe73bcf1a93ae67cdae0f599a322f2f939ce6801863b86cb577e3d554d0",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  },
+  {
+    "paquet": "@fortawesome/fontawesome-free",
+    "version": "7.3.1",
+    "chemin": "src/public/assets_core_vdev/tpl_main/fa/css/brands.min.css",
+    "sha256": "a0cb780acb8abde232376e88205124fb6a9992c24f73fcdba8e5cdfc9e98c07f",
+    "identique_npm": true,
+    "identique_hors_crlf": true,
+    "integrite_archive": true
+  }
+]

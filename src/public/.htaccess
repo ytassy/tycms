@@ -1,0 +1,52 @@
+Options +FollowSymLinks
+Options -Indexes
+
+<IfModule mod_autoindex.c>
+    IndexIgnore *
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+</IfModule>
+
+<FilesMatch "\.svg$">
+    <IfModule mod_headers.c>
+        Header always set Content-Security-Policy "script-src 'none'"
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Autoriser le contrôleur principal et les liens secrets de mise à jour uniquement.
+    RewriteCond %{THE_REQUEST} \s/+(.+?\.php)([\s?]|$) [NC]
+    RewriteCond %1 !^(index|update_[a-f0-9]{64})\.php$
+    RewriteRule ^ - [F,L]
+
+    # Preserve Authorization for API routes handled by the front controller.
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Existing files (notably /assets/* and /assets_core/*) are served as static content.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+
+    # Serve pre-compressed static CSS and JavaScript when available.
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}.gz -s
+    RewriteRule ^(.+)\.css$ $1.css.gz [QSA]
+
+    RewriteCond %{HTTP:Accept-Encoding} gzip
+    RewriteCond %{REQUEST_FILENAME}.gz -s
+    RewriteRule ^(.+)\.js$ $1.js.gz [QSA]
+
+    RewriteRule \.css\.gz$ - [T=text/css,E=no-gzip:1,E=no-brotli:1]
+    RewriteRule \.js\.gz$ - [T=text/javascript,E=no-gzip:1,E=no-brotli:1]
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "(\.js\.gz|\.css\.gz)$">
+        Header set Content-Encoding gzip
+        Header append Vary Accept-Encoding
+    </FilesMatch>
+</IfModule>

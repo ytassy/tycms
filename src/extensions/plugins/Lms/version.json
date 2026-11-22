@@ -1,0 +1,12 @@
+{
+    "schema_version": 1,
+    "id": "plg_lms",
+    "type": "plugin",
+    "folder": "Lms",
+    "version": "0.4.0",
+    "source_versions": "*",
+    "cms_min": "1.1.3",
+    "cms_max_exclusive": "1.2.0",
+    "php_min": "8.4.1",
+    "php_max_exclusive": "8.6.0"
+}

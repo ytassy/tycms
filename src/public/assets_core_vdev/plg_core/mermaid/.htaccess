@@ -1,0 +1,5 @@
+# Modules publics uniquement : l'iframe sandboxée les charge depuis une origine opaque.
+AddType text/javascript .mjs
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+</IfModule>

@@ -1,0 +1,366 @@
+{
+  "src/public/.htaccess": {
+    "sha256": "4aca0ade4373274e5416c8fb3310fa87ecaa1522ff02f4d164cd5c5e39efed46",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/public/index.php": {
+    "sha256": "11b163b35ec17f8eebb82fb6873ec019d4312e955f92b11985461d35b5e44211",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php": {
+    "sha256": "69be8677db615c28911295084c03df2286ffe44e7b1f1a4c92386f81df77868e",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Automation/Controller/AutomationWebhookController.php": {
+    "sha256": "7afdacd62df887393e969a0fb49ad7ea22fc03e6fd3f56b71ab380503bce36aa",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Automation/Plugin.php": {
+    "sha256": "0835eda895add2e3dd7f1102e840257bb38b5b64bc8ced3e9f8b145b32024d90",
+    "portee": "lecture ciblée de l’enregistrement HTTP ou de l’ACL de route"
+  },
+  "src/releases/vdev/core_extensions/Automation/WF/WFAutomation.php": {
+    "sha256": "af3975287787ff65936786774fbc8f7603e628877ea4ef50236023f254e8e57e",
+    "portee": "lecture ciblée du contrôle ou bootstrap de test"
+  },
+  "src/releases/vdev/core_extensions/Automation/Webhook/WebhookReceiver.php": {
+    "sha256": "d01348f104a532e75fed4f362292d819977fc750ba5dff7a6397175bcfbfdc0d",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Controller/ControllerManager.php": {
+    "sha256": "44e30f96952bdd97a0928eb2faba8ec5eba244616f37a86c901fc2bc619f763d",
+    "portee": "lecture ciblée de l’enregistrement HTTP ou de l’ACL de route"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminAiController.php": {
+    "sha256": "017800fc4dbc482781cfaec6da31c7fb95659fbcde40ee68c5e87c4db605806e",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminApiController.php": {
+    "sha256": "b171185c73fc064959770cc75983c29495824e3cb7d4845b6eacb8b32e317b19",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminController.php": {
+    "sha256": "08501e73e8fe7109ee989791195f9b87d648f62b58ca55b79ba62f4b89e11ecd",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminEmailTemplateController.php": {
+    "sha256": "8cad678a3f64676f375a4e61c07d9333b3ece1078be52aa5d599bc66d2abbb78",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminExtensionsController.php": {
+    "sha256": "152786efebb6e9f9a0a26f17d0d76488be9570d87b9df275e61039f1e3b16ba2",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminFontController.php": {
+    "sha256": "33ca32cd83195e27795e34e78c81e90806e4c0e27f599b5beac8c6f6654db6b8",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminLanguageController.php": {
+    "sha256": "b96fa88bcdb790d03af7c35f195b9c9e7cfc42b4ac537d25d6304b0ba944ac52",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminLogsController.php": {
+    "sha256": "2dd1ffb819182c5a5801c0b9f0d4d5b6f63b89158f74b45854cc754c9367fc92",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminMediaController.php": {
+    "sha256": "003690fbadeb17a806a51fd707d17265347aca8e48d982c643b377f551876263",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminMenuApiController.php": {
+    "sha256": "de010d67450cac228e87c1d3bcd0bcf19982ee5c272477a71efb18c072ca1e29",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminPageController.php": {
+    "sha256": "46e24a882d456a0214d12646e5513871718b6fac3379302f064012b5b6f8e985",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminRoleController.php": {
+    "sha256": "9237e6afce9b5f98db50bf64ad705bcb0c78f247082807cc11323bee6988d435",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminSpaceController.php": {
+    "sha256": "b8e587258d8b0c22f5dae334908e759023a14f802b6538438b5ce853f4e5c99f",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminSsoProviderController.php": {
+    "sha256": "270da8128b43e9b8676574209cb0f43371fbe2b5017a8a1821793bb41f3fe430",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminUserAssignmentsController.php": {
+    "sha256": "a6b85a274201edac34546624e9618e1915792d8502819c00d1b3ecfd3f0fbabc",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminUserController.php": {
+    "sha256": "f0cf14930d073f32e83d2cc11aac012ab17796538525d90f508eded06b317e0d",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/Admin/AdminUserGroupController.php": {
+    "sha256": "4698c6a03a583b58ef3162c6cbb94e2abbb41be71844e4a7cbd79feb7e02418d",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/AiController.php": {
+    "sha256": "17873f15b869ba6fba7bd8afadd859d33878a356f2aba148dbfc4416cc4d4b86",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/AuthenticationController.php": {
+    "sha256": "900e1366fbaae85503c30a277e962d9576aecb4f14ade7ee403ee06061e008c3",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/CronController.php": {
+    "sha256": "80ec1ab839cdd9c9adc734785a9dccc664853d6a2bf494cfc570b39c651ace19",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/HomeController.php": {
+    "sha256": "30ca3f5d44ced99572b5669ab9dabf845d4cec751c8cf6cda290a2ce324122d8",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/IntegrationController.php": {
+    "sha256": "be2798dc392e5dec1c5f87617555c5b535d3b24629db57c4b7c11c348b073eeb",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/MyAccountController.php": {
+    "sha256": "494d7fd8c0b81bf6355aecf120d7f35a9491088347726cf030250aaf64c92626",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/PageButtonApiController.php": {
+    "sha256": "30ba931d77e8c02ec5ee73801857a024a2d367ccb42d0186b68122987da6b36a",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/PageCssController.php": {
+    "sha256": "d426ac79c6823682f7277660df11f0baaf1a579e6221aae6f9031e405d966d27",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/PasswordResetController.php": {
+    "sha256": "9e184a9782bfdbbd96161e7a578e3de5d3410d42777a996990b16c52c7c2b102",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/SecureVideoController.php": {
+    "sha256": "d595a66671daf1cc677909a1860e205ca352ee5e945d4fc25260e0adfe0f2f58",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/SpaceController.php": {
+    "sha256": "4d86c9bb121a15f1b8d3915ccad688a5be8fac5de110a0b3f6f4858326b55442",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/SpaceSwitchController.php": {
+    "sha256": "3d402faab41ed098592906888c27e831eae49a63317f06efca250d7cb2cd3dfa",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Core/Controllers/UserController.php": {
+    "sha256": "95a1e48399d527ed6eefc6164c7750ddd208ccec94203fbe466d794da6932b11",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Cron/CronDispatcher.php": {
+    "sha256": "bf85d50a4520d76c73d9a49a34e2f8e13face83f46a648b8f17db9418cdedcb6",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Helper/Frontend/FrontendAssets.php": {
+    "sha256": "a8df574d3dbf80d10fe5542aa588ce322261bc7990caa7ee930419861a80edec",
+    "portee": "lecture ciblée du contrôle ou bootstrap de test"
+  },
+  "src/releases/vdev/core_extensions/Core/Helper/Mail/MailHelper.php": {
+    "sha256": "6aa492b4c11abb3ef9bb0e972677dff7d02fdd05250dc3c15dd9d6f5e2673363",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Helper/Menu/MenuRouteHelper.php": {
+    "sha256": "17207aae2d7a46dbea742705bc74958b017ec316ea80e76e662dae669b595276",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Helper/Space/SpaceHelper.php": {
+    "sha256": "c00fc4b6bb3d55cfb482d072d84341def8663675dcd695fe197774141530ffbf",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Plugin.php": {
+    "sha256": "38fa3fd798d567c001ae25fde89098e846120fda76554c518a90a8edbb61968f",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Sso/GenericOAuth.php": {
+    "sha256": "547a46f2d8dec5ba605ae62ba28e4ba3ef80749bdf7fe2b3e14be75af1379191",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Sso/GoogleOidc.php": {
+    "sha256": "3723f6edea6fb66e6c59ab0acd9d7782d5c330f7bfeb9a29b61b4afb49ad9177",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/Views/tmpl/space_choose.php": {
+    "sha256": "b1971344cf09240a94df3cb35fe0d6a44a4287b508317a4d97dd15d9d40c5a49",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/WF/WFOAuthIntegration.php": {
+    "sha256": "0ceeed5efc199b2237e39950beeacb984fb01b7cdc96b1c966cbb1a1cfbf17df",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/WF/WFPageButton.php": {
+    "sha256": "b18da58ce7bddacea4412d52ab1a911cda6379369d8ffb16f73aca06b0ae1527",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Core/WF/WFSso.php": {
+    "sha256": "9c463c5c4ee19beee99c2cdc0cf55b6a3ff20ace4d8c295940d70c28786ee042",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/MainTemplate/Controllers/AdminEmailTestController.php": {
+    "sha256": "909e066f0168c122e4ead865f8cecb02be86f24a59178af11f855f9e33ff02d9",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/MainTemplate/Controllers/CssController.php": {
+    "sha256": "c4c47085a8cad1814a87d4f1baba8c508120e391abfe806f5339fa25c0a19742",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Matrix/Controllers/MatrixController.php": {
+    "sha256": "be631e0113365181bcf785cf88ac0b3b61f73660f82b0f2d0691005b6a72ff20",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/core_extensions/Matrix/Plugin.php": {
+    "sha256": "360f32aab0a9028c6434eaeaa087ccd17b841aadb7fef0922ce8e6134644d577",
+    "portee": "lecture ciblée de l’enregistrement HTTP ou de l’ACL de route"
+  },
+  "src/releases/vdev/core_extensions/Security/Helper/WafHelper.php": {
+    "sha256": "eff15df8994f39186943f6bf3dfde09fe3a7d5017cd8c18d0183463d658e4f81",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Security/Plugin.php": {
+    "sha256": "f765c821fff45b3393b363335bbdb2253db14bd600d528e822252e1f32d87a48",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Security/ResponseHeaders.php": {
+    "sha256": "6270442709cca4fcd5e793f5bfe428ac3e45410f06be9859b89d54280b3af9f0",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Security/Waf/PatternScanner.php": {
+    "sha256": "7f980336d771189b20e0e956b2dcc62b7e968927049e011c6d1c47970d0869a6",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/core_extensions/Test/Controllers/TestController.php": {
+    "sha256": "8f1044482df0d1e9b3a761dab3381d450ef424461a65bb39ad7838e261718269",
+    "portee": "métadonnées des déclarations HTTP seulement"
+  },
+  "src/releases/vdev/framework/Application.php": {
+    "sha256": "0a781ccb802953cb5cc6a3f9dfc5268cf3d331109e448aaa73fadc858d7064fd",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/ApplicationRouteRunner.php": {
+    "sha256": "0716b0216d54817e3021b8dc01fe32737229338161c2c9a69fcbc3b235c9bc7a",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/BaseApplicationItem.php": {
+    "sha256": "2c0eaa1c42fe400be361c7572d9a28db1a053b45c434bb2f634b74395482b8b0",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/ErrorPages/ErrorPages.php": {
+    "sha256": "af670ae8b77dd30a34a772408a69d5af16791ce90bc147bba89e55a1daef0744",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Request/Request.php": {
+    "sha256": "f254b1571983a5a9f9ef9b9d07bf51b76b60bc48ac08ec6d960836b13d37c757",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Request/RequestMethod.php": {
+    "sha256": "e7d2ed9f9e4e3912f2963cbc733f384251393e240c1cf908c12009174985cd33",
+    "portee": "lecture ciblée du contrôle ou bootstrap de test"
+  },
+  "src/releases/vdev/framework/Request/WebRequest.php": {
+    "sha256": "2e52d86025c10b8c85aba7d994730847c2b7492524d4d3afc648ba3e6e1d5a65",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Response/FileResponse.php": {
+    "sha256": "c95905d91f307a9a49ef561025ffdb9264a79153e64e2f7c43e8bf42b99b517f",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Response/HtmlResponse.php": {
+    "sha256": "e4dd0979566e329c31a00c8058a0cc95cb01ded3237340cd337aba10c0ed4cea",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Response/JsonResponse.php": {
+    "sha256": "11bc6455bc36d6fa2a941c34eb6dbace1a81b7e8c913ba59b550405e429757dc",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Response/RedirectResponse.php": {
+    "sha256": "39b549b0b825f2eba9ebb29705e833a7fdf6ffa29ac68b210267ac2cb779f2c4",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Response/Response.php": {
+    "sha256": "7de11e213af6d64b792393f7c0e00194dddeb5867144fca8a6a26cd98cc84f38",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Routing/Router.php": {
+    "sha256": "ab23cf5dec3867ccecfecdae068ebcd55f451024b7bc365c4d4c61ac3d020700",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Session/DatabaseSession.php": {
+    "sha256": "9a44465098f3d841be0b46ef8fda70fcc366ae5e0194e2b4cc7e6ec57a1b5722",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Session/PhpSession.php": {
+    "sha256": "7f7c2791e9c739a819bd864a745dc76a884c81cc8d13f3fb297639a099bd2d22",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/releases/vdev/framework/Session/Session.php": {
+    "sha256": "a2c23f104d3b0cdb9511fd902974b309577baaf15fcc423cc945ecba80d7dc0b",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/ria/src/application/api.js": {
+    "sha256": "3007111dd65f33736097c4fbdcaba01e5fd02f073a9550e12302b8a5e6100138",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "src/tests/Support/Configuration.php": {
+    "sha256": "d3b9cb0b58bc748b98a1ed2aefe7ea56a495f42bfca7ccec30ddbab54c31712a",
+    "portee": "lecture ciblée du contrôle ou bootstrap de test"
+  },
+  "src/tests/Unit/Plugins/Core/CronDispatcherTest.php": {
+    "sha256": "be01eb82d29eab1fd642af0680eb2825765033bcfd1a01edccb3a4be568052e0",
+    "portee": "test existant exécuté"
+  },
+  "src/tests/Unit/Plugins/Core/CronTickTest.php": {
+    "sha256": "46d932e310e4ccacb291e4bfb1c4a7f31c9ca84ec2f3493c7666d6297f6f272e",
+    "portee": "test existant exécuté"
+  },
+  "src/tests/Unit/Plugins/Security/PluginTest.php": {
+    "sha256": "1a93e0bf30c87d79ee0bc99bf633d9e87308973fc01d57f4acabe705e7f49984",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Plugins/Security/SecurityPolicyHelperTest.php": {
+    "sha256": "354c203d9ad1bdddc4ea5c4c32fd6dbd9958db9d2dd729574b93e8ddeee881a3",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Plugins/Security/SecurityPolicyTest.php": {
+    "sha256": "a13aa979758dfc52490d00b85cbace7ce4e5d7df5e5779bf64bc695fadfd7ff3",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Plugins/Security/WafPatternsTest.php": {
+    "sha256": "7abdeda33081f732a2cd441ef863acf6276b334a508a3a244318c38b593b84af",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Plugins/Security/WafRequestTest.php": {
+    "sha256": "168654f2d4dbc395fe0f1e3f149b3e0133b35dedaa71b3b4f93823f86162dc67",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Request/WebRequestTest.php": {
+    "sha256": "878af6640a4ea3dfe381f1c16c71fd1696f7ac4bc1ea68dd06be4e5a43ff36d9",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Routing/CsrfTest.php": {
+    "sha256": "80ef2c7961cf7b88079f77ae95c09e7cdbc0b744d8fe62ba0242496cf70ab310",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Routing/NotFoundTest.php": {
+    "sha256": "d393e54d3018b6b22fd556294e64469b4b9611ff695d62a5ec5a8ab759cec8cf",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/Unit/Routing/RouterTest.php": {
+    "sha256": "36f1ba4df4d77b76f8e658d0c838feac86e8d31a98ac5cef7231d3d2635bf553",
+    "portee": "test existant exécuté, aucune garantie hors de ses assertions"
+  },
+  "src/tests/bootstrap.php": {
+    "sha256": "4e586f398d0f950cc4e24037c8561f5f849e599da8351c2f051f99693c361133",
+    "portee": "lecture ciblée du contrôle ou bootstrap de test"
+  },
+  "src/updater/index.php": {
+    "sha256": "097dac9898a456e4aa53958028de898e1c367dc203dbcbd00f0c93617da743db",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  },
+  "update_server/public/index.php": {
+    "sha256": "fe8b776e6f5c737c78cb33e7578cb64509c5c213479821f295abeb8fc2e9624d",
+    "portee": "lecture ciblée du contrôle ou de ses protections"
+  }
+}

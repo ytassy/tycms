@@ -1,0 +1,8 @@
+{
+  "revision": "df84bd5a9bf9e56766bb380471d7a101a69907d0",
+  "date_consultation": "2026-11-18",
+  "sondes": "PHP 8.5.4 hôte ; bibliothèques installées correspondant aux versions verrouillées",
+  "commandes_audit": "copies de manifestes/verrous sous /tmp ; --no-plugins --no-scripts pour Composer, --ignore-scripts pour npm ; aucun fix",
+  "resultats": "Composer 4 avis ; RIA 9 paquets affectés ; Mermaid 0 ; LMS 6 ; 6 avis distincts au total",
+  "limites": "aucun ZIP produit présent ; Docker socket inaccessible ; bibliothèques transitives des bundles copiés non entièrement attestées ; production non inspectée"
+}

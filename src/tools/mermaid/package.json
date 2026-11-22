@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "mermaid": "12.2.0",
+    "svg2roughjs": "^3.2.3"
+  },
+  "name": "tycms-mermaid",
+  "type": "module"
+}

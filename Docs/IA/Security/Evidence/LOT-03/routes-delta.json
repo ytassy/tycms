@@ -1,0 +1,135 @@
+{
+  "revision": "1aff26d92a78bccc5d66b067f13dd7614f58e6bc",
+  "extraction": "Reflection des métadonnées et arguments d’attributs ; aucun constructeur de contrôleur, attribut ou Application exécuté ; autoload seul.",
+  "avant": {
+    "declarations": 308,
+    "source": "routes-before.csv"
+  },
+  "actuel": {
+    "declarations": 315,
+    "classes_annotees": 36,
+    "par_extension": {
+      "Automation": 21,
+      "Core": 141,
+      "MainTemplate": 2,
+      "Matrix": 148,
+      "Test": 3
+    },
+    "candidates_hors_Matrix_Test": 164,
+    "api": 150,
+    "non_api": 14,
+    "verbes": {
+      "GET": 57,
+      "POST": 107
+    },
+    "csrf_automatique": 101,
+    "NoTransaction": 22,
+    "exemptions_waf": 53
+  },
+  "retraits": [
+    {
+      "extension": "Automation",
+      "enregistrement": "extension facultative ; activée en production selon Yann",
+      "nom": "automation_cronrun",
+      "verbe": "POST",
+      "chemin": "/automation/cron",
+      "api": "oui",
+      "csrf": "exemption withoutCsrf ; authentification spécifique à examiner",
+      "waf": "exemption attribut",
+      "acl_route": "aucune annotation ; autorisation métier à examiner",
+      "transaction": "NoTransaction",
+      "cible": "CronWorker::run()",
+      "parametres": "aucun ControllerParam ; chemin/requête possibles",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationCronController.php",
+      "ligne": "28",
+      "methode": "AutomationCronController::run",
+      "appel_csrf_specifique": "non repéré dans cette méthode ; suivre la cible",
+      "lots": "12,13,03",
+      "space_reel_attendu": "configuration serveur puis Space de chaque scénario",
+      "autorisation_a_verifier": "jeton cron dédié ; principal auteur/service",
+      "effet_famille": "exécution planifiée et transactions par scénario",
+      "verification": "déclaration extraite ; efficacité non vérifiée",
+      "limites_reperees": "MAX_TRIGGERS 500 ; limites d’exécution du moteur à suivre"
+    }
+  ],
+  "ajouts": [
+    {
+      "nom": "administrator_api_automation_maintenance",
+      "verbe": "GET",
+      "chemin": "/administrator/api/automation/maintenance",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 78,
+      "methode": "AutomationController::maintenance",
+      "without_csrf": false
+    },
+    {
+      "nom": "administrator_api_automation_maintenance_cleanup",
+      "verbe": "POST",
+      "chemin": "/administrator/api/automation/maintenance/cleanup",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 106,
+      "methode": "AutomationController::maintenanceCleanup",
+      "without_csrf": false
+    },
+    {
+      "nom": "administrator_api_automation_maintenance_fail_event",
+      "verbe": "POST",
+      "chemin": "/administrator/api/automation/maintenance/fail-event",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 92,
+      "methode": "AutomationController::maintenanceFailEvent",
+      "without_csrf": false
+    },
+    {
+      "nom": "administrator_api_automation_maintenance_fail_run",
+      "verbe": "POST",
+      "chemin": "/administrator/api/automation/maintenance/fail-run",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 99,
+      "methode": "AutomationController::maintenanceFailRun",
+      "without_csrf": false
+    },
+    {
+      "nom": "administrator_api_automation_maintenance_recover_event",
+      "verbe": "POST",
+      "chemin": "/administrator/api/automation/maintenance/recover-event",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 85,
+      "methode": "AutomationController::maintenanceRecoverEvent",
+      "without_csrf": false
+    },
+    {
+      "nom": "administrator_api_automation_rerun",
+      "verbe": "POST",
+      "chemin": "/administrator/api/automation/rerun",
+      "source": "src/releases/vdev/core_extensions/Automation/Controller/AutomationController.php",
+      "ligne": 206,
+      "methode": "AutomationController::rerun",
+      "without_csrf": false
+    },
+    {
+      "nom": "cronrun_get",
+      "verbe": "GET",
+      "chemin": "/cron",
+      "source": "src/releases/vdev/core_extensions/Core/Controllers/CronController.php",
+      "ligne": 30,
+      "methode": "CronController::runGet",
+      "without_csrf": true
+    },
+    {
+      "nom": "cronrun_post",
+      "verbe": "POST",
+      "chemin": "/cron",
+      "source": "src/releases/vdev/core_extensions/Core/Controllers/CronController.php",
+      "ligne": 37,
+      "methode": "CronController::runPost",
+      "without_csrf": true
+    }
+  ],
+  "limites": [
+    "Routes de menus SQL non instanciées.",
+    "Déclarations Matrix dormantes et Test DEV conservées pour périmètre ; pas présumées exposées.",
+    "Lecture des points getControllers recoupée ; extensions/hébergement réels non inspectés.",
+    "Les colonnes ACL, Space et effets restent des contrôles à éprouver par les lots métier."
+  ]
+}

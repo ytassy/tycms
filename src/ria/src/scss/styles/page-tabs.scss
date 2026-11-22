@@ -1,0 +1,80 @@
+// La succession radio / libellé / corps permet la navigation sans JavaScript.
+.page-tabs {
+  @include page-container-variables;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  isolation: isolate;
+
+  > .page-tabs-label {
+    order: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: .4em;
+    margin: 0 0 -1px;
+    color: var(--pt-tab-color, var(--bs-link-color));
+    background: var(--pt-tab-background-color, transparent);
+    border: var(--pt-tab-border-width, 1px) var(--pt-tab-border-style, solid) var(--pt-tab-border-color, transparent);
+    border-radius: var(--pt-tab-border-radius, .375rem .375rem 0 0);
+    padding: var(--pt-tab-padding-top, .5rem) var(--pt-tab-padding-right, 1rem) var(--pt-tab-padding-bottom, .5rem) var(--pt-tab-padding-left, 1rem);
+
+    &:hover {
+      color: var(--pt-hover-color, var(--bs-link-hover-color));
+      background: var(--pt-hover-background-color, var(--pt-tab-background-color, transparent));
+      border-color: var(--pt-hover-border-color, var(--bs-border-color));
+    }
+  }
+
+  > .page-tabs-radio:checked + .page-tabs-label {
+    position: relative;
+    z-index: 1;
+    color: var(--pt-active-color, var(--bs-emphasis-color));
+    background: var(--pt-active-background-color, var(--bs-body-bg));
+    border-color: var(--pt-active-border-color, var(--bs-border-color));
+  }
+
+  > .page-tabs-radio:focus-visible + .page-tabs-label {
+    outline: 3px solid var(--bs-focus-ring-color, #86b7fe);
+    outline-offset: -3px;
+  }
+
+  > .page-tabs-panel {
+    order: 1;
+    flex: 0 0 100%;
+    min-width: 0;
+    display: none;
+    color: var(--pt-body-color, inherit);
+    background: var(--pt-body-background-color, transparent);
+    border: var(--pt-body-border-width, 1px) var(--pt-body-border-style, solid) var(--pt-body-border-color, var(--bs-border-color));
+    border-radius: var(--pt-body-border-radius, 0);
+    padding: var(--pt-body-padding-top, 1rem) var(--pt-body-padding-right, 1rem) var(--pt-body-padding-bottom, 1rem) var(--pt-body-padding-left, 1rem);
+  }
+
+  > .page-tabs-radio:checked + .page-tabs-label + .page-tabs-panel { display: block; }
+}
+
+// Variante sobre inspirée de la référence : onglets jointifs et corps encadré.
+.page-tabs--simple {
+  --pt-tab-color: #080d55;
+  --pt-tab-background-color: #f7f7f9;
+  --pt-tab-border-width: 0;
+  --pt-tab-border-radius: 0;
+  --pt-tab-padding-top: 0.5rem;
+  --pt-tab-padding-bottom: 0.5rem;
+  --pt-hover-color: #383838;
+  --pt-hover-background-color: #ededed;
+  --pt-active-color: #383838;
+  --pt-active-background-color: #e5e5e5;
+  --pt-body-color: var(--bs-body-color);
+  --pt-body-background-color: #fff;
+  --pt-body-border-color: #d7d7d7;
+  --pt-body-padding-top: 2rem;
+  --pt-body-padding-right: 1.5rem;
+  --pt-body-padding-bottom: 2rem;
+  --pt-body-padding-left: 1.5rem;
+}
+
+.page-tabs--bootstrap > .page-tabs-radio:checked + .page-tabs-label {
+  border-bottom-color: var(--bs-body-bg);
+}

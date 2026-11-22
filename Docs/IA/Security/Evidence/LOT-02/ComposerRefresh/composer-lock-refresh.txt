@@ -1,0 +1,5 @@
+Loading composer repositories with package information
+Updating dependencies
+Nothing to modify in lock file
+Writing lock file
+No security vulnerability advisories found.

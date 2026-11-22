@@ -1,0 +1,10 @@
+No syntax errors detected in src/releases/vdev/core_extensions/Core/Controllers/SpaceController.php
+No syntax errors detected in src/releases/vdev/core_extensions/Core/Controllers/UserController.php
+No syntax errors detected in src/releases/vdev/core_extensions/Core/Views/SpaceChoose.php
+No syntax errors detected in src/releases/vdev/core_extensions/Core/Views/tmpl/space_choose.php
+No syntax errors detected in src/releases/vdev/framework/ApplicationRouteRunner.php
+No syntax errors detected in src/releases/vdev/framework/Response/RedirectResponse.php
+No syntax errors detected in src/releases/vdev/framework/Routing/Router.php
+No syntax errors detected in src/tests/Unit/Response/RedirectResponseTest.php
+No syntax errors detected in src/tests/Unit/Routing/HttpSecurityTest.php
+No syntax errors detected in src/tests/Unit/Routing/RouterTest.php

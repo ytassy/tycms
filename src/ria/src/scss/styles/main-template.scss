@@ -1,0 +1,129 @@
+
+
+/* Navbar sans navbar-expand-* : toujours réduite */
+
+/* XS — Moins de 576px */
+@media (max-width: 575.98px) {
+    .main-template-header:has(
+        .navbar.navbar-expand-sm,
+        .navbar.navbar-expand-md,
+        .navbar.navbar-expand-lg,
+        .navbar.navbar-expand-xl,
+        .navbar.navbar-expand-xxl
+    ) {
+        --header-height-a: var(--header-height-default-a);
+    }
+}
+
+/* SM — De 576px à 767.98px */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .main-template-header:has(
+        .navbar.navbar-expand-md,
+        .navbar.navbar-expand-lg,
+        .navbar.navbar-expand-xl,
+        .navbar.navbar-expand-xxl
+    ) {
+        --header-height-a: var(--header-height-default-a);
+    }
+}
+
+/* MD — De 768px à 991.98px */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .main-template-header:has(
+        .navbar.navbar-expand-lg,
+        .navbar.navbar-expand-xl,
+        .navbar.navbar-expand-xxl
+    ) {
+        --header-height-a: var(--header-height-default-a);
+    }
+}
+
+/* LG — De 992px à 1199.98px */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .main-template-header:has(
+        .navbar.navbar-expand-xl,
+        .navbar.navbar-expand-xxl
+    ) {
+        --header-height-a: var(--header-height-default-a);
+    }
+}
+
+/* XL — De 1200px à 1399.98px */
+@media (min-width: 1200px) and (max-width: 1399.98px) {
+    .main-template-header:has(
+        .navbar.navbar-expand-xxl
+    ) {
+        --header-height-a: var(--header-height-default-a);
+    }
+}
+
+
+.main-template-header{
+    --header-height: 80px;
+    --header-height-default-a: 2.5em;
+    --header-height-a: var(--header-height);
+
+    min-height: var(--header-height);
+
+    .navbar {
+        min-height: var(--header-height);
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+
+        &>.container{
+            min-height: var(--header-height);
+
+            a.navbar-brand {
+
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+
+                min-height: var(--header-height);
+            }
+
+            .navbar-toggler+div.navbar-collapse{
+
+                // Limiter les états personnalisés aux entrées principales, y compris les titres de sous-menu.
+                & > .navbar-nav > .nav-item > .nav-link:not(.disabled):not([aria-disabled="true"]) {
+                    &:hover,
+                    &:focus-visible {
+                        background-color: var(--theme-menu-hover-bg);
+                        color: var(--theme-menu-hover-color);
+                        text-decoration: none;
+                    }
+
+                    // Après le survol pour garder le repère de la page courante, même au clavier.
+                    &.active {
+                        background-color: var(--theme-menu-active-bg);
+                        color: var(--theme-menu-active-color);
+                    }
+                }
+
+                &>ul>li a, &>ul>li span {
+                    vertical-align: middle;
+                    padding: 0 15px;
+                    
+                    &:hover{
+                        text-decoration: none;
+                    }
+
+                }
+            }
+
+            .navbar-collapse{
+                &, &>ul, &>ul>li a {
+                    line-height: var(--header-height-a);
+                    min-height: var(--header-height-a);
+                }
+
+                ul.dropdown-menu a {
+                    line-height: var(--header-height-default-a);
+                    min-height: var(--header-height-default-a);
+                }
+            }
+        }
+    }
+}
+
+//navbar-collapse collapse show
+

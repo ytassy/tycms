@@ -1,0 +1,41 @@
+{
+    "proxy": {
+        "host": "other.example.test",
+        "https": true,
+        "remote_addr": "198.51.100.42",
+        "space_correspondant": 22,
+        "limite": "Protection du serveur web non reproduite ; aucun contournement ACL prouvé."
+    },
+    "redirections": {
+        "/forgot-password": {
+            "path_routeur": "/forgot-password",
+            "code": 303,
+            "location": "/forgot-password"
+        },
+        "//offsite.example/forgot-password": {
+            "path_routeur": "/forgot-password",
+            "code": 303,
+            "location": "//offsite.example/forgot-password"
+        }
+    },
+    "space_choose": {
+        "csrf_fourni": false,
+        "origin_externe": true,
+        "space_initial": 1,
+        "space_final": 22,
+        "limite": "Session mémoire injectée ; politique SameSite du navigateur non reproduite."
+    },
+    "logout_get": {
+        "user_initial": 7,
+        "user_final": null,
+        "session_detruite": true
+    },
+    "parametre_tableau": {
+        "exception": "TypeError",
+        "avant_runner": true
+    },
+    "json_invalide": {
+        "corps_normalise": [],
+        "limite": "Les paramètres requis sont contrôlés ensuite ; aucune injection démontrée."
+    }
+}

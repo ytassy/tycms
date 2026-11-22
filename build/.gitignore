@@ -1,0 +1,5 @@
+/temp/*
+!/temp/.gitkeep
+/dist/*
+!/dist/.gitkeep
+/.build.lock

@@ -1,0 +1,7 @@
+{
+    "version": "1.1.5",
+    "version_string": "1_1_6",
+    "source_versions": "*",
+    "php_min": "8.4.1",
+    "php_max_exclusive": "8.6.0"
+}

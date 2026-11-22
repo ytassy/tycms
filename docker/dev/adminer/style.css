@@ -1,0 +1,16 @@
+/* Ajoute ici tes styles personnalisés, chargés après le thème et CodeMirror. */
+
+#form>table:first-child+p{
+    position: fixed;
+    z-index: 9999;
+    bottom: 0;
+    background-color: white;
+    padding: 10px;
+    left: 0;
+    width: 100%;
+    border-top: solid 1px black;
+}
+
+body {
+    padding-bottom: 60px;
+}

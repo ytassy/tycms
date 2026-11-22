@@ -1,0 +1,247 @@
+// Skin « moderne » de l'administration.
+//
+// L'attribut est rendu par le serveur sur la racine .vue-app. body:has() permet
+// d'atteindre aussi les modales téléportées dans body, sans dépendre du montage
+// Vue ni ajouter de classe sur chaque composant.
+
+body:has([data-admin-ui="modern"]) {
+    // Les tokens sont portés par la racine admin et par les éléments téléportés
+    // dans body : modales et popovers.
+    .administrator-page,
+    .modal-backdrop,
+    .popover {
+        @include admin-modern-tokens;
+    }
+
+    .administrator-page {
+        .administrator-menu {
+            position: sticky;
+            top: 0;
+            align-self: flex-start;
+            max-height: 100vh;
+            overflow-y: auto;
+
+            .administrator-menu-title {
+                padding-bottom: 0.4rem;
+                font-size: 0.75rem;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+            }
+
+            .menu-item {
+                border-radius: var(--bs-border-radius);
+                color: var(--bs-secondary-color);
+                transition: background-color 0.15s ease, color 0.15s ease;
+
+                i {
+                    width: 1.1rem;
+                    text-align: center;
+                    opacity: 0.85;
+                }
+
+                &:hover,
+                &:focus-visible {
+                    color: var(--bs-emphasis-color);
+                    text-decoration: none;
+                }
+
+                &.active {
+                    color: var(--admin-menu-active-color);
+                    font-weight: 600;
+                    box-shadow: inset 2px 0 0 var(--admin-menu-active-border);
+                }
+            }
+        }
+
+        .administrator-content {
+            min-height: calc(100vh - 6rem);
+            background-color: var(--admin-content-bg);
+        }
+
+        // Surfaces : cartes, sections et entêtes de composants.
+        .card {
+            border-color: var(--admin-border-color);
+            border-radius: var(--bs-border-radius-lg);
+            box-shadow: var(--admin-shadow-sm);
+        }
+
+        .card-header,
+        .card-footer {
+            background-color: transparent;
+            border-color: var(--admin-border-color);
+        }
+
+        .card-header {
+            font-weight: 600;
+        }
+
+        // Tableaux : entêtes discrets et survol de ligne lisible.
+        .table {
+            --bs-table-border-color: var(--admin-border-color);
+            --bs-table-hover-bg: var(--bs-tertiary-bg);
+
+            > :not(caption) > * > * {
+                border-bottom-color: var(--admin-border-color);
+            }
+
+            > thead > tr > th {
+                --bs-table-bg: var(--bs-tertiary-bg);
+                --bs-table-color: var(--bs-secondary-color);
+                font-size: 0.8125rem;
+                font-weight: 600;
+                letter-spacing: 0.03em;
+                text-transform: uppercase;
+                white-space: nowrap;
+            }
+
+            > tbody > tr:hover > * {
+                --bs-table-bg-state: var(--bs-tertiary-bg);
+            }
+        }
+
+        // Formulaires : même bordure et même anneau de focus partout.
+        .form-control,
+        .form-select {
+            border-color: var(--admin-border-color);
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--bs-primary);
+            box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.15);
+        }
+
+        .btn {
+            font-weight: 500;
+        }
+
+        // Onglets : le panneau se rattache à la barre d'onglets par la bordure
+        // basse du nav, comme un onglet Bootstrap classique.
+        .tylms-tabs {
+            --bs-nav-tabs-border-color: var(--admin-border-color);
+            --bs-nav-tabs-border-radius: var(--bs-border-radius);
+            --bs-nav-tabs-link-hover-border-color: transparent;
+            --bs-nav-tabs-link-active-border-color:
+                var(--admin-border-color) var(--admin-border-color) var(--bs-body-bg);
+
+            .tylms-tabs-nav {
+                margin-bottom: 0;
+
+                .nav-link {
+                    border-radius: var(--bs-border-radius) var(--bs-border-radius) 0 0;
+
+                    &:not(.active):hover {
+                        background-color: var(--bs-tertiary-bg);
+                    }
+                }
+            }
+
+            .tylms-tab-content {
+                padding-right: 1rem;
+                padding-bottom: 1rem;
+                padding-left: 1rem;
+                background-color: var(--bs-body-bg);
+                border: 1px solid var(--admin-border-color);
+                // La bordure du nav forme le haut du cadre ; l'onglet actif
+                // la recouvre avec son propre fond.
+                border-top: 0;
+                border-radius: 0 0 var(--bs-border-radius) var(--bs-border-radius);
+            }
+        }
+
+        // Panneau latéral de l'éditeur : cadre plus compact.
+        .page-panel-content .tylms-tab-content {
+            padding-right: 0.5rem;
+            padding-bottom: 0.75rem;
+            padding-left: 0.5rem;
+        }
+
+        .administrator-content > :first-child {
+            margin-top: 0;
+        }
+
+        // Tableau de bord : cartes de rubriques et blocs d'état.
+        .update-status {
+            padding: 1.25rem;
+            background-color: var(--bs-body-bg);
+            border: 1px solid var(--admin-border-color);
+            border-radius: var(--bs-border-radius-lg);
+            box-shadow: var(--admin-shadow-sm);
+        }
+
+        .dashboard-link {
+            border-color: var(--admin-border-color);
+            border-radius: var(--bs-border-radius-lg);
+            background-color: var(--bs-body-bg);
+            box-shadow: var(--admin-shadow-sm);
+            transition: border-color 0.15s ease, background-color 0.15s ease,
+                box-shadow 0.15s ease, transform 0.15s ease;
+
+            i {
+                color: var(--bs-primary);
+            }
+
+            &:hover,
+            &:focus-visible {
+                border-color: var(--bs-primary);
+                background-color: var(--bs-tertiary-bg);
+                box-shadow: var(--admin-shadow);
+                text-decoration: none;
+                transform: translateY(-1px);
+            }
+        }
+    }
+
+    // Modales communes : même rayon, même ombre et mêmes surfaces que le contenu.
+    .modal-backdrop .modal-window {
+        border: 0;
+        border-radius: var(--bs-border-radius-xl);
+        box-shadow: var(--bs-box-shadow-lg);
+    }
+
+    .modal-backdrop .card-header,
+    .modal-backdrop .card-footer {
+        background-color: transparent;
+        border-color: var(--admin-border-color);
+    }
+
+    .modal-backdrop .btn {
+        font-weight: 500;
+    }
+
+    .modal-backdrop .form-control,
+    .modal-backdrop .form-select {
+        border-color: var(--admin-border-color);
+    }
+
+    .modal-backdrop .form-control:focus,
+    .modal-backdrop .form-select:focus {
+        border-color: var(--bs-primary);
+        box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.15);
+    }
+
+    .popover {
+        border-color: var(--admin-border-color);
+        border-radius: var(--bs-border-radius-lg);
+        box-shadow: var(--bs-box-shadow);
+    }
+
+    // Sur petit écran, la barre latérale passe au-dessus du contenu.
+    @media (max-width: 767.98px) {
+        .administrator-page {
+            flex-direction: column;
+
+            .administrator-menu {
+                position: static;
+                width: 100%;
+                max-height: none;
+                border-right: 0;
+                border-bottom: 1px solid var(--admin-border-color);
+            }
+
+            .administrator-content {
+                padding: 1rem;
+            }
+        }
+    }
+}

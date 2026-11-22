@@ -1,0 +1,181 @@
+name: tycms-dev
+
+# Le serveur Vite et les builds ponctuels utilisent la même version de Node.
+x-node: &node
+  image: node:24-bookworm-slim
+  user: "${TYCMS_DEV_UID:?Utiliser start.sh ou charger identity.sh}:${TYCMS_DEV_GID:?Utiliser start.sh ou charger identity.sh}"
+  working_dir: /workspace/src/ria
+  environment:
+    HOME: /tmp
+    npm_config_cache: /workspace/npm-cache
+    TYCMS_DEV_UID: ${TYCMS_DEV_UID:?Utiliser start.sh ou charger identity.sh}
+    TYCMS_DEV_GID: ${TYCMS_DEV_GID:?Utiliser start.sh ou charger identity.sh}
+  volumes:
+    - ../../src/ria:/workspace/src/ria
+    # Exposer seulement les métadonnées de version aux outils Node.
+    - ../../src/tools:/workspace/src/tools:ro
+    - ../../src/releases/vdev/version.php:/workspace/src/releases/vdev/version.php:ro
+    - ../../src/public/assets:/workspace/src/public/assets
+    - ../../src/public/assets_core_vdev:/workspace/src/public/assets_core_vdev
+    - ./containers_datas/node_modules:/workspace/src/ria/node_modules
+    - ./containers_datas/npm:/workspace/npm-cache
+
+services:
+  apache:
+    build:
+      context: ./php
+    ports:
+      - "${DOCKER_HOST_IP}:${HTTP_PORT:-8080}:80"
+    environment:
+      DB_HOST: mariadb
+      DB_NAME: ${DB_NAME:-tycms}
+      DB_USER: ${DB_USER:-tycms}
+      DB_PASSWORD: ${DB_PASSWORD:-tycms_dev}
+      APP_SECRET: ${APP_SECRET:?Lancer start.sh pour initialiser .env}
+      APP_DEV: ${APP_DEV:-true}
+      DEV_CORE_VITE: ${DEV_CORE_VITE:-true}
+      DEV_EXTENSION: ${DEV_EXTENSION:-}
+      DEV_EXTENSION_VITE_PORT: ${DEV_EXTENSION_VITE_PORT:-3001}
+      TYCMS_DEV_UID: ${TYCMS_DEV_UID:?Utiliser start.sh ou charger identity.sh}
+      TYCMS_DEV_GID: ${TYCMS_DEV_GID:?Utiliser start.sh ou charger identity.sh}
+      # Le banc d’intégration ne charge jamais la configuration locale du site.
+      TYCMS_TEST_DB_HOST: mariadb
+      TYCMS_TEST_DB_NAME: tycms_test_main
+      TYCMS_TEST_DB_USER: tycms_test_runner
+      TYCMS_TEST_DB_PASSWORD: ${TEST_DB_PASSWORD:-tycms_test_dev}
+      DOCKER_HTTP_PORT: ${HTTP_PORT:-8080}
+      DOCKER_HOST_IP: ${DOCKER_HOST_IP}
+    volumes:
+      - ../../src:/var/www/html
+      - ./containers_datas/logs:/var/www/html/logs
+      - ./containers_datas/tmp:/var/www/html/tmp
+    healthcheck:
+      test: ["CMD", "php", "-r", "$$s = @fsockopen('127.0.0.1', 80); if (!$$s) exit(1); fwrite($$s, \"GET /assets_updater/vendor/bootstrap.min.css HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n\"); exit(str_contains((string) fgets($$s), ' 200 ') ? 0 : 1);"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  mariadb:
+    image: mariadb:11.4
+    environment:
+      MARIADB_DATABASE: ${DB_NAME:-tycms}
+      MARIADB_USER: ${DB_USER:-tycms}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-tycms_dev}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_dev}
+      TYCMS_TEST_DB_PASSWORD: ${TEST_DB_PASSWORD:-tycms_test_dev}
+    ports:
+      - "${DOCKER_HOST_IP}:${DB_PORT:-3307}:3306"
+    volumes:
+      - ./containers_datas/mariadb:/var/lib/mysql
+      - ./mariadb/test-db.sh:/usr/local/bin/tycms-test-db.sh:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    ports:
+      - "${DOCKER_HOST_IP}:${PHPMYADMIN_PORT:-8081}:80"
+    environment:
+      PMA_HOST: mariadb
+      DB_ADMIN_AUTO_LOGIN: ${DB_ADMIN_AUTO_LOGIN:-false}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_dev}
+      UPLOAD_LIMIT: 64M
+    volumes:
+      - ./phpmyadmin/config.user.inc.php:/etc/phpmyadmin/config.user.inc.php:ro
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  adminer:
+    build:
+      context: ./adminer
+    ports:
+      - "${DOCKER_HOST_IP}:${ADMINER_PORT:-8082}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mariadb
+      DB_ADMIN_AUTO_LOGIN: ${DB_ADMIN_AUTO_LOGIN:-false}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_dev}
+    volumes:
+      - ./adminer/auto-login.php:/var/www/html/plugins-enabled/auto-login.php:ro
+      - ./adminer/adminer.css:/var/www/html/adminer.css:ro
+      - ./adminer/style.css:/var/www/html/style.css:ro
+      - ./adminer/script.js:/var/www/html/script.js:ro
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.29
+    ports:
+      - "${DOCKER_HOST_IP}:${MAILPIT_PORT:-8025}:8025"
+      - "${DOCKER_HOST_IP}:${SMTP_PORT:-1025}:1025"
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - ./containers_datas/mailpit:/data
+
+  # Le build et Vite partagent Node et les mêmes chemins de publication.
+  frontend:
+    <<: *node
+    profiles: ["tools"]
+    command: ["sh", "-eu", "-c", "npm ci && npm run build && npm run build:runtime:dev"]
+
+  vite:
+    <<: *node
+    profiles: ["dev"]
+    ports:
+      - "${DOCKER_HOST_IP}:3000:3000"
+    environment:
+      HOME: /tmp
+      npm_config_cache: /workspace/npm-cache
+      TYCMS_DEV_UID: ${TYCMS_DEV_UID:?Utiliser start.sh ou charger identity.sh}
+      TYCMS_DEV_GID: ${TYCMS_DEV_GID:?Utiliser start.sh ou charger identity.sh}
+      VITE_BACKEND_ORIGIN: ${VITE_BACKEND_ORIGIN:-http://localhost:${HTTP_PORT:-8080}}
+    command: ["sh", "-eu", "-c", "npm ci && npm run build:runtime:dev && npm run dev -- --host 0.0.0.0 --strictPort"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/assets_core_vdev/plg_core/@vite/client').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s
+
+  # Une seule extension en HMR ; les autres utilisent leurs propres builds ESM.
+  extension-frontend: &extension-node
+    image: node:24-bookworm-slim
+    user: "${TYCMS_DEV_UID:?Utiliser identity.sh}:${TYCMS_DEV_GID:?Utiliser identity.sh}"
+    working_dir: /workspace/src/extensions/${DEV_EXTENSION:-plugins/Lms}/frontend
+    profiles: ["extension-tools"]
+    environment:
+      HOME: /tmp
+      npm_config_cache: /workspace/npm-cache
+      DEV_EXTENSION: ${DEV_EXTENSION:-}
+      DEV_EXTENSION_VITE_PORT: ${DEV_EXTENSION_VITE_PORT:-3001}
+      VITE_BACKEND_ORIGIN: ${VITE_BACKEND_ORIGIN:-http://localhost:${HTTP_PORT:-8080}}
+    volumes:
+      - ../../src/extensions/${DEV_EXTENSION:-plugins/Lms}/frontend:/workspace/src/extensions/${DEV_EXTENSION:-plugins/Lms}/frontend
+      - ../../src/tools:/workspace/src/tools:ro
+      - ../../src/public/assets:/workspace/src/public/assets
+      - ./containers_datas/extensions/${DEV_EXTENSION:-plugins/Lms}/node_modules:/workspace/src/extensions/${DEV_EXTENSION:-plugins/Lms}/frontend/node_modules
+      - ./containers_datas/npm:/workspace/npm-cache
+    command: ["npm", "run", "build"]
+
+  extension-vite:
+    <<: *extension-node
+    profiles: ["extension-dev"]
+    ports:
+      - "${DOCKER_HOST_IP}:${DEV_EXTENSION_VITE_PORT:-3001}:3001"
+    command: ["sh", "-eu", "-c", "npm ci && npm run dev"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/assets/' + process.env.DEV_EXTENSION.split('/')[0].replace('plugins','plg').replace('modules','mod').replace('templates','tpl') + '_' + process.env.DEV_EXTENSION.split('/')[1].replace(/[A-Z]/g, (letter, offset) => (offset ? '_' : '') + letter).toLowerCase() + '/@vite/client').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 120s

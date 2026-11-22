@@ -1,0 +1,12 @@
+body {
+    color: #203144;
+    background: #f4f7fa;
+}
+
+.updater-shell {
+    max-width: 760px;
+}
+
+.updater-steps li + li {
+    margin-top: .65rem;
+}

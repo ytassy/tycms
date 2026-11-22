@@ -1,0 +1,35 @@
+{
+  "origine": "Résultats conservés de la campagne précédant la reprise documentaire ; pas une nouvelle exécution de ces tests.",
+  "phpunit": {
+    "version": "13.3.6",
+    "php": "8.5.4",
+    "cibles": [
+      "src/tests/Unit/Lib/HtmlSanitizer",
+      "src/tests/Unit/Lib/Scss/ScssCompilerTest.php",
+      "src/tests/Unit/Plugins/Core/EmailTemplateContentTest.php"
+    ],
+    "resultat": "OK (30 tests, 132 assertions)"
+  },
+  "sondes": {
+    "avant": "applicability.json",
+    "apres": "applicability-after.json",
+    "nombre_par_execution": 8,
+    "resultat": "Tous les booléens sont vrais dans les deux états ; le test du primitif filesystem inverse son attendu après correction."
+  },
+  "lms": {
+    "node": "22.22.1",
+    "installation": "npm ci --ignore-scripts dans une copie isolée",
+    "build": "npm run build dans cette copie ; Vite 7.3.7 ; 6 modules ; succès",
+    "assets_dans_le_depot_regeneres": false
+  },
+  "reprise_documentaire": {
+    "composer": "composer --no-plugins --no-scripts validate --no-check-publish",
+    "resultat": "Manifeste et verrou valides ; avertissements : licence absente et larapack/dd déclaré dans require et require-dev.",
+    "correspondance": "Copies Composer identiques ; manifestes LMS équivalents en JSON et verrous identiques ; manifestes et verrous du build LMS identiques aux fichiers finaux."
+  },
+  "limites": [
+    "Pas de nouvelle campagne réseau ni de nouveaux tests applicatifs à la reprise documentaire.",
+    "Pas de preuve de déploiement, de test navigateur ou de contrôle de production.",
+    "L'exploitabilité applicative de picomatch n'est pas établie."
+  ]
+}
