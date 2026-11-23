@@ -72,7 +72,9 @@ ou refusés côté fournisseur — préférer `high` en cas de doute.
 
 `dsh/prompt.php` compose la tâche : une invite versionnée
 (`dsh/prompts/triage.md`, `dsh/prompts/fix.md`), puis le texte du ticket encadré
-par `<<<TICKET>>>`. **Les balises sont neutralisées dans le texte reçu** : le
+par `<<<TICKET>>>`. Les **commentaires** du ticket sont joints quand ils
+existent — ils portent souvent la précision absente du corps, et l'analyse du
+premier workflow —, bornés à 20 000 octets et neutralisés comme le ticket. **Les balises sont neutralisées dans le texte reçu** : le
 motif ignore la casse, les espaces **et le nombre de chevrons**, de sorte que
 `<FIN_TICKET>`, `<<FIN_TICKET>>`, `<<<FIN_TICKET>>>`, `<<<<FIN_TICKET>>>>`,
 `<<<fin_ticket>>>` ou `<<< FIN_TICKET >>` sont tous encodés. Les chevrons
@@ -82,6 +84,16 @@ et le ticket ne peut pas refermer son bloc ni en ouvrir un faux.
 L'analyse tourne en `--permission-mode read-only` avec `--approval-policy never` :
 elle ne peut rien modifier, même si le ticket le demande. La correction tourne
 en `workspace-write`, sans accès aux secrets de publication.
+
+Une seule tâche est donnée : le mode `headless` ne permet **aucune question**
+ni relance. L'agent doit trancher seul et consigner ses incertitudes dans le
+rapport de la pull request.
+
+Créer la pull request demande une autorisation du dépôt : *Settings → Actions →
+General → Workflow permissions*, cocher **« Allow GitHub Actions to create and
+approve pull requests »**. Sans elle, la branche est tout de même poussée ; le
+workflow commente alors le lien de comparaison pour ouvrir la pull request à la
+main, puis échoue pour que le manque soit visible.
 
 ### Authentification OpenRouter
 

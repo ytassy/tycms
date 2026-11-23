@@ -86,6 +86,18 @@ jobs:
           echo "BRANCH=$branch" >> "$GITHUB_ENV"
 
       # Le texte du ticket reste une donnée : il ne devient jamais du shell.
+      # Les commentaires portent souvent la précision qui manque au corps du ticket.
+      # Un échec ici ne doit pas empêcher la suite : le fichier reste vide.
+      - name: Récupérer les commentaires
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue view "$ISSUE_NUMBER" --json comments \
+            --jq '.comments[] | "-- " + .author.login + " --\n" + (.body // "")' \
+            > "$RUNNER_TEMP/comments.txt" 2>/dev/null || : > "$RUNNER_TEMP/comments.txt"
+          wc -c "$RUNNER_TEMP/comments.txt"
+
       - name: Composer la tâche
         env:
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -98,7 +110,7 @@ jobs:
             printf '%s\n' "$ISSUE_BODY"
           } > "$RUNNER_TEMP/ticket.txt"
           version=$(php -r 'echo json_decode(file_get_contents("version.json"), true)["version"] ?? "";')
-          php cicd/dsh/prompt.php fix "$RUNNER_TEMP/ticket.txt" "$version" > "$RUNNER_TEMP/task.txt"
+          php cicd/dsh/prompt.php fix "$RUNNER_TEMP/ticket.txt" "$version" "$RUNNER_TEMP/comments.txt" > "$RUNNER_TEMP/task.txt"
           wc -c "$RUNNER_TEMP/task.txt"
 
       # Le répertoire Git partagé est autorisé pour permettre la révision, jamais
@@ -148,6 +160,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_TITLE: ${{ github.event.issue.title }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           {
             printf 'Correction proposée pour le ticket #%s.\n\n' "$ISSUE_NUMBER"
@@ -158,12 +171,29 @@ jobs:
             printf '_Pull request générée automatiquement en brouillon. '
             printf 'Relire le diff, lancer les contrôles et compléter les vérifications avant fusion._\n'
           } > "$RUNNER_TEMP/pr.md"
-          gh pr create \
+          # Le jeton des Actions ne peut créer une pull request que si le dépôt
+          # l'autorise (Settings → Actions → General → Workflow permissions).
+          # Sans cette autorisation, la branche reste poussée : signaler le lien
+          # évite de perdre la correction, puis échouer pour que ce soit visible.
+          if gh pr create \
             --draft \
             --base dev_1_1 \
             --head "$BRANCH" \
             --title "Ticket #${ISSUE_NUMBER} : ${ISSUE_TITLE}" \
-            --body-file "$RUNNER_TEMP/pr.md"
+            --body-file "$RUNNER_TEMP/pr.md"; then
+            echo 'Pull request créée.'
+            exit 0
+          fi
+
+          printf '### Pull request à ouvrir à la main\n\n' > "$RUNNER_TEMP/fallback.md"
+          printf 'La branche `%s` est poussée avec la correction, mais le jeton des Actions ' "$BRANCH" >> "$RUNNER_TEMP/fallback.md"
+          printf 'n’est pas autorisé à créer une pull request.\n\n' >> "$RUNNER_TEMP/fallback.md"
+          printf 'Ouvrir la pull request : %s/compare/dev_1_1...%s?expand=1\n\n' "$REPOSITORY_URL" "$BRANCH" >> "$RUNNER_TEMP/fallback.md"
+          printf 'Autorisation durable : *Settings → Actions → General → Workflow permissions* ' >> "$RUNNER_TEMP/fallback.md"
+          printf 'puis cocher « Allow GitHub Actions to create and approve pull requests ».\n' >> "$RUNNER_TEMP/fallback.md"
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/fallback.md"
+          echo 'Pull request non créée : autorisation du dépôt manquante.' >&2
+          exit 1
 
       - name: Signaler l'absence de modification
         if: steps.changes.outputs.changed != 'true'

@@ -21,10 +21,11 @@ if (PHP_SAPI !== 'cli') {
  * refermer son bloc et se faire passer pour une consigne. Les occurrences des
  * balises sont donc remplacées avant insertion, et la taille est bornée.
  *
- * Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version]
+ * Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version] [fichier-commentaires]
  */
 
 const MAX_TICKET_BYTES = 60000;
+const MAX_COMMENTS_BYTES = 20000;
 
 const PROMPTS = [
     'triage' => 'triage.md',
@@ -32,8 +33,8 @@ const PROMPTS = [
 ];
 
 try {
-    if ($argc < 3 || $argc > 4) {
-        throw new RuntimeException('Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version]');
+    if ($argc < 3 || $argc > 5) {
+        throw new RuntimeException('Usage : php cicd/dsh/prompt.php <triage|fix> <fichier-ticket> [version] [fichier-commentaires]');
     }
     $kind = $argv[1];
     if (!isset(PROMPTS[$kind])) {
@@ -75,7 +76,32 @@ try {
         throw new RuntimeException('Neutralisation des balises impossible.');
     }
 
-    $version = $argc === 4 ? trim((string) $argv[3]) : '';
+    // Les commentaires du ticket portent souvent la précision qui manque au corps :
+    // les joindre évite de corriger à l'aveugle. Ils sont bornés et neutralisés
+    // comme le ticket lui-même, puisqu'ils viennent de la même source non fiable.
+    $comments = '';
+    if ($argc === 5 && is_file($argv[4]) && !is_link($argv[4])) {
+        $raw = file_get_contents($argv[4], false, null, 0, MAX_COMMENTS_BYTES + 1);
+        if (is_string($raw) && $raw !== '') {
+            // Couper sur une frontière de caractère : un octet isolé casserait l'encodage.
+            $comments = mb_strcut($raw, 0, MAX_COMMENTS_BYTES, 'UTF-8');
+            if (strlen($raw) > MAX_COMMENTS_BYTES) {
+                $comments .= "
+
+(commentaires tronqués)";
+            }
+        }
+    }
+    if ($comments !== '') {
+        $safe .= "\n\n--- Commentaires du ticket ---\n" . $comments;
+        $safe = preg_replace_callback(
+            '/<{1,}\s*(FIN_)?TICKET\s*>{1,}/i',
+            static fn (array $match): string => str_replace(['<', '>'], ['&lt;', '&gt;'], $match[0]),
+            $safe
+        ) ?? $safe;
+    }
+
+    $version = $argc >= 4 ? trim((string) $argv[3]) : '';
     if ($version !== '' && preg_match('/\A[0-9A-Za-z._-]{1,40}\z/', $version) !== 1) {
         $version = '';
     }

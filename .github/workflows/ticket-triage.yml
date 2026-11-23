@@ -69,6 +69,18 @@ jobs:
 
       # Le texte du ticket est transmis par variable d'environnement, jamais
       # interpolé dans le script : son contenu ne peut pas devenir du shell.
+      # Les commentaires portent souvent la précision qui manque au corps du ticket.
+      # Un échec ici ne doit pas empêcher la suite : le fichier reste vide.
+      - name: Récupérer les commentaires
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue view "$ISSUE_NUMBER" --json comments \
+            --jq '.comments[] | "-- " + .author.login + " --\n" + (.body // "")' \
+            > "$RUNNER_TEMP/comments.txt" 2>/dev/null || : > "$RUNNER_TEMP/comments.txt"
+          wc -c "$RUNNER_TEMP/comments.txt"
+
       - name: Composer la tâche
         env:
           ISSUE_TITLE: ${{ github.event.issue.title }}
@@ -81,7 +93,7 @@ jobs:
             printf '%s\n' "$ISSUE_BODY"
           } > "$RUNNER_TEMP/ticket.txt"
           version=$(php -r 'echo json_decode(file_get_contents("version.json"), true)["version"] ?? "";')
-          php cicd/dsh/prompt.php triage "$RUNNER_TEMP/ticket.txt" "$version" > "$RUNNER_TEMP/task.txt"
+          php cicd/dsh/prompt.php triage "$RUNNER_TEMP/ticket.txt" "$version" "$RUNNER_TEMP/comments.txt" > "$RUNNER_TEMP/task.txt"
           wc -c "$RUNNER_TEMP/task.txt"
 
       # Lecture seule et refus de toute demande d'approbation : l'analyse ne peut
