@@ -64,6 +64,7 @@ jobs:
           DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
           DSH_PROVIDER: ${{ vars.DSH_PROVIDER }}
           DSH_MODEL: ${{ vars.DSH_MODEL }}
+          DSH_EFFORT: ${{ vars.DSH_EFFORT }}
         run: php cicd/dsh/prepare-profile.php
 
       # Le texte du ticket est transmis par variable d'environnement, jamais

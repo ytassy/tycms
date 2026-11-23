@@ -27,7 +27,11 @@ if (PHP_SAPI !== 'cli') {
 const DEFAULTS = [
     'DSH_PROVIDER' => 'openrouter',
     'DSH_MODEL' => 'deepseek/deepseek-v4.1-flash-1017',
+    'DSH_EFFORT' => 'high',
 ];
+
+/** Niveaux d'effort de raisonnement acceptés par l'adaptateur pi-ai, du plus léger au plus lourd. */
+const EFFORT_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 try {
     if ($argc > 1) {
@@ -64,6 +68,11 @@ try {
     if (preg_match('/\A[A-Za-z0-9._:\/-]{3,120}\z/', $values['DSH_MODEL']) !== 1) {
         throw new RuntimeException('DSH_MODEL invalide.');
     }
+    // L'effort est transmis tel quel à l'adaptateur : refuser ici évite un échec au premier appel.
+    $values['DSH_EFFORT'] = strtolower($values['DSH_EFFORT']);
+    if (!in_array($values['DSH_EFFORT'], EFFORT_LEVELS, true)) {
+        throw new RuntimeException('DSH_EFFORT accepte : ' . implode(', ', EFFORT_LEVELS) . '.');
+    }
 
     // Deux entrées sont nécessaires : le fournisseur doit être déclaré pour que son
     // adaptateur soit enregistré, et la sélection par défaut doit le désigner.
@@ -73,6 +82,7 @@ try {
         . "  config:\n"
         . '    provider: ' . $values['DSH_PROVIDER'] . "\n"
         . '    model: ' . $values['DSH_MODEL'] . "\n"
+        . '    reasoningEffort: ' . $values['DSH_EFFORT'] . "\n"
         . "- id: llm-pi-ai\n"
         . "  config:\n"
         . "    providers:\n"
@@ -84,7 +94,8 @@ try {
     }
     chmod($target, 0600);
 
-    echo 'Surcouche DSH préparée : ' . $values['DSH_PROVIDER'] . ' / ' . $values['DSH_MODEL'] . PHP_EOL;
+    echo 'Surcouche DSH préparée : ' . $values['DSH_PROVIDER'] . ' / ' . $values['DSH_MODEL']
+        . ' / effort ' . $values['DSH_EFFORT'] . PHP_EOL;
 } catch (Throwable $error) {
     fwrite(STDERR, 'Surcouche refusée : ' . $error->getMessage() . PHP_EOL);
     exit(1);

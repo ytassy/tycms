@@ -54,9 +54,21 @@ changement de version majeure se vérifie en lisant les notes de l'action.
 ## Analyse de tickets (DSH)
 
 `dsh/prepare-profile.php` écrit une surcouche de profil hors du dépôt : le
-fournisseur et le modèle par défaut viennent de `DSH_PROVIDER` et `DSH_MODEL`
-(variables de dépôt GitHub `vars.DSH_PROVIDER` / `vars.DSH_MODEL`, valeurs par
-défaut `openrouter` et `deepseek/deepseek-v4.1-flash-1017`).
+fournisseur, le modèle et l'effort de raisonnement viennent de `DSH_PROVIDER`,
+`DSH_MODEL` et `DSH_EFFORT` (variables de dépôt GitHub `vars.*`, valeurs par
+défaut `openrouter`, `deepseek/deepseek-v4.1-flash-1017` et `high`).
+
+`DSH_EFFORT` accepte `off`, `minimal`, `low`, `medium`, `high`, `xhigh` ou
+`max` ; toute autre valeur est refusée **avant** l'appel au modèle, avec la
+liste des valeurs admises. Sans cette déclaration, l'adaptateur applique son
+propre défaut, qui n'est pas `high`.
+
+Le modèle `deepseek/deepseek-v4.1-flash-1017` déclare bien `reasoning_effort`
+parmi ses paramètres supportés chez OpenRouter (avec `reasoning`, `tools` et
+`parallel_tool_calls`), pour un contexte d'environ un million de jetons. Il
+accepte aussi les images en entrée. `high` est une valeur standard d'OpenRouter ;
+`xhigh` et `max` sont des niveaux propres à l'adaptateur et peuvent être ramenés
+ou refusés côté fournisseur — préférer `high` en cas de doute.
 
 `dsh/prompt.php` compose la tâche : une invite versionnée
 (`dsh/prompts/triage.md`, `dsh/prompts/fix.md`), puis le texte du ticket encadré
