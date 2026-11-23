@@ -30,6 +30,16 @@ const DEFAULTS = [
     'DSH_EFFORT' => 'high',
 ];
 
+/**
+ * Variables spécifiques à une tâche, appliquées par-dessus les valeurs générales.
+ * DSH_TASK désigne la tâche courante (« audit », « triage », « fix ») : chaque
+ * workflow choisit ainsi un modèle plus puissant pour la sécurité sans changer
+ * celui des tickets. Une variable spécifique vide est ignorée.
+ *
+ *   DSH_AUDIT_MODEL, DSH_AUDIT_EFFORT, DSH_AUDIT_PROVIDER
+ */
+const TASK_VARIABLES = ['PROVIDER', 'MODEL', 'EFFORT'];
+
 /** Niveaux d'effort de raisonnement acceptés par l'adaptateur pi-ai, du plus léger au plus lourd. */
 const EFFORT_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -59,6 +69,23 @@ try {
     foreach (DEFAULTS as $variable => $default) {
         $value = getenv($variable);
         $values[$variable] = is_string($value) && $value !== '' ? $value : $default;
+    }
+
+    // Un nom de tâche simple, pour composer des variables d'environnement.
+    $task = getenv('DSH_TASK');
+    $task = is_string($task) ? strtolower(trim($task)) : '';
+    if ($task !== '' && preg_match('/\A[a-z][a-z0-9_-]{0,31}\z/', $task) !== 1) {
+        throw new RuntimeException('DSH_TASK invalide.');
+    }
+
+    // Les valeurs propres à la tâche priment sur les valeurs générales.
+    if ($task !== '') {
+        foreach (TASK_VARIABLES as $field) {
+            $override = getenv('DSH_' . strtoupper($task) . '_' . $field);
+            if (is_string($override) && $override !== '') {
+                $values['DSH_' . $field] = $override;
+            }
+        }
     }
 
     // Le fournisseur et le modèle sont recopiés dans un YAML : n'accepter que des identifiants simples.
@@ -94,7 +121,8 @@ try {
     }
     chmod($target, 0600);
 
-    echo 'Surcouche DSH préparée : ' . $values['DSH_PROVIDER'] . ' / ' . $values['DSH_MODEL']
+    echo 'Surcouche DSH préparée' . ($task !== '' ? ' pour ' . $task : '') . ' : '
+        . $values['DSH_PROVIDER'] . ' / ' . $values['DSH_MODEL']
         . ' / effort ' . $values['DSH_EFFORT'] . PHP_EOL;
 } catch (Throwable $error) {
     fwrite(STDERR, 'Surcouche refusée : ' . $error->getMessage() . PHP_EOL);

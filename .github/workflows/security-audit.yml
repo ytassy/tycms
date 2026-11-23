@@ -93,9 +93,15 @@ jobs:
         if: steps.baseline.outputs.sha != ''
         env:
           DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          # Tâche « audit » : les variables DSH_AUDIT_* priment sur les générales.
+          # Laisser l'une vide fait hériter de DSH_MODEL / DSH_EFFORT.
+          DSH_TASK: audit
           DSH_PROVIDER: ${{ vars.DSH_PROVIDER }}
           DSH_MODEL: ${{ vars.DSH_MODEL }}
           DSH_EFFORT: ${{ vars.DSH_EFFORT }}
+          DSH_AUDIT_PROVIDER: ${{ vars.DSH_AUDIT_PROVIDER }}
+          DSH_AUDIT_MODEL: ${{ vars.DSH_AUDIT_MODEL }}
+          DSH_AUDIT_EFFORT: ${{ vars.DSH_AUDIT_EFFORT }}
         run: php cicd/dsh/prepare-profile.php
 
       # L'agent lit le diff lui-même : le prompt ne porte que la plage et un

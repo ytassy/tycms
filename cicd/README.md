@@ -60,7 +60,23 @@ défaut `openrouter`, `deepseek/deepseek-v4.1-flash-1017` et `high`).
 
 `DSH_EFFORT` accepte `off`, `minimal`, `low`, `medium`, `high`, `xhigh` ou
 `max` ; toute autre valeur est refusée **avant** l'appel au modèle, avec la
-liste des valeurs admises. Sans cette déclaration, l'adaptateur applique son
+liste des valeurs admises.
+
+### Modèle propre à une tâche
+
+Chaque workflow déclare son nom dans `DSH_TASK` (`audit`, `triage`, `fix`). Trois
+variables spécifiques prennent alors le pas sur les valeurs générales :
+
+| Variable | Remplace |
+| --- | --- |
+| `DSH_<TÂCHE>_PROVIDER` | `DSH_PROVIDER` |
+| `DSH_<TÂCHE>_MODEL` | `DSH_MODEL` |
+| `DSH_<TÂCHE>_EFFORT` | `DSH_EFFORT` |
+
+Ainsi, `vars.DSH_AUDIT_MODEL` et `vars.DSH_AUDIT_EFFORT` permettent d'auditer la
+sécurité avec un modèle plus puissant sans changer celui des tickets. Une
+variable laissée vide ou absente fait **hériter** de la valeur générale : on peut
+spécialiser seulement l'effort, ou seulement le modèle. Sans cette déclaration, l'adaptateur applique son
 propre défaut, qui n'est pas `high`.
 
 Le modèle `deepseek/deepseek-v4.1-flash-1017` déclare bien `reasoning_effort`

@@ -62,6 +62,8 @@ jobs:
       - name: Préparer la surcouche de profil
         env:
           DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          # Tâche « triage » : des variables DSH_TRIAGE_* pourraient la spécialiser.
+          DSH_TASK: triage
           DSH_PROVIDER: ${{ vars.DSH_PROVIDER }}
           DSH_MODEL: ${{ vars.DSH_MODEL }}
           DSH_EFFORT: ${{ vars.DSH_EFFORT }}
