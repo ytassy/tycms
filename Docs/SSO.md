@@ -142,7 +142,7 @@ Les composants Login et Register envoient un formulaire POST vers
 et le CSRF de session. L’ancien GET `/sso/start/{providerId}` est retiré.
 Le `303` renvoyé vers l’IdP est couvert par la CSP : `form-action` autorise les
 origines des fournisseurs de connexion du Space, car Chromium contrôle aussi les
-redirections d’un POST de formulaire. Voir [Sécurité](SECURITY.md).
+redirections d’un POST de formulaire. Voir [Sécurité](PLUGIN_SECURITE.md).
 Login et `/login-fb` ne créent ni compte ni adhésion ; Register le permet
 uniquement si sa page source est publiée, les inscriptions ouvertes et
 l’option SSO active. Le lien d’inscription dans la navigation du Space est facultatif.

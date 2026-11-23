@@ -536,7 +536,7 @@ vide ferme l'édition. Le serveur filtre les configurations
 et les Spaces transmis selon la permission de chaque extension ; le workflow
 revérifie ce droit avant l'enregistrement. L'API de l'essai e-mail de la
 Template MainTemplate demande elle aussi `TEMPLATE_EDIT`. Le formulaire et les
-contrats du plugin Sécurité sont détaillés dans [Sécurité HTTP](SECURITY.md).
+contrats du plugin Sécurité sont détaillés dans [Sécurité HTTP](PLUGIN_SECURITE.md).
 
 Le workflow appelle pour toute extension les hooks de `BaseExtension` :
 `assertConfigSubmissionAllowed()` avant la validation du formulaire,

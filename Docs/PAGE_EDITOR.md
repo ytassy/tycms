@@ -1098,7 +1098,7 @@ plus restreints que sur le site public. Aucun redimensionnement automatique
 selon la hauteur du contenu distant n’est prévu.
 
 Les ROOT configurent les domaines d’iframe par Space dans le
-[plugin Sécurité](SECURITY.md) : tous HTTPS (défaut conservé), origine du site
+[plugin Sécurité](PLUGIN_SECURITE.md) : tous HTTPS (défaut conservé), origine du site
 et liste précise, ou origine du site uniquement. Le champ URL affiche les
 origines actuellement autorisées. Le serveur refuse une URL interdite à
 l’entrée du brouillon et l’omet au rendu des pages existantes ; la CSP du site

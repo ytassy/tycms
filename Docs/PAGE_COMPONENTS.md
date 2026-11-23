@@ -438,7 +438,7 @@ complet reste envoyé au serveur pour ses contrôles.
 Les réponses d’aperçu fournissent aussi `security_sources` depuis la
 configuration Sécurité du Space réel, pour les cadres, images, médias, styles
 et polices. Le document isolé applique ces listes sans élargir les scripts
-ni les connexions ; voir [Sécurité HTTP](SECURITY.md).
+ni les connexions ; voir [Sécurité HTTP](PLUGIN_SECURITE.md).
 
 Le fragment reste dans une iframe `sandbox="allow-scripts"` sans
 `allow-same-origin`, avec CSP locale et navigation neutralisée. Les seuls scripts

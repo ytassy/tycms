@@ -489,7 +489,7 @@ d'erreur pour une route HTML). Le contrôle CSRF API reste prioritaire.
 
 Après la résolution, les extensions reçoivent `onAfterResolveRoute()`. Le
 plugin Sécurité y applique le contrôle des motifs du WAF avant le runner, la
-transaction et le contrôleur ; voir le [contrat du WAF](SECURITY.md#pare-feu-applicatif-waf).
+transaction et le contrôleur ; voir le [contrat du WAF](PLUGIN_SECURITE.md#pare-feu-applicatif-waf).
 
 `ApplicationRouteRunner` ouvre la transaction de la route avant d'appeler le
 contrôleur et la valide ou l'annule selon le résultat. Une route qui ne doit
@@ -770,7 +770,7 @@ par Space, des origines HTTPS pour les images, médias, styles et polices, et
 choisir les origines des iframes : tous HTTPS (défaut historique), liste précise
 ou origine du site uniquement. Les scripts et connexions restent limités.
 Les `@import` et `url(...)` du SCSS restent soumis aux listes correspondantes.
-Le [guide Sécurité](SECURITY.md) décrit les champs, la validation, les exemples,
+Le [guide Sécurité](PLUGIN_SECURITE.md) décrit les champs, la validation, les exemples,
 la CSP des aperçus, le cas de l’administration multi-Space et la migration.
 
 Le lecteur HLS Video.js utilise un worker et peut attacher une source média
