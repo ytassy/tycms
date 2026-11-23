@@ -155,6 +155,14 @@ numéros de ligne exacts. En mode `read-only`, une demande d'écriture est refus
 par le bac à sable et aucune approbation n'est possible : le ticket ne peut pas
 faire modifier le dépôt. Le workflow de correction, lui, n'a pas encore tourné.
 
+### Rédiger le ticket
+
+`.github/ISSUE_TEMPLATE/tache.yml` guide la rédaction : contexte, comportement
+attendu, critères d'acceptation, périmètre interdit, guides à lire, analyse
+préalable. L'agent ne connaît que le titre, le corps et les commentaires ; il ne
+pose aucune question. Le formulaire ne pré-remplit aucune étiquette, pour
+qu'aucune correction ne parte sans relecture de l'analyse.
+
 ## Limites ouvertes
 
 - Le test `src/ria/tests/pageMediaComponents.test.js` échoue quand

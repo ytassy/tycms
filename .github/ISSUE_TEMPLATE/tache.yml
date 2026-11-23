@@ -1,0 +1,107 @@
+name: Tâche de développement
+description: "Demande analysée puis corrigée par l'agent. À préparer avec soin : l'agent travaille sans poser de questions."
+title: "[Tâche] "
+# Ne jamais pré-remplir d'étiquette ici : `fix-approved` déclencherait la
+# correction automatique dès l'ouverture du ticket.
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > **L'agent lit ce texte et les commentaires, rien d'autre.** Il n'a pas
+        > accès à une conversation antérieure et **ne peut pas poser de question** :
+        > il décide seul et signale ses doutes dans son rapport.
+        >
+        > Un ticket précis produit une correction utile ; un ticket vague produit
+        > un diff plausible mais faux, plus coûteux à relire qu'à écrire.
+        >
+        > L'analyse automatique arrive en commentaire. La correction ne part
+        > qu'après avoir ajouté l'étiquette **`fix-approved`**.
+
+  - type: dropdown
+    id: nature
+    attributes:
+      label: Nature
+      description: Oriente l'analyse et le niveau d'exigence.
+      options:
+        - Correctif
+        - Fonctionnalité
+        - Sécurité
+        - Question ou clarification
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexte
+    attributes:
+      label: Contexte
+      description: |
+        Ce qui ne va pas, et ce que tu observes. Indique les fichiers ou dossiers
+        si tu les connais, et la version concernée.
+      placeholder: |
+        Sur l'écran Médias, le tri par date ignore les fichiers sans date.
+        Le code concerné est probablement sous src/ria/src/components/administrator/medias/.
+        Version 1.1.8.
+    validations:
+      required: true
+
+  - type: textarea
+    id: attendu
+    attributes:
+      label: Comportement attendu
+      description: Décris le résultat observable, pas la solution technique.
+      placeholder: |
+        Les fichiers sans date apparaissent en fin de liste, quel que soit le sens du tri.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptation
+    attributes:
+      label: Critères d'acceptation
+      description: |
+        Comment vérifier que c'est corrigé. Un test à faire passer, un cas de
+        refus, une commande. L'agent s'appuie dessus pour se contrôler.
+      placeholder: |
+        - Un test unitaire couvre le tri d'un fichier sans date.
+        - Le tri existant reste inchangé pour les fichiers datés.
+    validations:
+      required: true
+
+  - type: textarea
+    id: perimetre
+    attributes:
+      label: Périmètre interdit
+      description: |
+        Ce qui ne doit pas être touché. Évite la refonte non demandée, qui est le
+        défaut le plus coûteux d'un agent laissé libre.
+      placeholder: |
+        - Ne pas modifier le schéma de la table des médias.
+        - Ne pas changer les libellés traduits.
+        - Ne pas toucher au code de l'éditeur de pages.
+    validations:
+      required: false
+
+  - type: textarea
+    id: guides
+    attributes:
+      label: Guides et fichiers utiles
+      description: |
+        Les documents à lire avant de coder. C'est ce que l'agent ne devinera pas.
+      placeholder: |
+        - AGENTS.md
+        - Docs/ARCHITECTURE.md
+        - Docs/MEDIAS.md
+    validations:
+      required: false
+
+  - type: textarea
+    id: analyse
+    attributes:
+      label: Analyse préalable (facultatif)
+      description: |
+        Le fruit d'un travail de cadrage : pistes, fichiers identifiés, causes
+        probables, décisions déjà prises. Colle aussi cette analyse en commentaire
+        si tu la produis après l'ouverture du ticket — l'agent les lit.
+    validations:
+      required: false

@@ -129,6 +129,20 @@ situé dans le dépôt (sans créer de dossier au passage), une variable absente
 `verify-artifacts.php` recalcule le suffixe depuis `version` comme le build le
 fait et signale seulement un `version_string` désaccordé.
 
+## Rédiger un ticket destiné à l'agent
+
+Le formulaire `.github/ISSUE_TEMPLATE/tache.yml` propose les sections que
+l'agent ne peut pas deviner : contexte, comportement attendu, critères
+d'acceptation, périmètre interdit, guides à lire, analyse préalable.
+
+L'agent ne lit que le titre, le corps et les commentaires du ticket. Il ne pose
+aucune question et ne dispose d'aucune mémoire d'un échange antérieur : ce qui
+n'est pas écrit n'existe pas pour lui. Les quatre premières sections sont donc
+obligatoires dans le formulaire.
+
+Le modèle ne pré-remplit **aucune étiquette** : `fix-approved` déclencherait la
+correction dès l'ouverture du ticket, avant toute relecture de l'analyse.
+
 ## Utilisation locale
 
 Les scripts se lancent comme en CI, depuis la racine du dépôt :
