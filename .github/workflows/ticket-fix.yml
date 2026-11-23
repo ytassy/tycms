@@ -3,14 +3,14 @@ name: Correction de ticket
 # Déclenché UNIQUEMENT par une étiquette posée à la main sur un ticket : une
 # analyse automatique ne peut donc pas décider seule de modifier le code.
 # Ce workflow n'a aucun secret de publication et ne peut pas publier de release.
+# Il pousse une branche dédiée et commente le ticket ; il n'ouvre pas de pull request.
 on:
   issues:
     types: [labeled]
 
 permissions:
-  # Écriture nécessaire pour créer la branche et la pull request de correction.
+  # Écriture nécessaire pour pousser la branche de correction et commenter le ticket.
   contents: write
-  pull-requests: write
   issues: write
 
 concurrency:
@@ -153,47 +153,28 @@ jobs:
           git commit --message "Correction du ticket #${ISSUE_NUMBER}"
           git push --set-upstream origin "$BRANCH"
 
-      # Pull request en brouillon : rien n'est fusionnable sans relecture humaine.
-      - name: Ouvrir la pull request
+      # Pas de pull request : le jeton des Actions n'y ouvrirait aucun contrôle
+      # automatique (un push fait avec GITHUB_TOKEN ne déclenche pas de workflow),
+      # et une branche suffit à relire, tester et fusionner. Le rapport part en
+      # commentaire du ticket, avec le lien de comparaison prêt à ouvrir.
+      - name: Publier la correction
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
           REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           {
-            printf 'Correction proposée pour le ticket #%s.\n\n' "$ISSUE_NUMBER"
-            printf 'Closes #%s\n\n' "$ISSUE_NUMBER"
+            printf '### Correction proposée\n\n'
+            printf 'Branche `%s`, poussée avec la correction.\n\n' "$BRANCH"
+            printf 'Comparer et relire : %s/compare/dev_1_1...%s?expand=1\n\n' "$REPOSITORY_URL" "$BRANCH"
             printf '### Rapport de l’agent\n\n'
             cat "$RUNNER_TEMP/answer.md"
             printf '\n\n---\n'
-            printf '_Pull request générée automatiquement en brouillon. '
-            printf 'Relire le diff, lancer les contrôles et compléter les vérifications avant fusion._\n'
-          } > "$RUNNER_TEMP/pr.md"
-          # Le jeton des Actions ne peut créer une pull request que si le dépôt
-          # l'autorise (Settings → Actions → General → Workflow permissions).
-          # Sans cette autorisation, la branche reste poussée : signaler le lien
-          # évite de perdre la correction, puis échouer pour que ce soit visible.
-          if gh pr create \
-            --draft \
-            --base dev_1_1 \
-            --head "$BRANCH" \
-            --title "Ticket #${ISSUE_NUMBER} : ${ISSUE_TITLE}" \
-            --body-file "$RUNNER_TEMP/pr.md"; then
-            echo 'Pull request créée.'
-            exit 0
-          fi
-
-          printf '### Pull request à ouvrir à la main\n\n' > "$RUNNER_TEMP/fallback.md"
-          printf 'La branche `%s` est poussée avec la correction, mais le jeton des Actions ' "$BRANCH" >> "$RUNNER_TEMP/fallback.md"
-          printf 'n’est pas autorisé à créer une pull request.\n\n' >> "$RUNNER_TEMP/fallback.md"
-          printf 'Ouvrir la pull request : %s/compare/dev_1_1...%s?expand=1\n\n' "$REPOSITORY_URL" "$BRANCH" >> "$RUNNER_TEMP/fallback.md"
-          printf 'Autorisation durable : *Settings → Actions → General → Workflow permissions* ' >> "$RUNNER_TEMP/fallback.md"
-          printf 'puis cocher « Allow GitHub Actions to create and approve pull requests ».\n' >> "$RUNNER_TEMP/fallback.md"
-          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/fallback.md"
-          echo 'Pull request non créée : autorisation du dépôt manquante.' >&2
-          exit 1
+            printf '_Correction produit automatiquement. Relire le diff, lancer les contrôles '
+            printf 'et compléter les vérifications avant toute fusion._\n'
+          } > "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/comment.md"
 
       - name: Signaler l'absence de modification
         if: steps.changes.outputs.changed != 'true'

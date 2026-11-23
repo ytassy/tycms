@@ -132,9 +132,11 @@ Le serveur de distribution ne notifie pas : son propriétaire le gère seul.
 ## Analyse de tickets
 
 Deux workflows : `ticket-triage.yml` analyse en lecture seule et commente le
-ticket ; `ticket-fix.yml` ne part que sur l'étiquette `fix-approved`, crée
-`dev_1_1_ticket_<n>` et ouvre une pull request **en brouillon**, sans aucun
-secret de publication. Les invites sont versionnées dans `cicd/dsh/prompts/`.
+ticket ; `ticket-fix.yml` ne part que sur l'étiquette `fix-approved`, pousse la
+branche `dev_1_1_ticket_<n>` et commente le rapport avec le lien de comparaison.
+Pas de pull request : elle n'apporterait aucun contrôle automatique, un push
+fait avec `GITHUB_TOKEN` ne déclenchant pas de workflow. Aucun secret de
+publication. Les invites sont versionnées dans `cicd/dsh/prompts/`.
 
 Le texte du ticket est une donnée non fiable : il passe par l'environnement du
 script, jamais par une expression interpolée dans un `run:`, et ses balises
