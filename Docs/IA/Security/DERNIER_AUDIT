@@ -1,0 +1,8 @@
+# SHA du dernier audit de sécurité de référence
+#
+# Remplacer « aucun » par le SHA du commit qui a été audité, puis commiter.
+# Sans SHA valide, l'audit automatique ne lance aucune analyse : il n'a pas de
+# point de comparaison et le dit dans son rapport.
+#
+# Générer le SHA avec : git rev-parse HEAD
+aucun

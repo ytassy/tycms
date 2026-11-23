@@ -28,8 +28,9 @@ const MAX_TICKET_BYTES = 60000;
 const MAX_COMMENTS_BYTES = 20000;
 
 const PROMPTS = [
-    'triage' => 'triage.md',
-    'fix' => 'fix.md',
+    'triage' => ['file' => 'triage.md', 'label' => 'TICKET'],
+    'fix' => ['file' => 'fix.md', 'label' => 'TICKET'],
+    'audit' => ['file' => 'audit.md', 'label' => 'CONTEXTE'],
 ];
 
 try {
@@ -40,6 +41,7 @@ try {
     if (!isset(PROMPTS[$kind])) {
         throw new RuntimeException('Type d’invite inconnu.');
     }
+    $label = PROMPTS[$kind]['label'];
     $ticketFile = $argv[2];
     if (!is_file($ticketFile) || is_link($ticketFile)) {
         throw new RuntimeException('Fichier de ticket absent.');
@@ -55,7 +57,7 @@ try {
         throw new RuntimeException('Ticket trop volumineux pour une analyse fiable.');
     }
 
-    $promptFile = __DIR__ . '/prompts/' . PROMPTS[$kind];
+    $promptFile = __DIR__ . '/prompts/' . PROMPTS[$kind]['file'];
     $prompt = is_file($promptFile) ? file_get_contents($promptFile) : false;
     if (!is_string($prompt) || $prompt === '') {
         throw new RuntimeException('Invite absente ou vide.');
@@ -67,11 +69,9 @@ try {
     // sinon lus comme un délimiteur par un modèle peu attentif.
     // Les chevrons sont encodés en entités : le texte reste lisible, mais aucune
     // balise ne subsiste.
-    $safe = preg_replace_callback(
-        '/<{1,}\s*(FIN_)?TICKET\s*>{1,}/i',
-        static fn (array $match): string => str_replace(['<', '>'], ['&lt;', '&gt;'], $match[0]),
-        $ticket
-    );
+    $pattern = '/<{1,}\s*(FIN_)?' . preg_quote($label, '/') . '\s*>{1,}/i';
+    $escape = static fn (array $match): string => str_replace(['<', '>'], ['&lt;', '&gt;'], $match[0]);
+    $safe = preg_replace_callback($pattern, $escape, $ticket);
     if (!is_string($safe)) {
         throw new RuntimeException('Neutralisation des balises impossible.');
     }
@@ -80,7 +80,7 @@ try {
     // les joindre évite de corriger à l'aveugle. Ils sont bornés et neutralisés
     // comme le ticket lui-même, puisqu'ils viennent de la même source non fiable.
     $comments = '';
-    if ($argc === 5 && is_file($argv[4]) && !is_link($argv[4])) {
+    if ($label === 'TICKET' && $argc === 5 && is_file($argv[4]) && !is_link($argv[4])) {
         $raw = file_get_contents($argv[4], false, null, 0, MAX_COMMENTS_BYTES + 1);
         if (is_string($raw) && $raw !== '') {
             // Couper sur une frontière de caractère : un octet isolé casserait l'encodage.
@@ -94,11 +94,7 @@ try {
     }
     if ($comments !== '') {
         $safe .= "\n\n--- Commentaires du ticket ---\n" . $comments;
-        $safe = preg_replace_callback(
-            '/<{1,}\s*(FIN_)?TICKET\s*>{1,}/i',
-            static fn (array $match): string => str_replace(['<', '>'], ['&lt;', '&gt;'], $match[0]),
-            $safe
-        ) ?? $safe;
+        $safe = preg_replace_callback($pattern, $escape, $safe) ?? $safe;
     }
 
     $version = $argc >= 4 ? trim((string) $argv[3]) : '';
@@ -107,9 +103,9 @@ try {
     }
 
     $output = rtrim($prompt) . "\n\n"
-        . "## Ticket à analyser\n\n"
+        . "## Contenu à analyser\n\n"
         . ($version !== '' ? "Version du projet : " . $version . "\n\n" : '')
-        . "<<<TICKET>>>\n" . $safe . "\n<<<FIN_TICKET>>>\n";
+        . '<<<' . $label . ">>>\n" . $safe . "\n<<<FIN_" . $label . ">>>\n";
 
     fwrite(STDOUT, $output);
 } catch (Throwable $error) {

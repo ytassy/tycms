@@ -24,6 +24,44 @@ Le lot 01 prend pour référence les sources de
 `fa21acf5c283d0501ade2dcfa6995dd51810eaa1`, identifiées également par les
 empreintes de `PERIMETRE.csv`. Ses changements sont exclusivement documentaires.
 
+## Audit automatique différentiel
+
+Un workflow analyse les changements de `security_X` depuis un **SHA de
+référence** consigné dans [`DERNIER_AUDIT`](DERNIER_AUDIT) : il publie un rapport
+daté sous `Reports/` puis avance cette référence. Il ne corrige rien ; les
+constats remontent dans `dev_X_Y` par un merge décidé par Yann.
+
+L'objet de l'analyse est le **dépôt dans son état actuel**, pas le patch : les
+changements indiquent où regarder, et l'agent lit le code complet autour d'eux,
+puis trace les **impacts hors des zones modifiées** — appelants d'un helper
+partagé, nouveaux points d'entrée, droits élargis, données relues ailleurs. Le
+rapport consigne l'état analysé et le périmètre d'impact réellement examiné.
+
+L'agent rédige une **fiche par constat** dans
+[`Findings/Auto/`](Findings/README.md) (`AUTO-NNN.md`), au fil de la découverte,
+et sa réponse finale n'est qu'un index. Ces fiches sont conservées et poussées
+pour être traitées en développement ; tout le reste de ce qu'il écrit est
+abandonné (retour au commit de départ).
+
+`Auto/` reste séparé de `UnderReview`, `Confirmed` et `Resolved` : un constat
+automatique n'est pas qualifié. Les identifiants `AUTO-NNN` ne recouvrent jamais
+les `SEC-NNN` du registre. Les identifiants Git sont retirés pendant l'analyse,
+et la publication reprend la main sur une branche désignée explicitement. Un
+audit raté se jette : supprimer la branche et la recréer suffit.
+
+Sans SHA valide, **aucune analyse n'est lancée** : comparer à `dev_X_Y` ne
+montrerait rien, les deux branches ayant le même contenu après un merge. Le
+workflow l'annonce explicitement au lieu de laisser croire à un audit réussi.
+
+Les remarques qui ne sont pas des vulnérabilités — cohérence d'un guide avec
+le code, code mort, test manquant, dette — sont rangées dans un fichier
+compagnon `Reports/AUTO-<date>-<sha>-observations.md`. Elles ne reçoivent ni
+identifiant ni gravité et ne figurent pas au registre des constats.
+
+Cet audit **ne remplace pas** les lots ci-dessous : il examine un diff, alors que
+les lots suivent les données à travers les routes, les ACL et les Spaces. Il
+signale les régressions nouvelles ; il ne produit pas de conclusion globale.
+
 | Document | Rôle |
 | --- | --- |
 | [Plan des lots](PLAN.md) | Ordre conseillé, points d'entrée, vérifications et commandes de lancement en conversation. |

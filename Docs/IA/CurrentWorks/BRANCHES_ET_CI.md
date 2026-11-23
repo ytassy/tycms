@@ -70,7 +70,7 @@ profondeur). Le réglage est local, jamais activable par une URL.
 | A3 | Client : réglage `update_channel`, filtre bêta | Livré |
 | F | Notifications Telegram / Slack / Discord (webhooks) | Livré |
 | G | Tickets GitHub : analyse read-only, correction après étiquette | Livré (analyse validée en réel) |
-| H | `security_X` : analyse différentielle avec SHA analysé | À faire |
+| H | `security_X` : analyse différentielle avec SHA analysé | Livré |
 | D | CI extensions : build puis dépôt catalogue | À faire |
 | E | TyCatalog : validation par canal | À faire |
 | I | Guides et index à jour | En cours |
@@ -162,6 +162,18 @@ attendu, critères d'acceptation, périmètre interdit, guides à lire, analyse
 préalable. L'agent ne connaît que le titre, le corps et les commentaires ; il ne
 pose aucune question. Le formulaire ne pré-remplit aucune étiquette, pour
 qu'aucune correction ne parte sans relecture de l'analyse.
+
+## Audit de sécurité `security_X`
+
+`security-audit.yml` se déclenche sur `push` vers `security_*`. Il lit le SHA de
+référence dans `Docs/IA/Security/DERNIER_AUDIT`, analyse le dépôt dans son état
+actuel en lecture seule, en se servant des changements comme carte, écrit `Docs/IA/Security/Reports/AUTO-<date>-<sha>.md`, puis
+avance la référence et pousse le tout sur la branche.
+
+Sans SHA valide, aucune analyse : le workflow l'annonce. C'est le cas du premier
+push, et c'est voulu — comparer à `dev_X_Y` ne montrerait rien, les deux
+branches ayant le même contenu après un merge. Le SHA sera renseigné à la fin de
+l'audit manuel en cours.
 
 ## Limites ouvertes
 

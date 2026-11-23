@@ -143,6 +143,68 @@ obligatoires dans le formulaire.
 Le modèle ne pré-remplit **aucune étiquette** : `fix-approved` déclencherait la
 correction dès l'ouverture du ticket, avant toute relecture de l'analyse.
 
+## Audit de sécurité différentiel
+
+`dsh/prompts/audit.md` définit le rapport attendu. L'analyse porte sur le
+**dépôt dans son état actuel**, pas sur le patch : `.audit-diff.patch` n'est
+qu'une carte des zones à examiner. Pour chacune, l'agent lit le fichier complet
+dans son état courant, puis ses collaborateurs — une ligne ajoutée inoffensive
+peut rendre exploitable du code qui existait déjà.
+
+L'agent ne le lit pas d'un bloc : il le découpe avec un décalage et une limite
+pour gérer le volume. **Tous les hunks de tous les fichiers modifiés doivent
+être examinés** ; le découpage ne sert jamais à choisir ce qui mérite un examen.
+La recherche de motifs à risque (`exec`, `unserialize`, superglobales) est un
+filet complémentaire, pas la méthode : elle ne voit pas un contrôle d'accès
+retiré ni une clause SQL élargie.
+
+L'invite demande aussi d'analyser les **impacts hors du diff** : un nouveau
+point d'entrée, un helper partagé modifié, une donnée relue ailleurs, un droit
+élargi ou un défaut plus permissif peuvent ouvrir une escalade de privilèges
+sans qu'aucune ligne du patch ne soit fautive. L'agent décide jusqu'où remonter,
+mais doit consigner le périmètre d'impact examiné et ce qu'il a laissé de côté.
+
+Ce fichier n'est **jamais commité** (seuls le rapport et le SHA sont ajoutés
+explicitement) et il est supprimé avant le commit. Le placer dans l'espace de
+travail plutôt que dans le dossier temporaire du runner garantit que le bac à
+sable en lecture seule y donne accès.
+
+L'agent écrit **une fiche par vulnérabilité** dans
+`Docs/IA/Security/Findings/Auto/` (`AUTO-NNN.md`), au fil de la découverte, et
+sa réponse finale n'est qu'un **index court** : c'est ce qui lui évite de
+produire un rapport final interminable. Le dossier `Auto/` reste distinct des
+dossiers `UnderReview`, `Confirmed` et `Resolved` : un constat automatique n'a
+pas été qualifié par le propriétaire.
+
+Ces fiches sont **conservées** : mises de côté, puis restaurées après le
+nettoyage. Tout le reste de ce que l'agent a écrit est abandonné — le workflow
+revient au commit de départ (`git reset --hard`, `git clean -fd`) et ne commite
+que le rapport d'index, la référence et les fiches. Les liens symboliques sont
+écartés et le nombre de fiches est borné à 40.
+
+L'invite distingue donc explicitement les deux endroits : `Findings/Auto/` est
+publié, `.audit-notes/` est un brouillon jetable. Une formulation antérieure
+disait que rien n'était publié — l'agent aurait pu en conclure que rédiger des
+fiches était inutile.
+
+Le verrou porte sur Git, pas sur les fichiers : les identifiants sont retirés
+avant l'analyse, donc l'agent ne peut ni commiter, ni pousser, ni créer de
+branche. Le workflow reprend la main sur `git switch --force-create` et pousse
+avec un refspec explicite : même si l'agent a déplacé une référence locale,
+**seule la branche nommée part**. Un audit raté se jette et se relance.
+
+Le rapport ne contient que des constats de sécurité. Les remarques qui n'en
+sont pas — incohérence entre un guide et le code, code mort, test manquant,
+nommage, dette — sont extraites vers un fichier compagnon
+`Reports/AUTO-<date>-<sha>-observations.md`, sans identifiant ni gravité. Si le
+titre de section manque, rien n'est perdu : le rapport les contient déjà.
+
+La référence de comparaison est le SHA contenu dans
+`Docs/IA/Security/DERNIER_AUDIT`. Absent ou invalide, le workflow s'arrête et le
+dit : il n'y a pas de point de comparaison. Le SHA n'avance qu'après production
+effective d'un rapport, pour qu'une panne ne fasse pas sauter du code non
+analysé.
+
 ## Utilisation locale
 
 Les scripts se lancent comme en CI, depuis la racine du dépôt :

@@ -1,0 +1,265 @@
+name: Audit de sécurité
+
+# Cycle retenu avec Yann : il merge `dev_X_Y` dans `security_X` quand il veut un
+# audit. L'audit analyse le diff depuis le dernier SHA audité, commite son
+# rapport sur `security_X`, puis avance ce SHA. Il ne corrige rien : les constats
+# remontent dans `dev_X_Y` par un merge ultérieur, décidé par lui.
+on:
+  push:
+    branches:
+      - 'security_[0-9]*'
+  workflow_dispatch:
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  # Écriture nécessaire pour committer le rapport et le SHA de référence.
+  contents: write
+
+jobs:
+  audit:
+    name: Analyse différentielle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: true
+          # L'historique complet est requis pour comparer au SHA de référence.
+          fetch-depth: 0
+
+      - name: Préparer PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Préparer Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      # Le SHA de référence est la seule source de vérité : sans lui, comparer à
+      # `dev` ne montrerait rien, les deux branches ayant le même contenu après un merge.
+      - name: Lire le SHA de référence
+        id: baseline
+        run: |
+          reference=""
+          if [ -f Docs/IA/Security/DERNIER_AUDIT ]; then
+            reference=$(grep -oiE '[0-9a-f]{40}' Docs/IA/Security/DERNIER_AUDIT | head -1)
+          fi
+          if [ -n "$reference" ] && git cat-file -e "${reference}^{commit}" 2>/dev/null; then
+            echo "sha=$reference" >> "$GITHUB_OUTPUT"
+            echo "Référence : $reference"
+          else
+            echo 'sha=' >> "$GITHUB_OUTPUT"
+            echo 'Aucun SHA de référence valide dans Docs/IA/Security/DERNIER_AUDIT.'
+          fi
+
+      # Aucune analyse sans point de comparaison : le dire, plutôt que de laisser
+      # croire à un audit réussi.
+      - name: Constater l'absence de référence
+        if: steps.baseline.outputs.sha == ''
+        run: |
+          echo '### Audit non lancé : aucune référence' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '`Docs/IA/Security/DERNIER_AUDIT` ne contient aucun SHA de commit valide.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Il n’y a donc rien à comparer, et aucune analyse n’est produite.' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Renseigner le SHA du dernier commit audité, puis relancer.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Aucun SHA de référence : analyse non lancée.'
+
+      - name: Localiser le préfixe npm
+        if: steps.baseline.outputs.sha != ''
+        run: echo "NPM_PREFIX=$(npm config get prefix)" >> "$GITHUB_ENV"
+
+      - name: Restaurer DSH
+        if: steps.baseline.outputs.sha != ''
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.npm
+            ${{ env.NPM_PREFIX }}/lib/node_modules
+          key: dsh-0.2.2-rc.5
+
+      - name: Installer DSH
+        if: steps.baseline.outputs.sha != ''
+        run: npm install --global @deepseek-ai/dsh@0.2.2-rc.5 --prefer-offline --no-audit --no-fund
+
+      - name: Préparer la surcouche de profil
+        if: steps.baseline.outputs.sha != ''
+        env:
+          DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          DSH_PROVIDER: ${{ vars.DSH_PROVIDER }}
+          DSH_MODEL: ${{ vars.DSH_MODEL }}
+          DSH_EFFORT: ${{ vars.DSH_EFFORT }}
+        run: php cicd/dsh/prepare-profile.php
+
+      # L'agent lit le diff lui-même : le prompt ne porte que la plage et un
+      # résumé. Il examine ainsi le fichier complet autour d'un changement, au
+      # lieu de raisonner sur un patch tronqué.
+      # Sans identifiant dans la configuration Git, l'agent ne peut pousser nulle
+      # part : le jeton n'est fourni qu'à l'étape finale, qui écrit le rapport.
+      - name: Retirer les identifiants Git avant l'analyse
+        if: steps.baseline.outputs.sha != ''
+        run: |
+          git config --unset-all 'http.https://github.com/.extraheader' || true
+          git remote -v
+
+      - name: Préparer la mission
+        if: steps.baseline.outputs.sha != ''
+        id: mission
+        env:
+          REFERENCE: ${{ steps.baseline.outputs.sha }}
+        run: |
+          upper=$(git rev-parse HEAD)
+          echo "sha=$upper" >> "$GITHUB_OUTPUT"
+          total=$(git diff --name-only "$REFERENCE..$upper" | wc -l)
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+          # Le diff est écrit dans l'espace de travail : l'agent y a accès en
+          # lecture, et le fichier n'est pas commité (seuls le rapport et le SHA
+          # sont ajoutés explicitement). Il évite de dépendre d'une commande que
+          # l'agent devrait penser à lancer.
+          # Brouillon libre de l'agent, et dossier des fiches qu'il rédige.
+          mkdir -p "$GITHUB_WORKSPACE/.audit-notes"
+          mkdir -p "$GITHUB_WORKSPACE/Docs/IA/Security/Findings/Auto"
+
+          diff_path="$GITHUB_WORKSPACE/.audit-diff.patch"
+          git diff "$REFERENCE..$upper" > "$diff_path"
+          bytes=$(wc -c < "$diff_path")
+          if [ "$bytes" -gt 2000000 ]; then
+            head -c 2000000 "$diff_path" > "$diff_path.part"
+            printf '\n\n[diff tronqué : 2 000 000 octets sur %s]\n' "$bytes" >> "$diff_path.part"
+            mv "$diff_path.part" "$diff_path"
+          fi
+          echo "bytes=$bytes" >> "$GITHUB_OUTPUT"
+
+          {
+            printf 'État analysé : commit %s (le dépôt tel qu’il est, modifications comprises).\n\n' "$upper"
+            printf 'Modifications depuis le dernier audit : %s..%s\n\n' "$REFERENCE" "$upper"
+            printf 'Fichiers modifiés : %s\n\n' "$total"
+            printf 'La carte des modifications est dans `.audit-diff.patch`, à la racine du dépôt.\n'
+            if [ "$bytes" -gt 2000000 ]; then
+              printf 'Attention : ce fichier est tronqué à 2 Mo.\n'
+            fi
+            printf '\nRésumé des changements :\n\n'
+            git diff --stat "$REFERENCE..$upper" | tail -200
+          } > "$RUNNER_TEMP/contexte.txt"
+
+          {
+            echo '### Audit'
+            echo ''
+            echo "- état analysé : \`${upper:0:7}\` (dépôt complet, modifications comprises)"
+            echo "- modifications depuis \`${REFERENCE:0:7}\`"
+            echo "- fichiers modifiés : $total"
+          } >> "$GITHUB_STEP_SUMMARY"
+          wc -c "$RUNNER_TEMP/contexte.txt"
+
+      - name: Composer la tâche
+        if: steps.baseline.outputs.sha != '' && steps.mission.outputs.total != '0'
+        run: |
+          php cicd/dsh/prompt.php audit "$RUNNER_TEMP/contexte.txt" "" > "$RUNNER_TEMP/task.txt"
+          wc -c "$RUNNER_TEMP/task.txt"
+
+      # Lecture seule et refus d'approbation : l'audit ne peut pas modifier le code.
+      - name: Analyser
+        if: steps.baseline.outputs.sha != '' && steps.mission.outputs.total != '0'
+        env:
+          DSH_CONFIG_DIR: ${{ runner.temp }}/dsh
+          DSH_HOME: ${{ runner.temp }}/dsh/home
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          set +e
+          # Écriture autorisée sur l'espace de travail pour les notes ; l'étape
+          # suivante vérifie qu'aucun autre fichier n'a bougé.
+          dsh --profile headless \
+            --patch "$DSH_CONFIG_DIR/headless.patch.yml" \
+            --permission-mode workspace-write \
+            --approval-policy never \
+            --json - < "$RUNNER_TEMP/task.txt" > "$RUNNER_TEMP/run.jsonl"
+          status=$?
+          set -e
+          echo "code de sortie : $status"
+          jq -r 'select(.type == "final") | .text // ""' "$RUNNER_TEMP/run.jsonl" > "$RUNNER_TEMP/answer.md" || true
+          if [ ! -s "$RUNNER_TEMP/answer.md" ]; then
+            printf 'Analyse indisponible : le moteur n’a pas rendu de réponse.\n' > "$RUNNER_TEMP/answer.md"
+          fi
+          head -c 300 "$RUNNER_TEMP/answer.md"
+
+      # Le SHA de référence n'avance que si l'analyse a réellement été produite :
+      # une panne ne doit pas faire sauter du code non analysé.
+      - name: Enregistrer le rapport
+        if: steps.baseline.outputs.sha != '' && steps.mission.outputs.total != '0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REFERENCE: ${{ steps.baseline.outputs.sha }}
+          UPPER: ${{ steps.mission.outputs.sha }}
+        run: |
+          stamp="$(date -u +%Y%m%d-%H%M)"
+          report="Docs/IA/Security/Reports/AUTO-${stamp}-${UPPER:0:7}.md"
+
+          # 1. Composer les deux fichiers hors de l'espace de travail : tout ce
+          #    qui s'y trouve sera effacé juste après.
+          {
+            printf '# Audit automatique du %s\n\n' "$(date -u +%Y-%m-%d\ %H:%M\ UTC)"
+            printf 'Branche : `%s`\n\n' "${GITHUB_REF_NAME}"
+            printf 'État analysé : `%s` (dépôt complet, modifications comprises)\n\n' "${UPPER:0:7}"
+            printf 'Modifications couvertes : `%s..%s`\n\n' "${REFERENCE:0:7}" "${UPPER:0:7}"
+            printf '> Rapport produit automatiquement, sans correction. Les constats sont '
+            printf 'à qualifier selon la méthode de `Docs/IA/Security/README.md`.\n\n'
+            printf -- '---\n\n'
+            cat "$RUNNER_TEMP/answer.md"
+          } > "$RUNNER_TEMP/report.md"
+
+          {
+            printf '# SHA du dernier audit de sécurité de référence\n'
+            printf '# Remplacer par le SHA à auditer, puis commiter.\n'
+            printf '%s\n' "$UPPER"
+          } > "$RUNNER_TEMP/baseline.txt"
+
+          # 2. Mettre les fiches de côté : ce sont les seules écritures conservées.
+          #    Les liens symboliques sont écartés, et le nombre de fichiers borné.
+          mkdir -p "$RUNNER_TEMP/findings"
+          if [ -d Docs/IA/Security/Findings/Auto ]; then
+            cp -a Docs/IA/Security/Findings/Auto/. "$RUNNER_TEMP/findings/" 2>/dev/null || true
+          fi
+          find "$RUNNER_TEMP/findings" -type l -delete
+          count=$(find "$RUNNER_TEMP/findings" -maxdepth 1 -name '*.md' -type f | wc -l)
+          echo "Fiches rédigées : $count"
+
+          # 3. Abandonner tout le reste des écritures de l'agent et revenir au commit analysé.
+          git reset --hard "$UPPER"
+          git clean -fd
+          branch="${GITHUB_REF_NAME}"
+          git switch --force-create "$branch" "$UPPER"
+
+          # 4. Déposer le rapport, la référence et les fiches, puis pousser vers la branche
+          #    nommée : même si l'agent a créé ou déplacé une référence locale,
+          #    seule celle-ci part.
+          mkdir -p "$(dirname "$report")"
+          cp "$RUNNER_TEMP/report.md" "$report"
+          cp "$RUNNER_TEMP/baseline.txt" Docs/IA/Security/DERNIER_AUDIT
+          mkdir -p Docs/IA/Security/Findings/Auto
+          cp -a "$RUNNER_TEMP/findings/." Docs/IA/Security/Findings/Auto/ 2>/dev/null || true
+
+          git config user.name 'Tycms CI'
+          git config user.email 'ci@tycms.invalid'
+          git add "$report" Docs/IA/Security/DERNIER_AUDIT Docs/IA/Security/Findings/Auto
+          git commit --message "Audit de sécurité ${REFERENCE:0:7}..${UPPER:0:7}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${branch}"
+          echo "Rapport : $report sur $branch"
+
+      - name: Notifier le résultat
+        if: always()
+        env:
+          TELEGRAM_NOTIFY: ${{ secrets.TELEGRAM_NOTIFY }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          NOTIFY_STATUS: ${{ job.status }}
+          NOTIFY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: php cicd/notify.php
