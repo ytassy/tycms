@@ -11,6 +11,8 @@ final readonly class AutomationActionDefinition
     /**
      * @param list<AutomationParameterDefinition> $parameters
      * @param list<string> $requiredPermissions
+     * @param WorkflowMethodRef|null $workflowMethod Cible de méthode de WF pour
+     *        une action déclarée par annotation ; null pour un handler dédié.
      */
     public function __construct(
         public string $id,
@@ -24,6 +26,7 @@ final readonly class AutomationActionDefinition
         public string $targetSpace = 'scenario',
         public int $timeoutSeconds = 10,
         public int $maxOutputBytes = 65536,
+        public ?WorkflowMethodRef $workflowMethod = null,
     ) {
     }
 }

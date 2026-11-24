@@ -18,10 +18,10 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
     {
         $definitions = CoreAutomationActions::definitions();
 
-        self::assertCount(29, $definitions);
+        self::assertCount(28, $definitions);
         self::assertSame(
             ['core::sendMail', 'core::notify', 'core::sendTelegram', 'core::sendSlack',
-                'core::sendDiscord', 'core::getUser', 'core::listUsers', 'core::addRole',
+                'core::sendDiscord', 'core::listUsers', 'core::addRole',
                 'core::removeRole', 'core::addToGroup', 'core::removeFromGroup',
                 'core::sessionRead', 'core::sessionWrite', 'core::sessionRemove',
                 'google_sheets::appendRow', 'google_sheets::appendRows', 'google_sheets::insertRow',
@@ -122,6 +122,11 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertSame('plg_core', $registry->ownerOf('core::sendMail'));
         self::assertSame('plg_core', $registry->ownerOf('google_sheets::appendRow'));
         self::assertSame('plg_core', $registry->ownerOf('google_calendar::createEvent'));
+
+        // L'action getUser est désormais déclarée par annotation sur le WF.
+        self::assertTrue($registry->has('core::getUser'));
+        self::assertSame('plg_core', $registry->ownerOf('core::getUser'));
+
         self::assertCount(29, $registry->all());
     }
 }

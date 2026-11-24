@@ -10,7 +10,6 @@ use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
 use YTassy\Tycms\CoreExts\Automation\Permissions as AutomationPermissions;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddToGroupAction;
-use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetUserAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListUsersAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\NotifyAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\RemoveFromGroupAction;
@@ -204,25 +203,6 @@ final class CoreAutomationActions
                 effect: FunctionEffect::EXTERNAL,
                 requiredPermissions: [AutomationPermissions::PUBLISH],
                 timeoutSeconds: 15,
-            ),
-            new AutomationActionDefinition(
-                id: 'core::getUser',
-                label: 'Lire un utilisateur',
-                handlerClass: GetUserAction::class,
-                description: 'Retourne les informations visibles d’un compte.',
-                parameters: [
-                    new AutomationParameterDefinition(
-                        'userId',
-                        'int',
-                        true,
-                        label: 'Identifiant du compte',
-                        description: 'Identifiant du compte à lire.',
-                    ),
-                ],
-                returnType: 'array',
-                effect: FunctionEffect::READ,
-                requiredPermissions: [CorePermissions::USERS_READ],
-                targetSpace: 'resource',
             ),
             new AutomationActionDefinition(
                 id: 'core::listUsers',
