@@ -22,31 +22,33 @@ final class AutomationFunctionCatalog implements FunctionCatalog
 
     public function find(string $identifier): ?FunctionSignature
     {
-        $signature = $this->builtins->find($identifier);
-
-        if ($signature !== null) {
-            return $signature;
-        }
-
+        // Le registre prime sur les signatures de secours : une action déclarée
+        // par une extension fait foi pour son arité et son effet. Sans cette
+        // priorité, une signature de secours obsolète masquerait une évolution
+        // de l'action et produirait un BAD_ARITY fantôme.
         $definition = $this->actions?->find($identifier);
 
-        if ($definition === null || in_array($definition->effect, $this->excludedEffects, true)) {
-            return null;
-        }
-
-        $required = 0;
-
-        foreach ($definition->parameters as $parameter) {
-            if ($parameter->required) {
-                $required++;
+        if ($definition !== null) {
+            if (in_array($definition->effect, $this->excludedEffects, true)) {
+                return null;
             }
+
+            $required = 0;
+
+            foreach ($definition->parameters as $parameter) {
+                if ($parameter->required) {
+                    $required++;
+                }
+            }
+
+            return new FunctionSignature(
+                $definition->id,
+                $required,
+                count($definition->parameters),
+                $definition->effect,
+            );
         }
 
-        return new FunctionSignature(
-            $definition->id,
-            $required,
-            count($definition->parameters),
-            $definition->effect,
-        );
+        return $this->builtins->find($identifier);
     }
 }

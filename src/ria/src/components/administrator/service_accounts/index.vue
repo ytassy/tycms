@@ -61,17 +61,30 @@
 			</div>
 
 			<form v-if="tokenForm" class="row g-2 align-items-end mb-3" @submit.prevent="submitToken">
-				<div class="col-sm-5">
+				<div class="col-sm-4">
 					<label class="form-label" for="token-name">Nom du jeton</label>
 					<input id="token-name" v-model.trim="tokenName" maxlength="119" class="form-control" placeholder="Production, Démo…">
 				</div>
-				<div class="col-sm-4">
+				<div class="col-sm-3">
+					<label class="form-label" for="token-space">Space d’exécution</label>
+					<select id="token-space" v-model.number="tokenSpaceId" class="form-select" :disabled="!spaces.length">
+						<option v-for="space in spaces" :key="space.id" :value="space.id">
+							{{ space.title }}
+						</option>
+					</select>
+				</div>
+				<div class="col-sm-3">
 					<label class="form-label" for="token-expires">Expiration (facultatif)</label>
 					<input id="token-expires" v-model="tokenExpiresAt" type="datetime-local" class="form-control">
 				</div>
-				<div class="col-sm-3 d-flex gap-2">
-					<button type="submit" class="btn btn-primary" :disabled="store.tokensBusy">Créer</button>
+				<div class="col-sm-2 d-flex gap-2">
+					<button type="submit" class="btn btn-primary" :disabled="store.tokensBusy || !tokenSpaceId">Créer</button>
 					<button type="button" class="btn btn-outline-secondary" @click="tokenForm = false">Annuler</button>
+				</div>
+				<div class="col-12">
+					<div class="form-text">
+						Le jeton exécute le code dans ce Space. Sans Space, il serait refusé par le serveur MCP.
+					</div>
 				</div>
 			</form>
 
@@ -173,6 +186,7 @@ export default {
 			draft: { name: '', email: '', spaceId: null },
 			tokenForm: false,
 			tokenName: '',
+			tokenSpaceId: null,
 			tokenExpiresAt: '',
 			newToken: null,
 		}
@@ -248,6 +262,9 @@ export default {
 
 		openTokenForm() {
 			this.tokenName = ''
+			// Par défaut, le Space du compte de service : c'est celui qu'il
+			// administre et celui qu'un jeton doit viser.
+			this.tokenSpaceId = this.store.selectedAccount?.spaceId ?? this.currentSpaceId()
 			this.tokenExpiresAt = ''
 			this.tokenForm = true
 		},
@@ -258,6 +275,7 @@ export default {
 				this.newToken = await this.store.createToken(
 					this.store.selectedId,
 					this.tokenName,
+					this.tokenSpaceId,
 					this.tokenExpiresAt ? this.tokenExpiresAt.replace('T', ' ') + ':00' : null,
 				)
 			} finally {

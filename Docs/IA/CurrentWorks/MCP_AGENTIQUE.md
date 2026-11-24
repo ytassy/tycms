@@ -39,6 +39,24 @@ l'authentification, le protocole, l'exécution auditée (`token_id`, hash de
 source) et le refus d'une action `external`. La suite d'intégration complète
 conserve 8 échecs préexistants, hors périmètre MCP (migrations et espaces).
 
+Le **lot 5 a été validé en conditions réelles** : le serveur MCP est connectable
+depuis DSH et les cinq outils sont visibles. Chaîne vérifiée en local
+(`http://localhost:8088/ai/mcp`) : `initialize`, notification 202, `tools/list`,
+`tycms.run` avec calcul, exécution d'`core::getUser` et d'`core::listUsers`, et
+refus d'une action `external`. L'audit `mcp_executions` conserve le `token_id`
+exact, l'utilisateur, le Space, la durée et le hash de source.
+
+La connexion réelle a révélé un défaut du moteur d'automatisation, corrigé :
+`AutomationFunctionCatalog::find()` consultait les signatures de secours de
+`BuiltinFunctionCatalog` **avant** le registre d'actions. Une signature obsolète
+(`core::listUsers` à trois paramètres) masquait donc le paramètre `type` ajouté
+au registre, et l'appel échouait en `BAD_ARITY`. Le registre prime désormais, et
+les signatures de secours restent réservées à la validation sans registre.
+
+Le bundle de connexion DSH est dans `0_ressources/dsh-mcp-tycms/` (hors Git) :
+`cordis.patch.local.yml` porte l'URL locale et le jeton, `cordis.patch.yml`
+conserve la variante à variable d'environnement.
+
 Le **lot 2 est livré** : colonne `users.type`, table `api_tokens` (migration),
 modèle `ApiToken`, helper `ServiceAccountTokenHelper` (génération, hachage
 SHA-256, vérification en temps constant, révocation, résolution), workflow

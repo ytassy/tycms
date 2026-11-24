@@ -161,15 +161,18 @@ final class BuiltinFunctionCatalog implements FunctionCatalog
             'res::danger' => [1, 1],
             'res::error' => [1, 1],
 
-            // Actions Core. Ces signatures de secours doivent suivre
-            // CoreAutomationActions pour la validation sans registre.
+            // Actions Core. Ces signatures de secours servent uniquement à la
+            // validation statique sans registre d'actions. Dès que le registre
+            // existe, ses définitions priment (AutomationFunctionCatalog).
+            // Les maintenir ici reste nécessaire : un éditeur ou un test qui
+            // valide sans application doit reconnaître ces identifiants.
             'core::sendMail' => [2, 3, FunctionEffect::EXTERNAL],
             'core::notify' => [1, 3, FunctionEffect::EXTERNAL],
             'core::sendTelegram' => [1, 3, FunctionEffect::EXTERNAL],
             'core::sendSlack' => [1, 3, FunctionEffect::EXTERNAL],
             'core::sendDiscord' => [1, 3, FunctionEffect::EXTERNAL],
             'core::getUser' => [1, 1, FunctionEffect::READ],
-            'core::listUsers' => [0, 3, FunctionEffect::READ],
+            'core::listUsers' => [0, 4, FunctionEffect::READ],
             'core::addRole' => [3, 3, FunctionEffect::WRITE],
             'core::removeRole' => [3, 3, FunctionEffect::WRITE],
             'core::addToGroup' => [2, 2, FunctionEffect::WRITE],

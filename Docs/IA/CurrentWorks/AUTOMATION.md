@@ -558,10 +558,21 @@ Actions impures, à titre d'exemple :
 `core::sendMail(template, to, ?vars)`, `core::notify(message, ?title, ?channels)`,
 `core::sendTelegram(message, ?title, ?target)`, `core::sendSlack(...)`,
 `core::sendDiscord(...)`, `core::getUser(userId)`,
-`core::listUsers(?page, ?perPage, ?search)`, `core::addRole(userId, roleId, spaceId)`,
+`core::listUsers(?page, ?perPage, ?search, ?type)`, `core::addRole(userId, roleId, spaceId)`,
 `core::removeRole(userId, roleId, spaceId)`, `core::addToGroup(userId, groupId)`,
 `core::removeFromGroup(userId, groupId)`, `core::sessionRead(key, ?path, ?default)`,
 `core::sessionWrite(key, value)`, `core::sessionRemove(key)`.
+
+**Priorité du registre sur les signatures de secours.** `BuiltinFunctionCatalog`
+porte des signatures de secours pour les actions Core, utilisées uniquement
+lorsqu'aucun registre n'est disponible (validation statique sans Application).
+Dès qu'un registre existe, `AutomationFunctionCatalog::find()` renvoie la
+définition du registre : son arité, ses paramètres et son effet font foi. Sans
+cette priorité, une signature de secours obsolète masquerait une évolution de
+l'action et produirait un `BAD_ARITY` fantôme — cas réellement observé sur
+`core::listUsers` après l'ajout du paramètre `type`. Ces signatures de secours
+doivent donc être maintenues alignées, et un test de non-régression vérifie
+qu'une définition à quatre paramètres produit bien `maxArity = 4`.
 
 Chacune déclare ses permissions, vérifie l'ACL sur le Space réel du principal
 et nettoie ses entrées. `core::sendMail` prend un modèle et des variables, pas

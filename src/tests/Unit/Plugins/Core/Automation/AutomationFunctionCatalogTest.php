@@ -49,6 +49,38 @@ final class AutomationFunctionCatalogTest extends FrameworkTestCase
     }
 
     #[Test]
+    public function theRegistryWinsOverFallbackSignatures(): void
+    {
+        $app = $this->createApplication();
+        $registry = new AutomationActionRegistry($app);
+        $registry->registerProvider('plg_test', new CatalogTestProvider([
+            // La signature de secours de `core::listUsers` annonçait trois
+            // paramètres ; le registre en déclare quatre. Le registre doit
+            // primer, sinon un paramètre ajouté devient inappelable.
+            new AutomationActionDefinition(
+                'core::listUsers',
+                'Lister',
+                CatalogTestAction::class,
+                effect: FunctionEffect::READ,
+                parameters: [
+                    new AutomationParameterDefinition('page', 'int', false),
+                    new AutomationParameterDefinition('perPage', 'int', false),
+                    new AutomationParameterDefinition('search', 'string', false),
+                    new AutomationParameterDefinition('type', 'string', false),
+                ],
+            ),
+        ]));
+
+        $catalog = new AutomationFunctionCatalog(BuiltinFunctionCatalog::create(), $registry);
+        $signature = $catalog->find('core::listUsers');
+
+        self::assertNotNull($signature);
+        self::assertSame(0, $signature->minArity);
+        self::assertSame(4, $signature->maxArity);
+        self::assertTrue($signature->accepts(4));
+    }
+
+    #[Test]
     public function excludedEffectsBecomeUnknownFunctions(): void
     {
         $app = $this->createApplication();

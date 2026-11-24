@@ -46,10 +46,10 @@ export const useAdminServiceAccountsStore = {
 					}
 				},
 
-				async createToken(userId, name, expiresAt) {
+				async createToken(userId, name, spaceId, expiresAt) {
 					const response = await application.api.post(
 						'/administrator/api/service-accounts/token/create',
-						{ userId, name, spaceId: null, expiresAt: expiresAt || null },
+						{ userId, name, spaceId, expiresAt: expiresAt || null },
 					)
 					await this.loadTokens(userId)
 					return response.token ?? null
