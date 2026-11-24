@@ -68,9 +68,14 @@ class WFAdminUser extends BaseWF
     }
 
     /** @return array<string, mixed> */
-    public function listUsers(int $page, int $perPage, string $search): array
+    public function listUsers(int $page, int $perPage, string $search, ?string $type = 'user'): array
     {
         $this->validateUserPagination($page, $perPage, $search);
+
+        // « null » affiche tous les types ; sinon seul le type demandé est listé.
+        if ($type !== null && !in_array($type, ['user', 'service'], true)) {
+            ExceptionResponse::throwWarning('Type de compte invalide.');
+        }
 
         $spaceIds = [];
         foreach ($this->coreSpaceHelper->getAllSpacesByIds() as $space) {
@@ -80,7 +85,7 @@ class WFAdminUser extends BaseWF
             ExceptionResponse::throwDanger('Vous ne pouvez pas consulter les utilisateurs.');
         }
 
-        $result = $this->coreUserAdminHelper->listUsers($spaceIds, $page, $perPage, trim($search), null);
+        $result = $this->coreUserAdminHelper->listUsers($spaceIds, $page, $perPage, trim($search), null, $type);
         $ids = array_map(static fn (object $row): int => (int) $row->id, $result['rows']);
         $relations = $this->coreUserAdminHelper->getRelations($ids);
         $protected = $this->protectedRootUsers($ids);
@@ -91,6 +96,7 @@ class WFAdminUser extends BaseWF
                 isset($protected[(int) $row->id])
             ), $result['rows']),
             'total' => $result['total'], 'page' => $page, 'per_page' => $perPage,
+            'type' => $type,
         ];
     }
 
@@ -302,6 +308,13 @@ class WFAdminUser extends BaseWF
     public function updateUser(int $userId, object $data): array
     {
         $user = $this->getUserRecord($userId, true);
+
+        // Un compte de service n'a pas de profil interactif : seuls ses groupes
+        // et ses rôles se modifient depuis la liste des utilisateurs.
+        if (($user->type ?? 'user') === 'service') {
+            ExceptionResponse::throwWarning('Un compte de service n’a pas de profil modifiable.');
+        }
+
         $this->assertCan(Permissions::USERS_CRUD, (int) $user->space_id);
         [$firstName, $lastName, $email, $timezone, $blocked, $sendEmail] = $this->validateData($data);
 
@@ -323,6 +336,13 @@ class WFAdminUser extends BaseWF
     public function updatePassword(int $userId, string $password): bool
     {
         $user = $this->getUserRecord($userId, true);
+
+        // Un compte de service ne doit jamais recevoir de mot de passe : sa
+        // seule authentification possible est le jeton d'API.
+        if (($user->type ?? 'user') === 'service') {
+            ExceptionResponse::throwWarning('Un compte de service ne possède pas de mot de passe.');
+        }
+
         $this->assertCan(Permissions::USERS_ADMIN, (int) $user->space_id);
         $this->validatePassword($password);
 
@@ -702,6 +722,11 @@ class WFAdminUser extends BaseWF
         $memberSpaces = array_values(array_unique($relations['spaces']));
         sort($memberSpaces);
 
+        // Un compte de service n'a ni profil ni mot de passe interactif : les
+        // capacités d'édition et de sécurité restent fermées côté serveur, même
+        // si l'interface oubliait de masquer ses boutons.
+        $accountType = (string) ($user->type ?? 'user');
+
         // Les attributions ne sont transmises qu'avec le droit de lecture correspondant.
         $visibleGroups = array_values(array_filter($relations['groups'],
             fn (array $group): bool => $this->can(Permissions::USER_GROUPS_READ, $group['space_id'])));
@@ -715,6 +740,7 @@ class WFAdminUser extends BaseWF
         return [
             'id' => (int) $user->id,
             'space_id' => $spaceId,
+            'type' => (string) ($user->type ?? 'user'),
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,
@@ -726,8 +752,10 @@ class WFAdminUser extends BaseWF
             'inherited_spaces' => $visibleInheritedSpaces,
             'groups' => $visibleGroups,
             'roles' => $visibleRoles,
-            'can_edit' => !$rootProtected && $this->can(Permissions::USERS_CRUD, $spaceId),
-            'can_admin' => !$rootProtected && $this->can(Permissions::USERS_ADMIN, $spaceId),
+            'can_edit' => !$rootProtected && $this->can(Permissions::USERS_CRUD, $spaceId)
+                && $accountType !== 'service',
+            'can_admin' => !$rootProtected && $this->can(Permissions::USERS_ADMIN, $spaceId)
+                && $accountType !== 'service',
             'can_assign' => !$rootProtected && $this->can(Permissions::USER_ROLES_CRUD, $spaceId)
                 && $this->can(Permissions::USER_ROLES_READ, $spaceId),
             'can_assign_groups' => !$rootProtected && $this->can(Permissions::USER_GROUPS_ASSIGN, $spaceId)

@@ -67,6 +67,11 @@ final class WFServiceAccount extends BaseWF
 
         // Un compte de service n'a pas de mot de passe : la colonne reste vide,
         // ce qui empêche toute connexion interactive par identifiant.
+        //
+        // Volontairement, cet INSERT n'utilise pas UserRegistrationHelper : il
+        // n'émet donc pas `core.user.created`. Un compte de service ne doit ni
+        // déclencher les scénarios de bienvenue, ni passer par le parcours de
+        // rattachement d'un compte utilisateur.
         $this->db->execute(
             'INSERT INTO users (space_id, type, first_name, last_name, email, password, params, register_date) '
             . "VALUES (%, 'service', %, '', %, '', '{}', current_timestamp())",
@@ -141,6 +146,24 @@ final class WFServiceAccount extends BaseWF
         return $this->tokenHelper()->revoke($tokenId);
     }
 
+    /**
+     * Supprime un compte de service et son groupe personnel.
+     *
+     * Les jetons d'API suivent la cascade de la clé étrangère. Aucun autre
+     * compte ne peut être supprimé par ce parcours.
+     */
+    public function delete(int $userId): bool
+    {
+        $this->assertRoot();
+        $this->assertServiceAccount($userId, true);
+
+        // Le groupe personnel porte les rôles du compte : le supprimer avec lui.
+        $groupId = $this->coreUserAdminHelper->getPersonalGroupId($userId, true);
+        $this->coreUserAdminHelper->deleteUser($userId, $groupId);
+
+        return true;
+    }
+
     private function assertRoot(): void
     {
         if (!$this->coreAclHelper->isRoot()) {
@@ -148,9 +171,12 @@ final class WFServiceAccount extends BaseWF
         }
     }
 
-    private function assertServiceAccount(int $userId): void
+    private function assertServiceAccount(int $userId, bool $lock = false): void
     {
-        $user = $this->db->selectOneOrNull('SELECT id, type FROM users WHERE id = % LIMIT 1', [$userId]);
+        $user = $this->db->selectOneOrNull(
+            'SELECT id, type FROM users WHERE id = %' . ($lock ? ' FOR UPDATE' : '') . ' LIMIT 1',
+            [$userId],
+        );
 
         if ($user === null || $user->type !== 'service') {
             ExceptionResponse::throwWarning('Compte de service introuvable.');

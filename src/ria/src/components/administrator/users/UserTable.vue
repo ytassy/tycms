@@ -7,7 +7,10 @@
             </tr></thead>
             <tbody>
                 <tr v-for="user in users" :key="user.id">
-                    <td class="fw-semibold">{{ user.first_name }} {{ user.last_name }}</td>
+                    <td class="fw-semibold">
+                        {{ user.first_name }} {{ user.last_name }}
+                        <span v-if="user.type === 'service'" class="badge text-bg-secondary ms-1" title="Compte sans connexion interactive, authentifié par jeton d’API">Compte de service</span>
+                    </td>
                     <td>{{ user.email }}</td>
                     <td>{{ spaceName(user.space_id) }}</td>
                     <td>
@@ -30,7 +33,9 @@
                     <td><span :class="user.blocked ? 'badge text-bg-warning' : 'badge text-bg-success'">
                         {{ user.blocked ? 'Bloqué' : 'Actif' }}</span></td>
                     <td class="text-end">
-                        <button type="button" class="btn btn-outline-primary btn-sm" :disabled="saving"
+                        <!-- La capacité vient du serveur : elle est fausse pour un compte de
+                             service et pour un administrateur sans droit d'édition. -->
+                        <button v-if="user.can_edit" type="button" class="btn btn-outline-primary btn-sm" :disabled="saving"
                             :aria-label="'Ouvrir ' + user.first_name + ' ' + user.last_name" @click="$emit('edit', user)">
                             Modifier <i class="fa-solid fa-pen-to-square" aria-hidden="true" />
                         </button>
@@ -39,6 +44,8 @@
                             @click="$emit('security', user)">
                             <i class="fa-solid fa-key" aria-hidden="true" /> Connexion et sécurité
                         </button>
+                        <span v-if="user.type === 'service' && !user.can_assign_groups && !user.can_assign"
+                            class="text-body-secondary small">Groupes et rôles selon vos droits</span>
                     </td>
                 </tr>
                 <tr v-if="!users.length"><td colspan="7" class="text-center text-body-secondary py-4">Aucun utilisateur trouvé.</td></tr>

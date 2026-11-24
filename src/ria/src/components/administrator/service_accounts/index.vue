@@ -12,6 +12,12 @@
 			servent aux intégrations externes (serveur MCP, API). Un jeton est affiché une seule fois, à sa création.
 		</p>
 
+		<div class="alert alert-info" role="note">
+			Les <strong>groupes</strong> et <strong>rôles</strong> de ces comptes se gèrent dans
+			<router-link :to="{ name: 'admin-page', params: { page: 'users' } }">l’écran Utilisateurs</router-link>,
+			avec le filtre « Comptes de service ». Ces comptes n’ont ni mot de passe ni connexion SSO.
+		</div>
+
 		<table class="table align-middle">
 			<thead>
 				<tr>
@@ -26,11 +32,14 @@
 				<tr v-for="account in store.accounts" :key="account.id">
 					<td>{{ account.name }}</td>
 					<td>{{ account.email }}</td>
-					<td>#{{ account.spaceId }}</td>
+					<td>{{ spaceLabel(account.spaceId) }}</td>
 					<td>{{ account.tokensCount }}</td>
 					<td class="text-end">
-						<button type="button" class="btn btn-sm btn-outline-primary" @click="select(account)">
+						<button type="button" class="btn btn-sm btn-outline-primary me-1" @click="select(account)">
 							Jetons
+						</button>
+						<button type="button" class="btn btn-sm btn-outline-danger" @click="remove(account)">
+							Supprimer
 						</button>
 					</td>
 				</tr>
@@ -115,13 +124,22 @@
 						<input id="sa-email" v-model.trim="draft.email" type="email" maxlength="319" class="form-control" placeholder="service@exemple.fr">
 					</div>
 					<div>
-						<label class="form-label" for="sa-space">ID du Space</label>
-						<input id="sa-space" v-model.number="draft.spaceId" type="number" min="1" step="1" class="form-control">
+						<label class="form-label" for="sa-space">Space</label>
+						<select id="sa-space" v-model.number="draft.spaceId" class="form-select" :disabled="spacesLoading || !spaces.length">
+							<option v-if="!spaces.length" :value="null">
+								{{ spacesLoading ? 'Chargement des Spaces…' : 'Aucun Space disponible' }}
+							</option>
+							<option v-for="space in spaces" :key="space.id" :value="space.id">
+								{{ space.title }} (#{{ space.id }})
+							</option>
+						</select>
+						<div class="form-text">Le compte de service est rattaché à ce Space.</div>
 					</div>
 				</form>
 			</template>
 			<template #footer>
-				<button type="submit" form="service-account-create" class="btn btn-primary" :disabled="store.busy">
+				<button type="submit" form="service-account-create" class="btn btn-primary"
+					:disabled="store.busy || !draft.spaceId || !draft.name || !draft.email">
 					Créer
 				</button>
 				<button type="button" class="btn btn-outline-secondary esc" @click="createOpen = false">Annuler</button>
@@ -162,19 +180,41 @@ export default {
 
 	computed: {
 		store() { return this.stores.useAdminServiceAccountsStore() },
+		spacesStore() { return this.stores.useAdminSpacesStore() },
+		spaces() { return this.spacesStore.spaces ?? [] },
+		spacesLoading() { return this.spacesStore.spaces === null },
 	},
 
 	mounted() {
 		this.store.load()
+		this.spacesStore.loadSpaces()
 	},
 
 	beforeUnmount() {
 		this.store.clear()
 	},
 
+	watch: {
+		// Si la modale a été ouverte avant la fin du chargement des Spaces,
+		// sélectionner le Space par défaut dès que la liste est disponible.
+		spaces() {
+			if (this.createOpen && !this.draft.spaceId) {
+				this.draft.spaceId = this.currentSpaceId()
+			}
+		},
+	},
+
 	methods: {
 		currentSpaceId() {
-			return this.conf.getSpace()?.id ?? 1
+			// Le Space courant reste le choix par défaut, s'il figure dans la
+			// liste des Spaces que l'administrateur peut gérer.
+			const currentId = this.conf.getSpace()?.id ?? null;
+
+			if (currentId !== null && this.spaces.some(space => Number(space.id) === Number(currentId))) {
+				return Number(currentId);
+			}
+
+			return this.spaces.length ? Number(this.spaces[0].id) : null;
 		},
 
 		openCreate() {
@@ -183,6 +223,8 @@ export default {
 		},
 
 		async submitCreate() {
+			if (!this.draft.spaceId) return
+
 			this.showModaleWait()
 			try {
 				await this.store.createAccount({
@@ -236,8 +278,28 @@ export default {
 			this.showModaleSuccess()
 		},
 
+		async remove(account) {
+			if (!await this.askYesNoAsync(
+				`Supprimer le compte de service « ${account.name} » ? Ses jetons seront supprimés et ne fonctionneront plus.`,
+			)) return
+
+			this.showModaleWait()
+			try {
+				await this.store.deleteAccount(account.id)
+			} finally {
+				this.hideModaleWait()
+			}
+			this.showModaleSuccess()
+		},
+
 		date(value) {
 			return value ? this.$date(value) : '—'
+		},
+
+		spaceLabel(spaceId) {
+			const space = this.spaces.find(item => Number(item.id) === Number(spaceId))
+
+			return space ? `${space.title} (#${space.id})` : `#${spaceId}`
 		},
 	},
 }

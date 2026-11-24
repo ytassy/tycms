@@ -103,6 +103,13 @@ class WFPasswordReset extends BaseWF
         if ($user === null || (bool) $user->blocked) {
             return false;
         }
+
+        // Un compte de service n'ouvre aucune connexion interactive : il ne
+        // peut ni demander ni consommer une réinitialisation de mot de passe.
+        if (($user->type ?? 'user') === 'service') {
+            return false;
+        }
+
         if (!(bool) $user->has_sso_link) {
             return true;
         }

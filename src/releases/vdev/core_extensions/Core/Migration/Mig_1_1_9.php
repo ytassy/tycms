@@ -13,6 +13,9 @@ use YTassy\Tycms\Extensions\BaseMigrationVersion;
  * Un compte de service est une ligne `users` de type `service`, sans mot de
  * passe ni connexion interactive. Ses jetons d'API sont hachés (SHA-256) et
  * jamais stockés en clair.
+ *
+ * Les instructions sont idempotentes sous MariaDB : rejouer cette migration
+ * n'altère ni les colonnes, ni les index déjà présents.
  */
 final class Mig_1_1_9 extends BaseMigrationVersion
 {
@@ -22,7 +25,13 @@ final class Mig_1_1_9 extends BaseMigrationVersion
         // Conserver les comptes existants inchangés : un utilisateur classique
         // reçoit « user », les comptes de service seront créés avec « service ».
         $this->db->execute(
-            "ALTER TABLE `users` ADD COLUMN `type` varchar(16) NOT NULL DEFAULT 'user'",
+            "ALTER TABLE `users` ADD COLUMN IF NOT EXISTS `type` varchar(16) NOT NULL DEFAULT 'user'",
+        );
+
+        // Le type filtre la liste des comptes et s'utilise avec le Space ; cet
+        // index composite couvre les deux critères de la recherche paginée.
+        $this->db->execute(
+            'CREATE INDEX IF NOT EXISTS `idx_users_type_space` ON `users` (`type`, `space_id`)',
         );
 
         $this->db->execute(<<<SQL
@@ -46,8 +55,16 @@ final class Mig_1_1_9 extends BaseMigrationVersion
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             SQL);
 
+        // Les jetons actifs d'un compte sont lus ensemble : la révocation fait
+        // partie du critère d'affichage de la liste.
+        $this->db->execute(
+            'CREATE INDEX IF NOT EXISTS `idx_api_token_user_revoked` ON `api_tokens` (`user_id`, `revoked_at`)',
+        );
+
         return [
             'tables' => ['api_tokens'],
+            'columns' => ['users.type'],
+            'indexes' => ['users.idx_users_type_space', 'api_tokens.idx_api_token_user_revoked'],
         ];
     }
 }

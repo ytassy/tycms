@@ -22,7 +22,18 @@ SHA-256, vérification en temps constant, révocation, résolution), workflow
 `WFServiceAccount` réservé à ROOT, contrôleur et routes d'administration
 `administrator/api/service-accounts`, et écran Vue « Comptes de service ».
 La limite simple par jeton est reportée au branchement du serveur MCP (lots 3-4),
-qui consommera la résolution. Le socle
+qui consommera la résolution.
+
+Le compte de service est distingué dans l'administration : la liste des
+utilisateurs filtre par `type` (`user` par défaut, `service`, ou tous) et
+sérialise le type de chaque compte. Un compte de service ne peut recevoir de
+mot de passe, ni par l'administration, ni par la récupération : c'est le jeton
+d'API qui l'authentifie. La table croisée des attributions reste tous types
+pour permettre de lui donner ses rôles. La migration `Mig_1_1_9` est
+idempotente et ajoute les index `users(type, space_id)` et
+`api_tokens(user_id, revoked_at)`.
+
+Le socle
 `plg_automation` (langage, interpréteur, registre d'actions, budgets, journal)
 et son chantier [AUTOMATION](AUTOMATION.md) restent la référence. Le présent
 document réutilise cette couche d'exécution et ne décrit que ce qui s'y ajoute.

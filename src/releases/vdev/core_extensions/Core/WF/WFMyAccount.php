@@ -17,6 +17,13 @@ class WFMyAccount extends BaseWF
         // Aucun ID provenant du client : toutes les opérations visent le propriétaire de la session.
         $id = $this->session->getUserId();
         $user = $id === null ? null : $this->coreMyAccountHelper->getAccount($id, $lock);
+
+        // Un compte de service n'ouvre pas de session interactive : le refuser
+        // ici couvre aussi la liaison SSO explicite et les intégrations OAuth.
+        if ($user !== null && ($user->type ?? 'user') === 'service') {
+            $user = null;
+        }
+
         if ($user === null || (bool) $user->blocked) {
             ExceptionResponse::throwWarning('Connectez-vous pour accéder à votre compte.');
         }

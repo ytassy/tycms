@@ -105,7 +105,8 @@ class WFUser extends BaseWF
         // Sérialiser la vérification, le rehash et le marqueur avec les autres changements du compte.
         $user = $this->coreUserHelper->getByEmail(mb_strtolower(trim($email)), lock: true);
 
-        if ($user == null || $user->blocked || password_verify($password, $user->password) == false) {
+        if ($user == null || $user->blocked || ($user->type ?? 'user') === 'service'
+            || password_verify($password, $user->password) == false) {
             ExceptionResponse::throwWarning('Login ou mot de passe invalide');
         }
 

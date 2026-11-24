@@ -234,6 +234,15 @@ final class CoreAutomationActions
                         'Recherche',
                         'Filtre sur le nom ou l’adresse e-mail.',
                     ),
+                    new AutomationParameterDefinition(
+                        'type',
+                        'string',
+                        false,
+                        'user',
+                        'Type de compte',
+                        '« user » pour les comptes ordinaires, « service » pour les comptes '
+                            . 'de service, « all » pour les deux.',
+                    ),
                 ],
                 returnType: 'array',
                 effect: FunctionEffect::READ,

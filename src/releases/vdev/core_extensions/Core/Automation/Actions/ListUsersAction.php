@@ -18,10 +18,15 @@ final class ListUsersAction extends BaseAutomationAction
         $perPage = ValueTools::assertInt($params['perPage'] ?? 20, $context->span);
         $search = ValueTools::assertString($params['search'] ?? '', $context->span);
 
+        // Sans type précisé, seuls les comptes ordinaires sont listés ; « all »
+        // demande les deux types.
+        $type = $params['type'] ?? 'user';
+        $accountType = ($type === 'all') ? null : ValueTools::assertString($type, $context->span);
+
         try {
             /** @var WFAdminUser $workflow */
             $workflow = $this->getSharedExtensionsClass(WFAdminUser::class);
-            $result = $workflow->listUsers($page, $perPage, $search);
+            $result = $workflow->listUsers($page, $perPage, $search, $accountType);
 
             return [
                 'users' => array_map(

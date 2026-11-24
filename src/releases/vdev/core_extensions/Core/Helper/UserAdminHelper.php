@@ -39,7 +39,7 @@ final class UserAdminHelper extends BaseHelper
     }
 
     /** @param list<int> $spaceIds */
-    public function listUsers(array $spaceIds, int $page, int $perPage, string $search, ?int $spaceId): array
+    public function listUsers(array $spaceIds, int $page, int $perPage, string $search, ?int $spaceId, ?string $type = null): array
     {
         $where = ' WHERE u.space_id IN (%)';
         $values = [FormatIn::get($spaceIds)];
@@ -47,6 +47,12 @@ final class UserAdminHelper extends BaseHelper
         if ($spaceId !== null) {
             $where .= ' AND u.space_id = %';
             $values[] = $spaceId;
+        }
+
+        // Le type distingue les comptes ordinaires des comptes de service.
+        if ($type !== null) {
+            $where .= ' AND u.type = %';
+            $values[] = $type;
         }
 
         if ($search !== '') {
@@ -59,7 +65,7 @@ final class UserAdminHelper extends BaseHelper
         // Le total et les lignes sont filtrés avant de charger les relations de la seule page.
         $count = $this->db->selectOneOrNull('SELECT COUNT(*) AS total FROM users u' . $where, $values);
         $rows = $this->db->select(
-            'SELECT u.id, u.space_id, u.first_name, u.last_name, u.email, u.timezone, '
+            'SELECT u.id, u.space_id, u.type, u.first_name, u.last_name, u.email, u.timezone, '
             . 'u.blocked, u.send_email, u.register_date FROM users u' . $where
             . ' ORDER BY u.last_name, u.first_name, u.id LIMIT % OFFSET %',
             [...$values, $perPage, ($page - 1) * $perPage]
@@ -71,7 +77,7 @@ final class UserAdminHelper extends BaseHelper
     public function getUser(int $userId, bool $lock = false): ?object
     {
         return $this->db->selectOneOrNull(
-            'SELECT id, space_id, first_name, last_name, email, timezone, blocked, send_email, '
+            'SELECT id, space_id, type, first_name, last_name, email, timezone, blocked, send_email, '
             . 'register_date FROM users WHERE id = %' . ($lock ? ' FOR UPDATE' : ''),
             [$userId]
         );

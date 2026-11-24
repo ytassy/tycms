@@ -62,6 +62,18 @@ export const useAdminServiceAccountsStore = {
 					}
 				},
 
+				async deleteAccount(userId) {
+					await application.api.post('/administrator/api/service-accounts/delete', { userId })
+
+					// Le panneau des jetons n'a plus de cible après la suppression.
+					if (String(this.selectedId) === String(userId)) {
+						this.selectedId = null
+						this.tokens = []
+					}
+
+					await this.load()
+				},
+
 				clear() {
 					this.accounts = []
 					this.tokens = []

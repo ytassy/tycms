@@ -202,6 +202,13 @@ final class WFSso extends BaseWF
         }
         $emailVerified = self::mapped($data, $mapping['email_verified'] ?? null);
         $user = $this->coreUserRegistrationHelper->getUserByEmailForUpdate($email);
+
+        // Un compte de service ne participe jamais au SSO : ni rattachement
+        // automatique par l'adresse, ni création d'un lien d'identité.
+        if ($user !== null && ($user->type ?? 'user') === 'service') {
+            throw new LogEventException('SSO_SERVICE_ACCOUNT', 'Ce compte ne peut pas utiliser le SSO.', 'sso');
+        }
+
         $params = is_object($space->params) ? (array) $space->params : $space->params;
         $params = is_array($params) ? $params : [];
         $password = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
@@ -257,6 +264,12 @@ final class WFSso extends BaseWF
 
         if ($user === null || (int) $user->blocked !== 0) {
             throw new LogEventException('SSO_ACCOUNT_BLOCKED', 'Compte non autorisé dans cet espace.', 'sso');
+        }
+
+        // Défense en profondeur : aucun lien SSO ne doit être créé ou réutilisé
+        // pour un compte de service, quel que soit le chemin d'entrée.
+        if (($user->type ?? 'user') === 'service') {
+            throw new LogEventException('SSO_SERVICE_ACCOUNT', 'Ce compte ne peut pas utiliser le SSO.', 'sso');
         }
 
         if (!$this->coreAclHelper->userHasGlobalPermission((int) $user->id, Permissions::MEMBER, $space)) {

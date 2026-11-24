@@ -10,7 +10,7 @@ class MyAccountHelper extends BaseHelper
     public function getAccount(int $userId, bool $lock = false): ?object
     {
         return $this->db->selectOneOrNull(
-            'SELECT id, space_id, first_name, last_name, email, timezone, password, params, blocked '
+            'SELECT id, space_id, type, first_name, last_name, email, timezone, password, params, blocked '
                 . 'FROM users WHERE id = %' . ($lock ? ' FOR UPDATE' : ''), [$userId],
         );
     }

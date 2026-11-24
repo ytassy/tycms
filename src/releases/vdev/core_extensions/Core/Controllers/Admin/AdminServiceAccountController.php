@@ -59,4 +59,11 @@ class AdminServiceAccountController extends BaseController
     {
         return new ApiResponse(['revoked' => $this->wfServiceAccount->revokeToken($tokenId)]);
     }
+
+    #[ControllerMethod(name: 'delete', path: 'delete', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'userId', required: true, varType: VarType::INT)]
+    public function delete(int $userId): ApiResponse
+    {
+        return new ApiResponse(['deleted' => $this->wfServiceAccount->delete($userId)]);
+    }
 }

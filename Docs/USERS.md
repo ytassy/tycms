@@ -11,7 +11,12 @@ de gérer son propre profil, sans droits administratifs : voir [Mon compte](MY_A
 ## Liste et périmètre
 
 `GET /administrator/api/users` accepte `page` (à partir de 1), `perPage`
-(10, 20, 50, 100 ou 500) et `search` (nom, prénom ou e-mail). Le tri est stable :
+(10, 20, 50, 100 ou 500), `search` (nom, prénom ou e-mail) et `type`
+(`all` par défaut, `user`, `service`, ou une valeur vide traitée comme
+`all`). Le filtre `type` sépare les comptes ordinaires des comptes de service ;
+la liste affiche par défaut les deux types, chaque compte de service portant la
+mention « Compte de service ». Chaque compte sérialisé porte son `type`. Le tableau croisé des attributions reste volontairement tous types :
+un compte de service reçoit ses rôles par ce même écran. Le tri est stable :
 nom, prénom, identifiant. Le total et la page sont calculés en SQL ; les
 appartenances, groupes et rôles de la page sont chargés par requêtes groupées.
 La page Vue utilise son propre tableau et sa pagination serveur. Le tableau
@@ -295,3 +300,42 @@ lecture ciblée et groupée de ROOT protège leurs capacités d’attribution ; 
 serveur revérifie ce statut lors de l’écriture. Les permissions ordinaires
 contrôlées sont celles de l’administrateur. Les autres routes historiques
 conservent leur contrat de fiche et d'appartenances calculées.
+
+## Comptes de service
+
+Un compte de service est une ligne `users` de type `service`. Il n'a pas de mot
+de passe et n'ouvre aucune session interactive : son seul moyen
+d'authentification est un jeton d'API (voir
+[le chantier MCP](IA/CurrentWorks/MCP_AGENTIQUE.md)). Ses groupes, rôles et
+permissions s'administrent comme ceux d'un compte ordinaire, notamment par le
+tableau des attributions.
+
+Les chemins interactifs refusent explicitement ce type de compte :
+
+| Chemin | Comportement |
+| --- | --- |
+| Connexion locale (`WFUser::loginUser`) | Refus, message générique. |
+| Session « Mon compte » (`WFMyAccount::requireAccount`) | Refus : couvre aussi la liaison SSO explicite et les intégrations OAuth. |
+| SSO, lien déjà connu (`WFSso::ensureEligible`) | Refus `SSO_SERVICE_ACCOUNT`. |
+| SSO, rattachement automatique par e-mail | Refus avant toute écriture ou création de lien. |
+| Demande et consommation de récupération (`WFPasswordReset`) | Refus, réponse publique générique. |
+| Définition d'un mot de passe par un administrateur | Refus explicite. |
+
+L'écran **Comptes de service** (réservé à ROOT) crée le compte, choisit son
+Space, gère ses jetons et peut le supprimer. Un compte de service apparaît
+dans la liste des utilisateurs avec la mention « Compte de service » ; ses
+boutons **Modifier** et **Connexion et sécurité** y sont masqués, seuls ses
+groupes et ses rôles s'y modifient. Le profil (`updateUser`) et le mot de passe
+sont refusés côté serveur, quel que soit le point d'entrée.
+
+L'attribution des groupes et des rôles n'est pas réservée à ROOT : elle suit
+les règles communes. Un administrateur peut l'effectuer lorsqu'il possède
+`USER_GROUPS_ASSIGN` (avec `USER_GROUPS_READ`) ou `USER_ROLES_CRUD` (avec
+`USER_ROLES_READ`) sur le Space du compte, dans la limite de la délégation : il
+ne peut attribuer que des permissions qu'il détient lui-même. Un compte de
+service n'est jamais protégé comme compte ROOT. La suppression retire le compte,
+son groupe personnel et, par cascade, ses jetons d'API ; elle n'est acceptée
+que pour un compte de type `service`. Le secret d'un jeton n'est affiché
+qu'une fois, à sa création. Un compte de service ne déclenche pas
+`core.user.created` lors de sa création : il ne participe pas aux parcours de
+bienvenue.

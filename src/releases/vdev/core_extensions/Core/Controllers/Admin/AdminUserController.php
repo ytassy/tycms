@@ -29,9 +29,17 @@ class AdminUserController extends BaseController
     #[ControllerParam1(name: 'page', required: false, varType: VarType::INT)]
     #[ControllerParam2(name: 'perPage', required: false, varType: VarType::INT)]
     #[ControllerParam3(name: 'search', required: false, varType: VarType::STRING)]
-    public function list(?int $page = null, ?int $perPage = null, ?string $search = null): ApiResponse
-    {
-        return new ApiResponse($this->wfAdminUser->listUsers($page ?? 1, $perPage ?? 20, $search ?? ''));
+    #[ControllerParam4(name: 'type', required: false, varType: VarType::STRING)]
+    public function list(
+        ?int $page = null,
+        ?int $perPage = null,
+        ?string $search = null,
+        ?string $type = 'user',
+    ): ApiResponse {
+        // « all » (ou une valeur vide) demande tous les types de comptes.
+        $accountType = ($type === null || $type === '' || $type === 'all') ? null : $type;
+
+        return new ApiResponse($this->wfAdminUser->listUsers($page ?? 1, $perPage ?? 20, $search ?? '', $accountType));
     }
 
     #[ControllerMethod(name: 'read', path: 'read')]

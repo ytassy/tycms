@@ -22,6 +22,14 @@
                     placeholder="Nom ou e-mail" @input="scheduleSearch" />
             </div>
             <div>
+                <label for="users-type" class="form-label small mb-1">Type de compte</label>
+                <select id="users-type" v-model="accountType" class="form-select form-select-sm" @change="resetPage">
+                    <option value="all">Tous les comptes</option>
+                    <option value="user">Utilisateurs</option>
+                    <option value="service">Comptes de service</option>
+                </select>
+            </div>
+            <div>
                 <label for="users-per-page" class="form-label small mb-1">Lignes par page</label>
                 <select id="users-per-page" v-model.number="perPage" class="form-select form-select-sm" @change="resetPage">
                     <option v-for="size in [10, 20, 50, 100]" :key="size" :value="size">{{ size }}</option>
@@ -35,7 +43,7 @@
             @edit="openEdit" @security="openSecurity" @assign="openAssignments" />
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
-            <span class="text-body-secondary small">{{ total }} utilisateur{{ total > 1 ? 's' : '' }}</span>
+            <span class="text-body-secondary small">{{ total }} compte{{ total > 1 ? 's' : '' }}</span>
             <nav v-if="total > perPage" aria-label="Pages des utilisateurs" class="btn-group btn-group-sm">
                 <button type="button" class="btn btn-outline-secondary" :disabled="page === 0 || loading" @click="goPage(0)">«</button>
                 <button type="button" class="btn btn-outline-secondary" :disabled="page === 0 || loading" @click="goPage(page - 1)">Précédent</button>
@@ -70,6 +78,7 @@ export default {
     data() {
         return {
             directory: null, users: [], total: 0, page: 0, perPage: 20, search: '',
+            accountType: 'all',
             loading: true, saving: false, error: '', notice: '', generatedPassword: '',
             editorVisible: false, editingUser: null, editorError: '',
             securityUser: null, securityError: '', securityNotice: '',
@@ -101,7 +110,7 @@ export default {
             this.error = ''
             try {
                 const result = await this.api.get('/administrator/api/users',
-                    { page: this.page + 1, perPage: this.perPage, search: this.search.trim() })
+                    { page: this.page + 1, perPage: this.perPage, search: this.search.trim(), type: this.accountType })
                 if (requestId !== this.requestId) return
                 this.users = result.users
                 this.total = result.total
