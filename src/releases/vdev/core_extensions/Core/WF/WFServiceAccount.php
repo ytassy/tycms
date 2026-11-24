@@ -104,7 +104,7 @@ final class WFServiceAccount extends BaseWF
         $this->assertRoot();
         $this->assertServiceAccount($userId);
 
-        // Le secret n'est jamais relu : seule sa trace est listeée ici.
+        // Le secret n'est jamais relu : seule sa trace est listée ici.
         $rows = $this->db->select(
             'SELECT id, name, space_id, expires_at, last_used_at, revoked_at, created '
             . 'FROM api_tokens WHERE user_id = % ORDER BY id DESC',

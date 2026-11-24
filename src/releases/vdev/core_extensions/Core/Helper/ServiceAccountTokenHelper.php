@@ -59,18 +59,19 @@ final class ServiceAccountTokenHelper extends BaseHelper
         return ['id' => (int) $this->db->getLastInsertId(), 'token' => $secret];
     }
 
-    /** Révoque un jeton ; retourne false s'il n'existe pas. */
+    /**
+     * Révoque un jeton ; retourne false s'il n'existe pas ou s'il est déjà
+     * révoqué. Le résultat vient de la mise à jour conditionnelle elle-même,
+     * pas d'une lecture préalable qui pourrait mentir sous concurrence.
+     */
     public function revoke(int $tokenId): bool
     {
-        $row = $this->db->selectOneOrNull('SELECT id FROM api_tokens WHERE id = % LIMIT 1', [$tokenId]);
-
-        if ($row === null) {
-            return false;
-        }
-
-        $this->db->execute('UPDATE api_tokens SET revoked_at = NOW() WHERE id = % AND revoked_at IS NULL', [$tokenId]);
-
-        return true;
+        // La mise à jour conditionnelle renvoie le nombre de lignes modifiées :
+        // zéro signifie « jeton absent » ou « déjà révoqué ».
+        return $this->db->execute(
+            'UPDATE api_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = % AND revoked_at IS NULL',
+            [$tokenId],
+        ) > 0;
     }
 
     /**

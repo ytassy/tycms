@@ -12,6 +12,7 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationTriggerDefinition;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationTriggerRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationProvider;
 use YTassy\Tycms\CoreExts\Automation\Controller\AutomationController;
+use YTassy\Tycms\CoreExts\Automation\Controller\AutomationMcpController;
 use YTassy\Tycms\CoreExts\Automation\Controller\AutomationWebhookController;
 use YTassy\Tycms\CoreExts\Automation\Migration\Mig_1_0_0;
 use YTassy\Tycms\CoreExts\Automation\Migration\Mig_1_0_1;
@@ -192,6 +193,7 @@ final class Plugin extends BasePlugin implements IAutomationProvider, ICronProvi
         return [
             new AutomationController($this),
             new AutomationWebhookController($this),
+            new AutomationMcpController($this),
         ];
     }
 

@@ -16,6 +16,29 @@ le support du registre sont en place ; `core::getUser` est déclaré par
 annotation sur `WFAdminUser` et le reste des actions Core conserve le chemin
 impératif. Les tests unitaires associés passent.
 
+Les **lots 3 et 4 sont livrés** :
+- lot 3 : principal `service` accepté par le dispatcher, effets exclus
+  paramétrables (catalogue et dispatch), façade `McpCodeRunner::runCode()` en
+  Application isolée avec transaction unique, table d'audit `mcp_executions`
+  (`Mig_1_0_2`, `token_id` sans clé étrangère, hash de source seulement) ;
+- lot 4 : `WFAutomationMcp` + `AutomationMcpController` sur `POST /ai/mcp`
+  (JSON-RPC 2.0, `withoutCsrf`, exempté du WAF), authentification par jeton
+  d'API de compte de service, plafond de 120 appels/minute par jeton, outils
+  `tycms.run`, `tycms.list_actions`, `tycms.list_context`, `tycms.reference`,
+  `tycms.ping`, et `McpToolCatalog` qui masque les actions `external`.
+
+Le protocole MCP est isolé dans `Mcp/McpProtocol.php` (helpers partagés) et
+`McpJsonRpc.php` : réponses JSON-RPC brutes, jamais l'enveloppe `ApiResponse` ;
+notifications acceptées sans corps (HTTP 202) ; erreurs d'authentification en
+401 avec `WWW-Authenticate`. `WFAutomationMcp` ne fait plus que relayer.
+`McpCodeRunner` n'encadre que la connexion de l'application isolée : un run
+arrêté sur `fail()` est annulé, un succès est validé.
+
+Tests : `tests/Integration/AutomationMcpIntegrationTest.php` couvre
+l'authentification, le protocole, l'exécution auditée (`token_id`, hash de
+source) et le refus d'une action `external`. La suite d'intégration complète
+conserve 8 échecs préexistants, hors périmètre MCP (migrations et espaces).
+
 Le **lot 2 est livré** : colonne `users.type`, table `api_tokens` (migration),
 modèle `ApiToken`, helper `ServiceAccountTokenHelper` (génération, hachage
 SHA-256, vérification en temps constant, révocation, résolution), workflow
@@ -361,8 +384,8 @@ fichiers (`Mig_1_1_9.php` est le fichier consolidé de `plg_core` pour ce chanti
 | 0 | Ce document ; validation des propositions | Décisions validées |
 | 1 | Attributs d'action + auto-détection (`WorkflowActionScanner`) + handler générique `WorkflowMethodAction` ; conversion de `core::getUser` en preuve de concept | Fait : catalogue produit identique, collision/ACL, exécution du handler testée |
 | 2 | Comptes de service + jetons d'API (modèle, migration, hachage, révocation, résolution) | Fait : migration `Mig_1_1_9`, modèle, helper, WF ROOT, contrôleur, écran Vue |
-| 3 | Façade `runCode()` + table `mcp_executions` + transaction unique + catalogue sans `external` | Test : exécution de code ad hoc auditée et bornée, sans scénario |
-| 4 | Endpoint MCP Streamable HTTP (`POST /ai/mcp`) + outils `run`, `list_actions`, `list_context`, `reference`, `ping` | Test d'intégration JSON-RPC : init, tools/list, tools/call, erreurs |
+| 3 | Façade `runCode()` + table `mcp_executions` + transaction unique + catalogue sans `external` | Fait : principal `service`, effets exclus, audit ; exécution réelle à valider en intégration |
+| 4 | Endpoint MCP Streamable HTTP (`POST /ai/mcp`) + outils `run`, `list_actions`, `list_context`, `reference`, `ping` | Fait : endpoint, auth par jeton, outil catalogue ; contrat JSON-RPC à valider en intégration |
 | 5 | Vérification réelle avec DSH (bundle MCP `transport: streamable-http`) et durcissement | Connexion DSH → `tycms.*` fonctionnel |
 
 ## Hors périmètre (v1)

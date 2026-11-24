@@ -16,6 +16,7 @@ use YTassy\Tycms\CoreExts\Automation\Language\SourcePosition;
 use YTassy\Tycms\CoreExts\Automation\Language\SourceSpan;
 use YTassy\Tycms\CoreExts\Automation\Runtime\Action\RegistryActionDispatcher;
 use YTassy\Tycms\CoreExts\Automation\Runtime\Builtin\BuiltinFunctionRegistry;
+use YTassy\Tycms\CoreExts\Automation\Runtime\ExecutionStatus;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 use YTassy\Tycms\Session\RunSession;
 
@@ -109,9 +110,11 @@ final class McpCodeRunner extends BaseHelper
             $dispatcher,
         );
 
-        // Une transaction unique encadre l'exécution. Les écritures des actions
-        // passent par la connexion de l'Application isolée : seuls les effets
-        // pipés s'y trouvent, les actions external étant exclues.
+        // Application isolée : sa connexion est distincte de celle de la route.
+        // Les actions écrivent donc sur `$database` ; c'est CETTE connexion que
+        // la transaction unique encadre. La transaction de la route (ouverte par
+        // le runner) ne voit que la ligne d'audit, écrite sur la connexion
+        // courante, et reste indépendante.
         $database = $executionApp->getDatabase();
         $database->execute('START TRANSACTION');
 
@@ -119,7 +122,13 @@ final class McpCodeRunner extends BaseHelper
             $result = (new Interpreter($catalog, new BuiltinFunctionRegistry(), $limits))
                 ->execute($compiled->program, $context);
 
-            $database->execute('COMMIT');
+            // Un run arrêté sur `fail()` a produit des écritures : elles sont
+            // annulées, l'échec ne laisse pas d'état partiel.
+            if ($result->status === ExecutionStatus::FAILED) {
+                $database->execute('ROLLBACK');
+            } else {
+                $database->execute('COMMIT');
+            }
         } catch (\Throwable $exception) {
             $database->execute('ROLLBACK');
 
