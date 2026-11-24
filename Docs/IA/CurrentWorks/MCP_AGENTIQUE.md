@@ -14,7 +14,15 @@ Le **lot 1 est livré** : les attributs d'action (`ExposeAutomationActions`,
 scanner `WorkflowActionScanner`, le handler générique `WorkflowMethodAction` et
 le support du registre sont en place ; `core::getUser` est déclaré par
 annotation sur `WFAdminUser` et le reste des actions Core conserve le chemin
-impératif. Les tests unitaires associés passent. Le socle
+impératif. Les tests unitaires associés passent.
+
+Le **lot 2 est livré** : colonne `users.type`, table `api_tokens` (migration),
+modèle `ApiToken`, helper `ServiceAccountTokenHelper` (génération, hachage
+SHA-256, vérification en temps constant, révocation, résolution), workflow
+`WFServiceAccount` réservé à ROOT, contrôleur et routes d'administration
+`administrator/api/service-accounts`, et écran Vue « Comptes de service ».
+La limite simple par jeton est reportée au branchement du serveur MCP (lots 3-4),
+qui consommera la résolution. Le socle
 `plg_automation` (langage, interpréteur, registre d'actions, budgets, journal)
 et son chantier [AUTOMATION](AUTOMATION.md) restent la référence. Le présent
 document réutilise cette couche d'exécution et ne décrit que ce qui s'y ajoute.
@@ -331,6 +339,9 @@ prérequis** de la v1 MCP : on migre au fil de la conversion des actions.
 
 Les migrations doivent préserver la base de production existante et ses données
 (`users.type` reçoit un défaut, aucune ligne existante transformée).
+Convention de développement : **un seul fichier de migration par extension** ;
+une évolution de schéma s'ajoute au fichier existant au lieu de multiplier les
+fichiers (`Mig_1_1_9.php` est le fichier consolidé de `plg_core` pour ce chantier).
 
 ## Découpage en lots
 
@@ -338,7 +349,7 @@ Les migrations doivent préserver la base de production existante et ses donnée
 | --- | --- | --- |
 | 0 | Ce document ; validation des propositions | Décisions validées |
 | 1 | Attributs d'action + auto-détection (`WorkflowActionScanner`) + handler générique `WorkflowMethodAction` ; conversion de `core::getUser` en preuve de concept | Fait : catalogue produit identique, collision/ACL, exécution du handler testée |
-| 2 | Comptes de service + jetons d'API (modèle, migration, hachage, révocation, limite simple) | Tests : création, hachage, révocation, résolution du compte |
+| 2 | Comptes de service + jetons d'API (modèle, migration, hachage, révocation, résolution) | Fait : migration `Mig_1_1_9`, modèle, helper, WF ROOT, contrôleur, écran Vue |
 | 3 | Façade `runCode()` + table `mcp_executions` + transaction unique + catalogue sans `external` | Test : exécution de code ad hoc auditée et bornée, sans scénario |
 | 4 | Endpoint MCP Streamable HTTP (`POST /ai/mcp`) + outils `run`, `list_actions`, `list_context`, `reference`, `ping` | Test d'intégration JSON-RPC : init, tools/list, tools/call, erreurs |
 | 5 | Vérification réelle avec DSH (bundle MCP `transport: streamable-http`) et durcissement | Connexion DSH → `tycms.*` fonctionnel |

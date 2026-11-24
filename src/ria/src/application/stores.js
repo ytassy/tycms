@@ -16,6 +16,7 @@ import { useAdminLanguageKeysStore } from '../stores/admin_language_keys'
 import { useAdminMediasStore } from '../stores/admin_medias'
 import { useAdminSpacesStore } from '../stores/admin_spaces'
 import { useAdminSsoProvidersStore } from '../stores/admin_sso_providers'
+import { useAdminServiceAccountsStore } from '../stores/admin_service_accounts'
 import { useAdminTyCatalogStore } from '../stores/admin_ty_catalog'
 import { useAdminAiStore } from '../stores/admin_ai'
 import { useAdminEmailTemplatesStore } from '../stores/admin_email_templates'
@@ -41,6 +42,7 @@ export function registerStores(vueApp, application, extraStores = {}) {
 		useAdminMediasStore: useAdminMediasStore.get(vueApp, application),
 		useAdminSpacesStore: useAdminSpacesStore.get(vueApp, application),
 		useAdminSsoProvidersStore: useAdminSsoProvidersStore.get(vueApp, application),
+		useAdminServiceAccountsStore: useAdminServiceAccountsStore.get(vueApp, application),
 		useAdminTyCatalogStore: useAdminTyCatalogStore.get(vueApp, application),
 		useAdminAiStore: useAdminAiStore.get(vueApp, application),
 		useAdminEmailTemplatesStore: useAdminEmailTemplatesStore.get(vueApp, application),

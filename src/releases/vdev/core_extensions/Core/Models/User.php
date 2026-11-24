@@ -21,6 +21,9 @@ class User extends BaseOrmObject
     #[Field('space_id', FieldType::INT)]
     public int $space_id;
 
+    #[Field('type')]
+    public string $type;
+
     #[Field('first_name')]
     public string $first_name;
 

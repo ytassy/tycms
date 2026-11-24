@@ -29,6 +29,7 @@
 			<email_templates v-if="page == 'email_templates'" ref="emailTemplatesPage"></email_templates>
 			<admin_ai v-if="page == 'ai'" ref="aiPage"></admin_ai>
 			<sso_providers v-if="page == 'sso_providers'"></sso_providers>
+			<service_accounts v-if="page == 'service_accounts'"></service_accounts>
 			<pages v-if="page == 'pages'" ref="pagesPage" @workspace-change="editorOpen = $event"></pages>
 			<menus v-if="page == 'menus'"></menus>
 			<medias v-if="page == 'medias'"></medias>
@@ -58,10 +59,11 @@ import fonts from '../../components/administrator/fonts/index.vue'
 import extensions from '../../components/administrator/extensions/index.vue'
 import ty_catalog from '../../components/administrator/ty_catalog/index.vue'
 import automation from '../../components/administrator/automation/index.vue'
+import service_accounts from '../../components/administrator/service_accounts/index.vue'
 
 export default {
 
-	components: { logs, dashboard, fonts, info_system, users, user_assignments, user_groups, roles, spaces, languages, email_templates, sso_providers, admin_ai, pages, menus, medias, extensions, ty_catalog, automation },
+	components: { logs, dashboard, fonts, info_system, users, user_assignments, user_groups, roles, spaces, languages, email_templates, sso_providers, admin_ai, pages, menus, medias, extensions, ty_catalog, automation, service_accounts },
 
 	props: {
 		id: { type: [String, Number], default: null },
@@ -123,11 +125,13 @@ export default {
 						{ page: 'users', label: 'Utilisateurs', icon: 'fa-solid fa-users', permission: 'USERS_READ' },
 						{ page: 'user_assignments', label: 'Attributions utilisateurs', icon: 'fa-solid fa-table-cells', permission: 'USERS_READ' },
 						{ page: 'user_groups', label: 'Groupes utilisateurs', icon: 'fa-solid fa-user-group', permission: 'USER_GROUPS_READ' },
+						{ page: 'service_accounts', label: 'Comptes de service', icon: 'fa-solid fa-robot', permission: 'ROOT' },
 					].filter(item => this.acl.hasGlobalPermission(item.permission)
 						|| (item.page === 'roles' && this.hasRoleDirectoryPermission)
 						|| (item.page === 'users' && this.hasUserDirectoryPermission)
 						|| (item.page === 'user_assignments' && this.hasUserAssignmentsPermission)
-						|| (item.page === 'user_groups' && this.hasGroupDirectoryPermission)),
+						|| (item.page === 'user_groups' && this.hasGroupDirectoryPermission)
+						|| (item.page === 'service_accounts' && this.acl.isRoot())),
 				},
 			].filter(menu => menu.items.length)
 		},

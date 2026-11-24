@@ -110,6 +110,10 @@ trait TraitWF
         get { return $this->getSharedExtensionsClass(WFExtensionSource::class); }
     }
 
+    protected WFServiceAccount $wfServiceAccount {
+        get { return $this->getSharedExtensionsClass(WFServiceAccount::class); }
+    }
+
     
 
 }

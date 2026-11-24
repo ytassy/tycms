@@ -24,6 +24,7 @@ use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserGroupController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLanguageController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminSsoProviderController;
+use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminServiceAccountController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminAiController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminEmailTemplateController;
 use YTassy\Tycms\CoreExts\Core\Controllers\AiController;
@@ -46,6 +47,7 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_0_0_p5;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_3;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_4;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_5;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Mail\IEmailTemplateProvider;
 use YTassy\Tycms\CoreExts\Core\Mail\CoreEmailTemplates;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\BasePermissions;
@@ -122,6 +124,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.3' => [Mig_1_1_3::class],
             '1.1.4' => [Mig_1_1_4::class],
             '1.1.5' => [Mig_1_1_5::class],
+            '1.1.9' => [Mig_1_1_9::class],
         ];
 	}
 
@@ -156,6 +159,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             new AdminUserGroupController($this),
             new AdminLanguageController($this),
             new AdminSsoProviderController($this),
+            new AdminServiceAccountController($this),
             new AdminAiController($this),
             new AdminEmailTemplateController($this),
             new AdminExtensionsController($this),
