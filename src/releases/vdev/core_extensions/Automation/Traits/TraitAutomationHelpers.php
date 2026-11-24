@@ -11,6 +11,7 @@ use YTassy\Tycms\CoreExts\Automation\Notification\AutomationFailureNotifier;
 use YTassy\Tycms\CoreExts\Automation\Notification\AutomationNotificationSender;
 use YTassy\Tycms\CoreExts\Automation\Runtime\AutomationEventDispatcher;
 use YTassy\Tycms\CoreExts\Automation\Runtime\AutomationRunExecutor;
+use YTassy\Tycms\CoreExts\Automation\Runtime\McpCodeRunner;
 
 trait TraitAutomationHelpers
 {
@@ -20,6 +21,10 @@ trait TraitAutomationHelpers
 
     protected AutomationRunExecutor $automationRunExecutor {
         get => $this->getSharedExtensionsClass(AutomationRunExecutor::class);
+    }
+
+    protected McpCodeRunner $mcpCodeRunner {
+        get => $this->getSharedExtensionsClass(McpCodeRunner::class);
     }
 
     protected AutomationTrigger $automationTrigger {

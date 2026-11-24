@@ -15,6 +15,7 @@ use YTassy\Tycms\CoreExts\Automation\Controller\AutomationController;
 use YTassy\Tycms\CoreExts\Automation\Controller\AutomationWebhookController;
 use YTassy\Tycms\CoreExts\Automation\Migration\Mig_1_0_0;
 use YTassy\Tycms\CoreExts\Automation\Migration\Mig_1_0_1;
+use YTassy\Tycms\CoreExts\Automation\Migration\Mig_1_0_2;
 use YTassy\Tycms\CoreExts\Automation\Notification\NotificationSecrets;
 use YTassy\Tycms\CoreExts\Automation\Notification\NotificationTargets;
 use YTassy\Tycms\CoreExts\Automation\Schedule\CronWorker;
@@ -72,6 +73,7 @@ final class Plugin extends BasePlugin implements IAutomationProvider, ICronProvi
         return [
             '1.0.0' => [Mig_1_0_0::class],
             '1.0.1' => [Mig_1_0_1::class],
+            '1.0.2' => [Mig_1_0_2::class],
         ];
     }
 

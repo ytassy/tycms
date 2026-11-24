@@ -15,6 +15,7 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\BaseAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationProvider;
 use YTassy\Tycms\CoreExts\Automation\Language\Registry\BuiltinFunctionCatalog;
+use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
 use YTassy\Tycms\CoreExts\Automation\Runtime\AutomationFunctionCatalog;
 use YTassy\Tycms\Tests\Support\FrameworkTestCase;
 
@@ -45,6 +46,38 @@ final class AutomationFunctionCatalogTest extends FrameworkTestCase
         self::assertSame(1, $action->minArity);
         self::assertSame(2, $action->maxArity);
         self::assertNull($catalog->find('test::missing'));
+    }
+
+    #[Test]
+    public function excludedEffectsBecomeUnknownFunctions(): void
+    {
+        $app = $this->createApplication();
+        $registry = new AutomationActionRegistry($app);
+        $registry->registerProvider('plg_test', new CatalogTestProvider([
+            new AutomationActionDefinition(
+                'test::read',
+                'Read',
+                CatalogTestAction::class,
+                effect: FunctionEffect::READ,
+            ),
+            new AutomationActionDefinition(
+                'test::mail',
+                'Mail',
+                CatalogTestAction::class,
+                effect: FunctionEffect::EXTERNAL,
+            ),
+        ]));
+
+        $catalog = new AutomationFunctionCatalog(
+            BuiltinFunctionCatalog::create(),
+            $registry,
+            [FunctionEffect::EXTERNAL],
+        );
+
+        // L'action en lecture reste disponible, l'action à effet externe
+        // devient inconnue à la compilation.
+        self::assertNotNull($catalog->find('test::read'));
+        self::assertNull($catalog->find('test::mail'));
     }
 }
 

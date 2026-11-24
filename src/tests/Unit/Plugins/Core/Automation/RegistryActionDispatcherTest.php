@@ -9,12 +9,14 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\ActionContext;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationActionDefinition;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationActionRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationParameterDefinition;
+use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationPrincipalType;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationTriggerRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\BaseAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationProvider;
 use YTassy\Tycms\CoreExts\Automation\Language\DiagnosticCode;
 use YTassy\Tycms\CoreExts\Automation\Language\Limits;
+use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
 use YTassy\Tycms\CoreExts\Automation\Language\SourcePosition;
 use YTassy\Tycms\CoreExts\Automation\Language\SourceSpan;
 use YTassy\Tycms\CoreExts\Automation\Runtime\Action\RegistryActionDispatcher;
@@ -101,12 +103,51 @@ final class RegistryActionDispatcherTest extends FrameworkTestCase
         }
     }
 
-    private function services(): RuntimeServices
+    #[Test]
+    public function excludedEffectIsUnavailable(): void
+    {
+        $app = $this->createApplication();
+        $registry = new AutomationActionRegistry($app);
+        $registry->registerProvider('plg_test', new DispatcherTestProvider([
+            new AutomationActionDefinition(
+                'test::mail',
+                'Mail',
+                DispatcherTestAction::class,
+                effect: FunctionEffect::EXTERNAL,
+            ),
+        ]));
+
+        $dispatcher = new RegistryActionDispatcher($app, $registry, [FunctionEffect::EXTERNAL]);
+
+        try {
+            $dispatcher->dispatch('test::mail', [], $this->span(), $this->services());
+            self::fail('Une action à effet exclu doit être indisponible.');
+        } catch (ExecutionException $exception) {
+            self::assertSame(DiagnosticCode::ACTION_UNAVAILABLE, $exception->diagnostic->code);
+        }
+    }
+
+    #[Test]
+    public function dispatchesForAServicePrincipal(): void
+    {
+        $app = $this->createApplication();
+        $registry = new AutomationActionRegistry($app);
+        $registry->registerProvider('plg_test', new DispatcherTestProvider([
+            new AutomationActionDefinition('test::action', 'Test', DispatcherTestAction::class),
+        ]));
+
+        $dispatcher = new RegistryActionDispatcher($app, $registry);
+        $dispatcher->dispatch('test::action', [], $this->span(), $this->services(AutomationPrincipalType::SERVICE));
+
+        self::assertSame(AutomationPrincipalType::SERVICE, DispatcherTestAction::$lastContext?->principalType);
+    }
+
+    private function services(?string $principalType = 'user'): RuntimeServices
     {
         $limits = new Limits();
         $context = ExecutionContext::create(
             ['team' => 3],
-            ['id' => 42, 'type' => 'user'],
+            ['id' => 42, 'type' => $principalType],
             ['id' => 7, 'timezone' => 'UTC'],
             ['id' => 99, 'scenarioId' => 1, 'versionId' => 2, 'trigger' => 'manual'],
         );

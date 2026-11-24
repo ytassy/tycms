@@ -15,6 +15,8 @@ final class AutomationFunctionCatalog implements FunctionCatalog
     public function __construct(
         private readonly BuiltinFunctionCatalog $builtins,
         private readonly ?AutomationActionRegistry $actions = null,
+        /** @var list<string> $excludedEffects Effets exclus : une telle action devient inconnue. */
+        private readonly array $excludedEffects = [],
     ) {
     }
 
@@ -28,7 +30,7 @@ final class AutomationFunctionCatalog implements FunctionCatalog
 
         $definition = $this->actions?->find($identifier);
 
-        if ($definition === null) {
+        if ($definition === null || in_array($definition->effect, $this->excludedEffects, true)) {
             return null;
         }
 

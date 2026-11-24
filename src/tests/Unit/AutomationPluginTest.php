@@ -17,7 +17,7 @@ final class AutomationPluginTest extends FrameworkTestCase
 
         self::assertSame('Automatisation', $plugin->getName());
         self::assertSame(APP_VERSION, $plugin->getVersion());
-        self::assertSame(['1.0.0', '1.0.1'], $plugin->getMigrations());
+        self::assertSame(['1.0.0', '1.0.1', '1.0.2'], $plugin->getMigrations());
         self::assertNull($plugin->getFrontendEntry());
         self::assertNotSame('', $plugin->getIconClass());
     }

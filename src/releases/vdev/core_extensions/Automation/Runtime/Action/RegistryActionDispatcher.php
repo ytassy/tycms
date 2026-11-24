@@ -22,6 +22,8 @@ final class RegistryActionDispatcher extends BaseHelper implements ActionDispatc
     public function __construct(
         BaseApplicationItem|Application $app,
         private readonly ?AutomationActionRegistry $registry = null,
+        /** @var list<string> $excludedEffects Effets refusés à l'exécution. */
+        private readonly array $excludedEffects = [],
     ) {
         parent::__construct($app);
     }
@@ -42,13 +44,31 @@ final class RegistryActionDispatcher extends BaseHelper implements ActionDispatc
             );
         }
 
+        // Défense en profondeur : une action exclue ne doit jamais s'exécuter,
+        // même si un AST forgé contournait le catalogue à la compilation.
+        if (in_array($definition->effect, $this->excludedEffects, true)) {
+            throw ValueTools::error(
+                DiagnosticCode::ACTION_UNAVAILABLE,
+                'Action indisponible : « ' . $identifier . ' ».',
+                $span,
+            );
+        }
+
         $principal = $services->context->principal;
         $principalType = (string) ($principal['type'] ?? AutomationPrincipalType::ANONYMOUS);
         $principalId = $principal['id'] ?? null;
         $spaceId = (int) ($services->context->space['id'] ?? 0);
 
+        // Un principal « user » ou « service » porte tous deux un identifiant de
+        // compte réel, dont les permissions se résolvent via ses groupes/rôles.
+        $isAccountPrincipal = in_array(
+            $principalType,
+            [AutomationPrincipalType::USER, AutomationPrincipalType::SERVICE],
+            true,
+        );
+
         foreach ($definition->requiredPermissions as $permission) {
-            if ($principalType !== AutomationPrincipalType::USER
+            if (!$isAccountPrincipal
                 || !is_int($principalId)
                 || $principalId <= 0
                 || !$this->coreAclHelper->userHasGlobalPermission($principalId, $permission, $spaceId)) {
