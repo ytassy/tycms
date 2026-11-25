@@ -4,6 +4,7 @@
 $dirs = [
     'var',
     'var/updates',
+    'var/extensions',
     'public',
     'releases/vdev',
     'logs',

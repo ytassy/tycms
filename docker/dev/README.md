@@ -14,8 +14,12 @@ Le lancement directement depuis root exige de définir explicitement les deux
 variables `TYCMS_DEV_UID` et `TYCMS_DEV_GID` non nulles.
 
 L'image Apache installe les dépendances Composer au démarrage puis vérifie les
-accès aux dossiers et fichiers nécessaires avec cette identité. Les verrous de
-migration restent sous `tmp/migrations`. Les polices et la table
+accès aux dossiers et fichiers nécessaires avec cette identité. Un dossier monté
+accessible mais possédé par un autre compte, par exemple `src/var/extensions`
+créé par une commande lancée en root, arrête ce démarrage avec le chemin en
+cause au lieu de faire échouer plus tard les tests ou les mises à jour ; corriger
+alors le propriétaire en 0600/0700 de l'utilisateur de développement ou lancer
+`start.sh` avec sudo. Les verrous de migration restent sous `tmp/migrations`. Les polices et la table
 `font_installations` doivent persister ensemble ; voir `Docs/FONTS.md`. MariaDB
 et Mailpit conservent leurs propres identités et volumes.
 

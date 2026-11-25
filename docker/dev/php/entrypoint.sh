@@ -21,8 +21,9 @@ if [ "${1:-}" = "apache2-foreground" ]; then
     export APACHE_RUN_GROUP="#${TYCMS_DEV_GID}"
 
     # Les dépendances et les fichiers applicatifs appartiennent au même utilisateur.
+    # var/extensions porte les états de mise à jour, écrits en 0600 par PHP.
     setpriv --reuid "$TYCMS_DEV_UID" --regid "$TYCMS_DEV_GID" --clear-groups \
-        mkdir -p var/updates logs tmp/migrations public/medias public/assets/fonts
+        mkdir -p var/updates var/extensions logs tmp/migrations public/medias public/assets/fonts
     setpriv --reuid "$TYCMS_DEV_UID" --regid "$TYCMS_DEV_GID" --clear-groups \
         env HOME=/tmp COMPOSER_HOME=/tmp/tycms-composer \
         composer --working-dir=releases/vdev install --no-interaction
