@@ -36,6 +36,18 @@
 					>
 						<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span class="visually-hidden">Modifier</span>
 					</button>
+					<button
+						v-if="item.user_defined"
+						type="button"
+						class="btn btn-outline-danger btn-sm ms-1"
+						:title="item.itemsCount > 0 ? 'Un menu doit être vide pour être supprimé' : 'Supprimer'"
+						:aria-label="`Supprimer le menu ${item.name}`"
+						:disabled="savingMenu || deletingMenuId !== null || item.itemsCount > 0"
+						@click.stop="deleteMenu(item)"
+					>
+						<spinner v-if="deletingMenuId === item.id" size="sm" />
+						<i v-else class="fa-solid fa-trash" aria-hidden="true"></i>
+					</button>
 				</template>
 			</data-table>
         </div>
@@ -43,9 +55,18 @@
 			<a class="btn btn-outline-primary btn-sm mb-4" @click="adminMenusStore.clearSelectedMenu()"><i class="fa-solid fa-arrow-left-long"></i> Retour</a>
 			<div class="d-flex justify-content-between align-items-center mb-3">
 				<h2 class="mb-0">{{ selectedMenu.name }}</h2>
-				<button type="button" class="btn btn-outline-primary btn-sm" :disabled="savingMenu || !selectedMenu.user_defined" @click="openEdit(selectedMenu)">
-					<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Modifier le menu
-				</button>
+				<div class="d-flex gap-2">
+					<button type="button" class="btn btn-outline-primary btn-sm" :disabled="savingMenu || !selectedMenu.user_defined" @click="openEdit(selectedMenu)">
+						<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> Modifier le menu
+					</button>
+					<button v-if="selectedMenu.user_defined" type="button" class="btn btn-outline-danger btn-sm"
+						:title="selectedMenu.itemsCount > 0 ? 'Un menu doit être vide pour être supprimé' : 'Supprimer'"
+						:disabled="savingMenu || deletingMenuId !== null || selectedMenu.itemsCount > 0"
+						@click="deleteMenu(selectedMenu)">
+						<spinner v-if="deletingMenuId === selectedMenu.id" size="sm" />
+						<i v-else class="fa-solid fa-trash" aria-hidden="true"></i> Supprimer
+					</button>
+				</div>
 			</div>
 
 			<comp_menu :menu="selectedMenu"></comp_menu>
@@ -84,6 +105,7 @@ export default {
 			editorVisible: false,
 			editingMenuId: null,
 			savingMenu: false,
+			deletingMenuId: null,
 
 		}
 	},
@@ -145,6 +167,18 @@ export default {
 				this.editingMenuId = null
 			} finally {
 				this.savingMenu = false
+			}
+		},
+
+		async deleteMenu(menu) {
+			if (this.deletingMenuId !== null || !menu.user_defined || menu.itemsCount > 0) return
+			if (!await this.askYesNoAsync(`Supprimer définitivement le menu vide « ${menu.name} » ?`)) return
+
+			this.deletingMenuId = menu.id
+			try {
+				await this.adminMenusStore.deleteMenu(menu.id)
+			} finally {
+				this.deletingMenuId = null
 			}
 		},
 

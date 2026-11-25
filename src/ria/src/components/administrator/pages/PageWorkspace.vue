@@ -16,6 +16,7 @@
 							:style="{ width: `${Math.min(100, sizeRatio)}%` }" />
 					</div>
 				</div>
+				<button type="button" class="btn btn-outline-secondary btn-sm" :disabled="!store.current.id" @click="showHistory = true">Historique</button>
 				<button type="button" class="btn btn-outline-secondary btn-sm" :disabled="store.previewing || !store.current.canEdit" @click="showPreview = true">Rendu fidèle</button>
 				<button type="button" class="btn btn-primary btn-sm ctrl-s" :disabled="!store.current.canEdit || !store.isDirty" @click="$emit('save')">{{ store.saving ? 'Enregistrement…' : 'Enregistrer' }}</button>
 			</div>
@@ -51,12 +52,20 @@
 		</div>
 		<PageCanvasContextMenu ref="contextMenu" />
 		<PagePreview v-if="showPreview" @close="showPreview = false" />
+		<PageHistory
+			:visible="showHistory"
+			:page-id="store.current.id"
+			:page-name="store.current.name"
+			@close="showHistory = false"
+			@load="loadHistoryVersion"
+		/>
 	</section>
 </template>
 
 <script>
 import PageCanvasContextMenu from './PageCanvasContextMenu.vue'
 import PageCanvasItems from './PageCanvasItems.vue'
+import PageHistory from './PageHistory.vue'
 import PagePreview from './PagePreview.vue'
 import PageSidebar from './PageSidebar.vue'
 import { pagePreviewViewports } from './pagePreviewViewports'
@@ -75,12 +84,12 @@ function loadSidebarWidth() {
 }
 
 export default {
-	components: { PageCanvasContextMenu, PageCanvasItems, PagePreview, PageSidebar },
+	components: { PageCanvasContextMenu, PageCanvasItems, PageHistory, PagePreview, PageSidebar },
 	emits: ['close', 'save'],
 	provide() { return { openPageContextMenu: (event, id) => this.$refs.contextMenu?.open(event, id) } },
 	data() {
 		const sidebarWidth = loadSidebarWidth()
-		return { viewport: 'lg', viewports: pagePreviewViewports, showPreview: false, sidebarWidth, preferredSidebarWidth: sidebarWidth, sidebarMax: 900, resizingSidebar: false, resizeOffset: 0 }
+		return { viewport: 'lg', viewports: pagePreviewViewports, showPreview: false, showHistory: false, sidebarWidth, preferredSidebarWidth: sidebarWidth, sidebarMax: 900, resizingSidebar: false, resizeOffset: 0 }
 	},
 	computed: {
 		store() { return this.stores.useAdminPagesStore() },
@@ -101,6 +110,15 @@ export default {
 		window.removeEventListener('resize', this.updateSidebarBounds)
 	},
 	methods: {
+		async loadHistoryVersion(version) {
+			if (this.store.isDirty
+				&& !await this.askYesNoAsync('Remplacer les modifications en cours par cette version de l’historique ?')) return
+			if (!this.store.applyHistoryVersion(version)) return
+
+			this.showHistory = false
+			this.showModaleSuccess('Version chargée. Enregistrez la page pour la restaurer.')
+		},
+
 		updateSidebarBounds() {
 			const width = this.$refs.workspaceBody?.clientWidth ?? 0
 			if (width <= 900) return

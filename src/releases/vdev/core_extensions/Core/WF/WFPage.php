@@ -7,6 +7,7 @@ use YTassy\Tycms\Lib\Scss\ScssCompiler;
 use YTassy\Tycms\CoreExts\Core\Helper\ShortCode\DiagramShortCode;
 use YTassy\Tycms\Lib\HtmlSanitizer\HtmlSanitizer;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageDocument;
+use YTassy\Tycms\CoreExts\Core\Helper\Page\PageHistoryHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageSize;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageCommonStyles;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageButtonStyles;
@@ -114,6 +115,11 @@ class WFPage extends BaseWF
         if ($type === 2) {
             $data->data = $this->validatePageDocument($data->data, $spaceId);
         }
+        // Conserver l'état remplacé avant l'écriture : une première modification
+        // après l'installation rend ainsi la page existante récupérable.
+        if ($page !== null) {
+            $this->corePageHistoryHelper->record($page, $this->session->getUserId());
+        }
         // A new page needs its database ID before a stable CSS scope can be compiled.
         $saved = $this->corePageHelper->savePage($page, $spaceId, $data);
         $compiled = $this->compilePageCss($scss, $spaceId, $saved->id, $type === 2 ? $data->data : null);
@@ -122,6 +128,77 @@ class WFPage extends BaseWF
             $saved = $this->corePageHelper->getPage($saved->id);
         }
         return ['page' => $this->metadata($saved), 'revision' => $this->revision($saved)];
+    }
+
+    /**
+     * Lister les versions conservées d'une page.
+     *
+     * Le contenu complet n'est pas renvoyé ici : la liste sert à choisir une
+     * date, puis `historyVersion()` transporte le JSON demandé.
+     */
+    public function history(int $pageId): array
+    {
+        $page = $this->getPageForRead($pageId);
+        // Le nom de l'auteur est une donnée de compte : il n'est projeté que si
+        // l'appelant possède aussi le droit de lecture des utilisateurs.
+        $canReadUsers = $this->coreAclHelper->hasGlobalPermission(Permissions::USERS_READ, $page->space_id);
+        $versions = [];
+
+        foreach ($this->corePageHistoryHelper->listForPage($page->id) as $row) {
+            $versions[] = [
+                'id' => (int) $row->id,
+                'userId' => $row->user_id === null ? null : (int) $row->user_id,
+                'userName' => $canReadUsers
+                    ? trim((string) ($row->first_name ?? '') . ' ' . (string) ($row->last_name ?? ''))
+                    : '',
+                'userType' => (string) ($row->user_type ?? ''),
+                'name' => (string) $row->name,
+                'description' => (string) $row->description,
+                'type' => (int) $row->type,
+                'dataSize' => (int) $row->data_size,
+                'created' => (new \DateTimeImmutable((string) $row->created, new \DateTimeZone('UTC')))->format(DATE_ATOM),
+            ];
+        }
+
+        return [
+            'page' => $this->metadata($page),
+            'versions' => $versions,
+            'retention' => [
+                'currentDayVersions' => PageHistoryHelper::CURRENT_DAY_VERSIONS,
+                'days' => PageHistoryHelper::RETENTION_DAYS,
+                'pastDayVersions' => 1,
+            ],
+        ];
+    }
+
+    /**
+     * Lire une version précise d'une page, avec son contenu restaurable.
+     *
+     * La version est toujours relue avec l'identifiant de la page : un
+     * identifiant de version seul ne suffit pas à changer de périmètre.
+     */
+    public function historyVersion(int $pageId, int $versionId): array
+    {
+        $page = $this->getPageForRead($pageId);
+        $version = $this->corePageHistoryHelper->getVersion($page->id, $versionId);
+
+        if ($version === null) {
+            ExceptionResponse::throwWarning('Version de page introuvable.');
+        }
+
+        return [
+            'id' => $version->id,
+            'pageId' => $version->page_id,
+            'userId' => $version->user_id,
+            'created' => $version->created->format(DATE_ATOM),
+            'name' => $version->name,
+            'description' => $version->description,
+            'type' => $version->type,
+            'rawHtml' => $version->raw_html,
+            'rawScss' => $version->raw_scss,
+            'data' => $version->data,
+            'accessEditRoleId' => $version->access_edit_role_id,
+        ];
     }
 
     /** Render an unsaved draft through the public PHP renderer without persisting it. */

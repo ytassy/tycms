@@ -47,6 +47,11 @@ export const useAdminMenusStore = {
 			await this.loadMenus()
 		},
 
+		async deleteMenu(menuId) {
+			await application.api.post('/administrator/api/menus/delete', { menuId })
+			await this.loadMenus()
+		},
+
 		async moveMenuItem(menuItemId, direction) {
 			await application.api.post(`/administrator/api/menus/move-${direction}`, { menuItemId })
 			await this.loadMenus()

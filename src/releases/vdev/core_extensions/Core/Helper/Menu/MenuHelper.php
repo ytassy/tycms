@@ -87,7 +87,11 @@ class MenuHelper extends BaseHelper
     public function getHtml(int $menuId, string $displayType, bool $applyAcl = true){
 
         $currentRoute = $this->app->getRoute();
-        $menu = $this->menusById[$menuId];
+        $menu = $this->menusById[$menuId] ?? null;
+
+        // Un menu supprimé peut rester référencé par une page ou une template :
+        // le rendu devient vide au lieu de provoquer une erreur publique.
+        if ($menu === null) return '';
 
         $menuItems = $menu->items;
 

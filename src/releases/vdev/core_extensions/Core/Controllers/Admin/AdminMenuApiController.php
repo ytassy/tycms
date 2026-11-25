@@ -67,6 +67,14 @@ class AdminMenuApiController extends BaseController
         return new ApiResponse(['menu' => $this->wfMenu->updateMenu($menuId, $data)]);
     }
 
+    #[ControllerMethod(name: 'menu_delete', path: 'delete', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'menuId', required: true, varType: VarType::INT)]
+    public function menu_delete(int $menuId)
+    {
+        $this->wfMenu->deleteMenu($menuId);
+        return new ApiResponse(['success' => true]);
+    }
+
     #[ControllerMethod(name: "menu_move_up", path: "move-up", methods: [RequestMethod::POST])]
     #[ControllerParam1(name: 'menuItemId', required: true, varType: VarType::INT)]
     public function menu_move_up(int $menuItemId)

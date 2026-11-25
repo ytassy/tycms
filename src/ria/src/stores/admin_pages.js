@@ -65,6 +65,35 @@ export const useAdminPagesStore = {
 						this.previewAccordion = {}
 					}
 				},
+				async loadHistory(pageId) {
+					return application.api.get('/administrator/api/pages/history', { pageId })
+				},
+				async loadHistoryVersion(pageId, versionId) {
+					return application.api.get('/administrator/api/pages/history/version', { pageId, versionId })
+				},
+				applyHistoryVersion(version) {
+					if (!this.current?.canEdit || !version) return false
+
+					// Remplacer uniquement les champs portés par la version : la
+					// révision courante reste celle de la page pour que la sauvegarde
+					// détecte toujours une modification concurrente.
+					this.current = {
+						...this.current,
+						name: version.name ?? '',
+						description: version.description ?? '',
+						type: Number(version.type),
+						raw_html: version.rawHtml ?? '',
+						raw_scss: version.rawScss ?? '',
+						data: version.data == null ? null : copy(version.data),
+						access_edit_role_id: version.accessEditRoleId ?? null,
+					}
+					this.selectedId = null
+					this.dragPayload = null
+					this.previewTabs = {}
+					this.previewAccordion = {}
+					this.editorSession++
+					return true
+				},
 				applyFormDefaults() {
                     for (const component of this.components) {
                         const form = this.forms[component.id]

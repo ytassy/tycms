@@ -120,8 +120,8 @@ ajoutée.
 
 Routes sous `/administrator/api/pages` : répertoire, `read`, `editor-context`,
 `link-menu-items`, `create`, `update`, `status`, `delete`, `preview`, `canvas`, `validate-draft`,
-`ai/sanitize-html` et `ai/validate-draft`. Les mutations et aperçus POST restent
-soumis au CSRF.
+`history`, `history/version`, `ai/sanitize-html` et `ai/validate-draft`. Les
+mutations et aperçus POST restent soumis au CSRF.
 
 La sauvegarde, l’aperçu, le canevas, `validate-draft` et la validation IA
 appliquent la même méthode serveur : limite de taille configurée, normalisation
@@ -136,6 +136,42 @@ Les composants Vue spécialisés peuvent conserver leurs appels métier.
 Pendant l'enregistrement, `showModaleWait()` couvre l'écran ; un `finally`
 appelle `hideModaleWait()`, puis `showModaleSuccess()` annonce la réussite.
 Les champs restent actifs ; la lecture seule liée aux droits est indépendante.
+
+## Historique des pages
+
+Une page existante conserve son état courant dans `page_history` juste avant
+chaque remplacement. La version courante n'est pas dupliquée : la liste montre
+les états qui ont été remplacés. Une page nouvellement créée n'a donc pas
+d'historique tant qu'elle n'a pas été modifiée ; en revanche, la première
+modification après l'installation conserve l'état existant, même si la page a
+été créée avant cette fonctionnalité.
+
+Chaque ligne reprend les champs nécessaires à une restauration : nom,
+description, type, HTML brut, SCSS, document JSON et rôle d'édition historique.
+Le rôle est conservé pour l'audit ; la sauvegarde garde le rôle courant de la
+page, car cette colonne héritée ne contrôle plus l'écriture. La rétention est
+appliquée à chaque enregistrement : les 20 dernières versions du jour courant,
+puis la dernière version de chacun des 29 jours précédents, soit 30 jours
+glissants au total. Les lignes plus anciennes sont supprimées.
+La table est supprimée avec sa page (`ON DELETE CASCADE`) ; le compte auteur
+est conservé avec `ON DELETE SET NULL`. Le nom de l'auteur n'est renvoyé que
+si l'appelant possède aussi `USERS_READ` sur le Space ; sinon seul son
+identifiant est transmis.
+
+`WFPage::history()` et `WFPage::historyVersion()` vérifient `PAGE_READ` sur le
+Space réel de la page. La version est toujours relue avec son `pageId` : un
+identifiant de version seul ne suffit pas à changer de périmètre. Le bouton
+**Historique** de l'atelier ouvre la liste, affiche le JSON copiable d'une
+version et permet de la charger dans le brouillon. L'enregistrement reste
+l'action normale : la révision courante n'est pas remplacée par celle de la
+version chargée, afin que la sauvegarde détecte toujours une modification
+concurrente.
+
+Les actions de scénario `core::listPageHistory` et `core::readPageVersion`
+exposent les mêmes lectures avec `PAGE_READ`. La seconde projette le document
+en valeurs simples pour le langage. Aucune action d'écriture de page n'est
+exposée aujourd'hui : une restauration depuis un agent reste une préparation
+de contenu, puis une écriture par le parcours d'édition autorisé.
 
 ## Atelier visuel
 

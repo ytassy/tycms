@@ -57,6 +57,7 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_3;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_4;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_5;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_10;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Mail\IEmailTemplateProvider;
 use YTassy\Tycms\CoreExts\Core\Mail\CoreEmailTemplates;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\BasePermissions;
@@ -130,6 +131,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.4' => [Mig_1_1_4::class],
             '1.1.5' => [Mig_1_1_5::class],
             '1.1.9' => [Mig_1_1_9::class],
+            '1.1.10' => [Mig_1_1_10::class],
         ];
 	}
 

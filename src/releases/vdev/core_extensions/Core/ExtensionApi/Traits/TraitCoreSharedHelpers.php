@@ -21,6 +21,7 @@ use YTassy\Tycms\CoreExts\Core\Helper\Language\PublicLocaleHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Menu\MenuHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageFileList;
+use YTassy\Tycms\CoreExts\Core\Helper\Page\PageHistoryHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageComponentRegistry;
 use YTassy\Tycms\CoreExts\Core\Helper\Session\BrowserSessionPropertyHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\SsoProviderHelper;
@@ -122,6 +123,10 @@ trait TraitCoreSharedHelpers
 
     protected PageHelper $corePageHelper {
         get { return $this->getSharedExtensionsClass(PageHelper::class); } 
+    }
+
+    protected PageHistoryHelper $corePageHistoryHelper {
+        get { return $this->getSharedExtensionsClass(PageHistoryHelper::class); }
     }
 
     protected PageComponentRegistry $corePageComponentRegistry {

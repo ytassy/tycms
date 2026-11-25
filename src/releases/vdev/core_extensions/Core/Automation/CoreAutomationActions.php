@@ -45,6 +45,8 @@ use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPermissionsAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListRolesAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPageComponentsAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPageHistoryAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ReadPageVersionAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListUsersAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\NotifyAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\RemoveFromGroupAction;
@@ -249,6 +251,36 @@ final class CoreAutomationActions
                 description: 'Renvoie le catalogue des composants utilisables dans une page : '
                     . 'identifiant de type, zones acceptées, propriétés attendues et exemples de valeurs.',
                 parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::PAGE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::listPageHistory',
+                label: 'Lister l’historique d’une page',
+                handlerClass: ListPageHistoryAction::class,
+                description: 'Renvoie les versions conservées d’une page, de la plus récente à la plus '
+                    . 'ancienne, avec leur date, leur auteur et leur taille. Le contenu d’une version se '
+                    . 'lit ensuite avec readPageVersion.',
+                parameters: [
+                    new AutomationParameterDefinition('pageId', 'int', true, null, 'Page', 'Page lisible, à partir de 1.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::PAGE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::readPageVersion',
+                label: 'Lire une version de page',
+                handlerClass: ReadPageVersionAction::class,
+                description: 'Renvoie le contenu restaurable d’une version : nom, description, type, '
+                    . 'HTML brut, SCSS et document JSON. La version doit appartenir à la page demandée.',
+                parameters: [
+                    new AutomationParameterDefinition('pageId', 'int', true, null, 'Page', 'Page lisible, à partir de 1.'),
+                    new AutomationParameterDefinition('versionId', 'int', true, null, 'Version', 'Identifiant retourné par listPageHistory.'),
+                ],
                 returnType: 'array',
                 effect: FunctionEffect::READ,
                 requiredPermissions: [CorePermissions::PAGE_READ],

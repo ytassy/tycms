@@ -311,6 +311,22 @@ Le schéma d'entrée de `tycms.run` est simple et stable : `source` (chaîne,
 bornée) et `input` (map JSON). La richesse métier vient du langage et du
 catalogue, pas d'un outil par opération.
 
+### Historique des pages
+
+Deux actions de lecture complètent le catalogue pour le contenu éditorial :
+`core::listPageHistory` liste les versions conservées d'une page et
+`core::readPageVersion` renvoie le contenu restaurable d'une version (nom,
+description, type, HTML brut, SCSS et document JSON). Toutes deux exigent
+`PAGE_READ` sur le Space réel de la page et suivent le filtre `external`.
+
+La version est toujours demandée avec son `pageId` et son `versionId` ; le WF
+relit la version dans le périmètre de la page. L'action de lecture projette le
+document en valeurs simples pour le langage. Aucune action d'écriture de page
+n'est exposée pour l'instant : l'agent peut inspecter une ancienne version et
+préparer sa réintégration, mais la restauration effective passe par le
+parcours d'édition autorisé. La table, la rétention et l'interface sont
+décrites dans [l'éditeur de pages](../../PAGE_EDITOR.md#historique-des-pages).
+
 ### Documentation du serveur MCP
 
 Le serveur doit rendre le client capable d'écrire un code correct. La

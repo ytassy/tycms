@@ -18,10 +18,11 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
     {
         $definitions = CoreAutomationActions::definitions();
 
-        self::assertCount(62, $definitions);
+        self::assertCount(64, $definitions);
         self::assertSame(
             ['core::sendMail', 'core::notify', 'core::sendTelegram', 'core::sendSlack',
-                'core::sendDiscord', 'core::listPageComponents', 'core::listMenuTypes', 'core::getUser',
+                'core::sendDiscord', 'core::listPageComponents', 'core::listPageHistory',
+                'core::readPageVersion', 'core::listMenuTypes', 'core::getUser',
                 'core::listPermissions', 'core::listRoles', 'core::getRole', 'core::createRole',
                 'core::updateRole', 'core::deleteRole', 'core::listGroups', 'core::getGroup',
                 'core::createGroup', 'core::updateGroup', 'core::setGroupRoles', 'core::deleteGroup',
@@ -126,6 +127,8 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertTrue($registry->has('core::notify'));
         self::assertTrue($registry->has('core::sendTelegram'));
         self::assertTrue($registry->has('core::addRole'));
+        self::assertTrue($registry->has('core::listPageHistory'));
+        self::assertTrue($registry->has('core::readPageVersion'));
         self::assertTrue($registry->has('google_sheets::appendRow'));
         self::assertTrue($registry->has('google_sheets::insertRow'));
         self::assertTrue($registry->has('google_sheets::upsertRow'));
@@ -138,6 +141,6 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertTrue($registry->has('core::getUser'));
         self::assertSame('plg_core', $registry->ownerOf('core::getUser'));
 
-        self::assertCount(62, $registry->all());
+        self::assertCount(64, $registry->all());
     }
 }

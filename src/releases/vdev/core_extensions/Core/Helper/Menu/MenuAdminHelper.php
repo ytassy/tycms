@@ -68,6 +68,32 @@ class MenuAdminHelper extends BaseHelper
         return $this->getMenu($menuId);
     }
 
+    /** Compter les entrées, tous statuts confondus, avant une suppression de menu. */
+    public function countItems(int $menuId): int
+    {
+        $row = $this->db->selectOneOrNull(
+            'SELECT COUNT(*) AS items_count FROM menu_items WHERE menu_id = %',
+            [$menuId],
+        );
+
+        return (int) ($row?->items_count ?? 0);
+    }
+
+    /**
+     * Supprimer un menu vide.
+     *
+     * Le contrôle d'absence d'entrées est refait dans la requête pour qu'une
+     * entrée ajoutée entre la lecture et la suppression ne soit jamais perdue.
+     */
+    public function deleteMenu(int $menuId): bool
+    {
+        return $this->db->execute(
+            'DELETE FROM menus WHERE id = % AND user_defined = 1 '
+                . 'AND NOT EXISTS (SELECT 1 FROM menu_items WHERE menu_items.menu_id = menus.id)',
+            [$menuId],
+        ) === 1;
+    }
+
     /** @return array<int, Menu> */
     public function getMenusAndItemsOfSpace(int $spaceId): array
     {

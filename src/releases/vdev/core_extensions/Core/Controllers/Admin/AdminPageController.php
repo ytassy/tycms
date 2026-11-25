@@ -54,6 +54,21 @@ class AdminPageController extends BaseController
         return new ApiResponse($this->wfPage->read($pageId));
     }
 
+    #[ControllerMethod(name: 'history', path: 'history')]
+    #[ControllerParam1(name: 'pageId', required: true, varType: VarType::INT)]
+    public function history(int $pageId): ApiResponse
+    {
+        return new ApiResponse($this->wfPage->history($pageId));
+    }
+
+    #[ControllerMethod(name: 'history_version', path: 'history/version')]
+    #[ControllerParam1(name: 'pageId', required: true, varType: VarType::INT)]
+    #[ControllerParam2(name: 'versionId', required: true, varType: VarType::INT)]
+    public function history_version(int $pageId, int $versionId): ApiResponse
+    {
+        return new ApiResponse($this->wfPage->historyVersion($pageId, $versionId));
+    }
+
     #[ControllerMethod(name: 'create', path: 'create', methods: [RequestMethod::POST])]
     #[ControllerParam1(name: 'data', required: true, varType: VarType::JSON)]
     public function create(object $data): ApiResponse

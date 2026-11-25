@@ -111,6 +111,26 @@ class WFMenu extends BaseWF
         return $this->coreMenuAdminHelper->updateMenu($menu->id, $data);
     }
 
+    /**
+     * Supprimer définitivement un menu vide.
+     *
+     * Un menu encore référencé par une page ou par la template reste supprimable
+     * s'il est vide : les rendus ignorent une référence absente. En revanche,
+     * une seule entrée, même en corbeille, interdit la suppression du menu.
+     */
+    public function deleteMenu(int $menuId): void
+    {
+        $menu = $this->getUserDefinedMenuForCrud($menuId);
+
+        if ($this->coreMenuAdminHelper->countItems($menu->id) > 0) {
+            ExceptionResponse::throwWarning('Un menu doit être vide pour être supprimé.');
+        }
+
+        if (!$this->coreMenuAdminHelper->deleteMenu($menu->id)) {
+            ExceptionResponse::throwWarning('Menu introuvable, système ou non vide.');
+        }
+    }
+
     public function moveMenuItemUp(int $menuItemId): bool
     {
         return $this->moveMenuItem($menuItemId, true);
