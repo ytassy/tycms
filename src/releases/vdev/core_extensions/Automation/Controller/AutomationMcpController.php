@@ -30,4 +30,24 @@ final class AutomationMcpController extends BaseController
     {
         return $this->wfAutomationMcp->endpoint($this->request);
     }
+
+    /**
+     * Guide lisible : architecture d'exécution et syntaxe du langage.
+     *
+     * GET authentifié par le même jeton d'API que l'endpoint JSON-RPC, pour
+     * qu'un humain ou un agent puisse lire la documentation dans un navigateur
+     * ou avec curl, sans passer par un appel d'outil.
+     */
+    #[ControllerMethod(name: 'guide', path: 'guide', methods: [RequestMethod::GET])]
+    public function guide(): Response
+    {
+        return $this->wfAutomationMcp->guide($this->request);
+    }
+
+    /** Référence complète : guide, fonctions standard et actions métier. */
+    #[ControllerMethod(name: 'reference', path: 'reference', methods: [RequestMethod::GET])]
+    public function reference(): Response
+    {
+        return $this->wfAutomationMcp->reference($this->request);
+    }
 }

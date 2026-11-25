@@ -64,11 +64,63 @@ final class McpToolCatalog
             'label' => $definition->label,
             'description' => $definition->description,
             'parameters' => $parameters,
+            'call' => $this->callExample($definition),
             'returnType' => $definition->returnType,
             'effect' => $definition->effect,
             'requiredPermissions' => $definition->requiredPermissions,
             'targetSpace' => $definition->targetSpace,
         ];
+    }
+
+    /**
+     * Exemple d'appel positionnel, composé depuis les paramètres réels.
+     *
+     * Le langage n'a pas d'arguments nommés : un agent doit voir l'ordre exact
+     * des arguments. L'exemple est généré depuis le registre pour suivre
+     * automatiquement toute évolution d'arité ou de nom de paramètre.
+     */
+    private function callExample(AutomationActionDefinition $definition): string
+    {
+        $arguments = [];
+
+        foreach ($definition->parameters as $parameter) {
+            // Un paramètre facultatif est matérialisé par sa valeur par défaut
+            // pour montrer le type attendu à cette position.
+            $arguments[] = $parameter->required
+                ? $this->placeholder($parameter->type, $parameter->name)
+                : $this->literal($parameter->default);
+        }
+
+        return $definition->id . '(' . implode(', ', $arguments) . ');';
+    }
+
+    /**
+     * Valeur d'exemple pour un paramètre obligatoire.
+     *
+     * Le texte produit doit rester du code valide : un agent le copie tel quel.
+     * On prend donc de vrais littéraux, commentés par le nom du paramètre.
+     */
+    private function placeholder(string $type, string $name): string
+    {
+        return match ($type) {
+            'int' => '0 /* ' . $name . ' */',
+            'float' => '0.0 /* ' . $name . ' */',
+            'bool' => 'true /* ' . $name . ' */',
+            'array' => '[] /* ' . $name . ' */',
+            default => '"' . $name . '"',
+        };
+    }
+
+    /** Valeur littérale du langage pour une valeur par défaut PHP. */
+    private function literal(mixed $value): string
+    {
+        return match (true) {
+            $value === null => 'null',
+            is_bool($value) => $value ? 'true' : 'false',
+            is_int($value), is_float($value) => (string) $value,
+            is_array($value) => '[]',
+            default => json_encode((string) $value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '""',
+        };
     }
 
     /** @return array<string, mixed> */
@@ -90,6 +142,8 @@ final class McpToolCatalog
                 'readonly' => true,
             ],
             'sourceBytesLimit' => (new Limits())->maxSourceBytes,
+            'callStyle' => 'Arguments strictement positionnels : core::listUsers(1, 20, "", "user"). '
+                . 'La forme "nom" => valeur n’est valable que dans une map, jamais en argument.',
             'statements' => [
                 'if / elseif / else', 'foreach', 'for', 'while', 'return', 'break',
                 'continue', 'stop', 'fail', 'affectation',
@@ -102,12 +156,16 @@ final class McpToolCatalog
     public function reference(): array
     {
         return [
+            // L'agent n'a que ce document : il porte l'architecture et la
+            // syntaxe réelle, en plus du catalogue des fonctions et actions.
+            'architecture' => McpLanguageGuide::architecture(),
             'language' => [
                 'entryPoint' => 'Le programme contient exactement une fonction main() sans paramètre.',
                 'values' => ['null', 'bool', 'int', 'float', 'string', 'array', 'date'],
                 'operators' => ['+ - * / %', '.', '== != < <= > >=', 'and or not', '??', '?:', 'in'],
                 'comment' => 'Aucun objet, aucune méthode, aucun SQL, aucun shell, aucune inclusion.',
             ],
+            'syntax' => McpLanguageGuide::syntax(),
             'functions' => BuiltinFunctionReference::all(),
             'actions' => $this->actions(),
             'context' => $this->context(),

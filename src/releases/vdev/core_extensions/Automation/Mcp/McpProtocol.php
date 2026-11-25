@@ -8,6 +8,7 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationPrincipalType;
 use YTassy\Tycms\CoreExts\Automation\Traits\TraitAutomationHelpers;
 use YTassy\Tycms\CoreExts\Core\Helper\ServiceAccountTokenHelper;
 use YTassy\Tycms\Request\Request;
+use YTassy\Tycms\Response\FileResponse;
 use YTassy\Tycms\Response\Response;
 use YTassy\Tycms\WF\BaseHelper;
 
@@ -34,12 +35,20 @@ final class McpProtocol extends BaseHelper
     /** Plafond glissant : nombre d'appels acceptés par minute et par jeton. */
     public const MAX_REQUESTS_PER_MINUTE = 120;
 
-    public function handle(Request $request): Response
+    /**
+     * Résout le jeton d'API de la requête en contexte d'exécution.
+     *
+     * Le même contrôle sert l'endpoint JSON-RPC et les documents de
+     * documentation : un client n'authentifie pas deux fois.
+     *
+     * @return array{user_id: int, space_id: int, token_id: int}|null
+     */
+    public function resolveToken(Request $request): ?array
     {
         $token = self::bearerToken($request);
 
         if ($token === null) {
-            return $this->unauthenticated(null);
+            return null;
         }
 
         $tokenRow = $this->tokenHelper()->resolve($token);
@@ -47,7 +56,7 @@ final class McpProtocol extends BaseHelper
         if ($tokenRow === null) {
             $this->logWarning('Jeton MCP refusé.', [], 'MCP_AUTH_FAILED', 'automation');
 
-            return $this->unauthenticated(null);
+            return null;
         }
 
         $userId = (int) $tokenRow['user_id'];
@@ -64,8 +73,23 @@ final class McpProtocol extends BaseHelper
                 'automation',
             );
 
+            return null;
+        }
+
+        return ['user_id' => $userId, 'space_id' => $spaceId, 'token_id' => $tokenId];
+    }
+
+    public function handle(Request $request): Response
+    {
+        $context = $this->resolveToken($request);
+
+        if ($context === null) {
             return $this->unauthenticated(null);
         }
+
+        $userId = $context['user_id'];
+        $spaceId = $context['space_id'];
+        $tokenId = $context['token_id'];
 
         $payload = json_decode($request->rawBody, true);
 
@@ -339,6 +363,38 @@ final class McpProtocol extends BaseHelper
             McpJsonRpc::error($id, -32001, 'Authentification requise.'),
             401,
             ['WWW-Authenticate' => 'Bearer'],
+        );
+    }
+
+    /**
+     * Document Markdown du langage et de l'architecture.
+     *
+     * Servi par une route GET authentifiée par le même jeton : un humain ou un
+     * agent peut lire le guide dans un navigateur sans passer par JSON-RPC.
+     */
+    public function guideDocument(): Response
+    {
+        return FileResponse::fromContent(
+            McpLanguageGuide::markdown(),
+            'tycms-mcp-guide.md',
+            'text/markdown; charset=UTF-8',
+        );
+    }
+
+    /**
+     * Référence Markdown complète : guide, fonctions standard et actions.
+     *
+     * Les actions sont celle du catalogue MCP, donc sans les effets `external`
+     * que le serveur refuse de dispatcher.
+     */
+    public function referenceDocument(): Response
+    {
+        $catalog = new McpToolCatalog($this->actionRegistry());
+
+        return FileResponse::fromContent(
+            McpReferenceMarkdown::render($catalog->reference()),
+            'tycms-mcp-reference.md',
+            'text/markdown; charset=UTF-8',
         );
     }
 }

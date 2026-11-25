@@ -57,6 +57,38 @@ Le bundle de connexion DSH est dans `0_ressources/dsh-mcp-tycms/` (hors Git) :
 `cordis.patch.local.yml` porte l'URL locale et le jeton, `cordis.patch.yml`
 conserve la variante à variable d'environnement.
 
+**Documentation autosuffisante.** Un agent connecté au MCP ne lit ni `Docs/`, ni
+le code, ni l'éditeur : il ne dispose que des outils du serveur. La référence
+doit donc se suffire à elle-même. `McpLanguageGuide` fournit l'architecture
+d'exécution (vocabulaire : action, Space, compte de service ; parcours
+recommandé ; transaction ; effets externes refusés ; budgets) et la syntaxe
+réelle du langage (entrée, contrôle du flux, littéraux, opérateurs, types,
+accès `->` et `?->`, forme des résultats). `McpToolCatalog` ajoute à chaque
+action un champ `call` : un exemple d'appel positionnel composé depuis les
+paramètres du registre, qui suit donc automatiquement toute évolution d'arité.
+Les arguments du langage sont strictement positionnels ; ce point est rappelé
+dans `reference.syntax.callStyle` et dans `context.callStyle`, car la forme
+`"nom" => valeur` n'existe qu'en littéral de map.
+
+Les mêmes documents sont servis en Markdown, authentifiés par le même jeton
+d'API : `GET /ai/mcp/guide` (`McpLanguageGuide::markdown()`) et
+`GET /ai/mcp/reference` (`McpReferenceMarkdown`, guide + fonctions standard +
+actions du catalogue MCP). `McpProtocol::resolveToken()` porte l'unicité de
+l'authentification entre l'endpoint JSON-RPC et ces deux routes.
+
+**Deux modes d'accès aux documents, strictement distincts.** Ces routes GET ne
+modifient rien : chacune accepte, seule, l'une des deux preuves d'identité.
+- *Mode session* : une session ROOT ouverte (`AclHelper::isRoot()`) lit les
+  documents sans jeton, pour un humain dans un navigateur.
+- *Mode jeton* : un jeton d'API de compte de service, vérifié par
+  `resolveToken()` (hachage, expiration, révocation, compte actif), pour un
+  client MCP sans session.
+
+Aucun mode n'élargit l'autre : une session ordinaire non ROOT ne remplace pas
+le jeton, et un jeton absent ferme le mode session. Une requête qui échoue aux
+deux est refusée en 401 avec `WWW-Authenticate: Bearer`. Le comportement est
+couvert par `tests/Integration/AutomationMcpDocumentsTest.php`.
+
 Le **lot 2 est livré** : colonne `users.type`, table `api_tokens` (migration),
 modèle `ApiToken`, helper `ServiceAccountTokenHelper` (génération, hachage
 SHA-256, vérification en temps constant, révocation, résolution), workflow
