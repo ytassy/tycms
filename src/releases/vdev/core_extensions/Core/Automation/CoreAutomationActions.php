@@ -22,6 +22,15 @@ use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListGroupsAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SetGroupRolesAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateGroupAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateRoleAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateMediaDirectoryAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateMediaFileAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteMediaAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMediaAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMediaSpaceAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\MoveMediaAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ReadMediaFileAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\RenameMediaAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\SaveMediaFileAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPermissionsAction;
@@ -509,6 +518,142 @@ final class CoreAutomationActions
                 returnType: 'array',
                 effect: FunctionEffect::WRITE,
                 requiredPermissions: [CorePermissions::USERS_CRUD],
+                timeoutSeconds: 15,
+            ),
+            // Médias : lecture et arborescence, puis édition des seuls formats
+            // texte (SCSS et TXT). Aucun envoi binaire : le langage ne
+            // transporte pas de flux, et l'écriture de JS dans les médias
+            // exposerait une exécution chez le visiteur.
+            new AutomationActionDefinition(
+                id: 'core::listMediaSpace',
+                label: 'Catalogue des médias d’un Space',
+                handlerClass: ListMediaSpaceAction::class,
+                description: 'Renvoie les Spaces accessibles, les extensions autorisées et éditables '
+                    . '(SCSS et TXT) et les tailles maximales.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::MEDIA_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::listMedia',
+                label: 'Lister un dossier de médias',
+                handlerClass: ListMediaAction::class,
+                description: 'Renvoie le contenu d’un dossier de médias et l’arborescence des sous-dossiers.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', false, '', 'Dossier', 'Chemin relatif ; vide pour la racine.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::MEDIA_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::readMediaFile',
+                label: 'Lire un fichier de médias',
+                handlerClass: ReadMediaFileAction::class,
+                description: 'Lit un fichier SCSS ou TXT et renvoie son contenu avec sa version.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', true, null, 'Chemin', 'Chemin relatif du fichier.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::MEDIA_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createMediaDirectory',
+                label: 'Créer un dossier de médias',
+                handlerClass: CreateMediaDirectoryAction::class,
+                description: 'Crée un dossier dans les médias d’un Space.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', false, '', 'Dossier parent', 'Chemin relatif ; vide pour la racine.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du nouveau dossier.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createMediaFile',
+                label: 'Créer un fichier de médias',
+                handlerClass: CreateMediaFileAction::class,
+                description: 'Crée un fichier texte éditable (.scss ou .txt) dans les médias.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', false, '', 'Dossier parent', 'Chemin relatif ; vide pour la racine.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du fichier avec son extension.'),
+                    new AutomationParameterDefinition('content', 'string', false, '', 'Contenu', 'Contenu initial du fichier.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::saveMediaFile',
+                label: 'Enregistrer un fichier de médias',
+                handlerClass: SaveMediaFileAction::class,
+                description: 'Enregistre un fichier SCSS ou TXT. La version reçue à la lecture est exigée : '
+                    . 'une modification concurrente est refusée plutôt qu’écrasée.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', true, null, 'Chemin', 'Chemin relatif du fichier.'),
+                    new AutomationParameterDefinition('content', 'string', true, null, 'Contenu', 'Nouveau contenu complet.'),
+                    new AutomationParameterDefinition('version', 'string', true, null, 'Version', 'Version renvoyée par la lecture.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::renameMedia',
+                label: 'Renommer un média',
+                handlerClass: RenameMediaAction::class,
+                description: 'Renomme un fichier ou un dossier de médias.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', true, null, 'Chemin', 'Chemin relatif de l’élément.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nouveau nom', 'Nouveau nom de l’élément.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::moveMedia',
+                label: 'Déplacer un média',
+                handlerClass: MoveMediaAction::class,
+                description: 'Déplace un fichier ou un dossier de médias vers un autre dossier.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', true, null, 'Chemin', 'Chemin relatif de l’élément.'),
+                    new AutomationParameterDefinition('destinationPath', 'string', true, null, 'Destination', 'Dossier de destination.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::deleteMedia',
+                label: 'Supprimer un média',
+                handlerClass: DeleteMediaAction::class,
+                description: 'Supprime un fichier ou un dossier de médias.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space des médias.'),
+                    new AutomationParameterDefinition('path', 'string', true, null, 'Chemin', 'Chemin relatif de l’élément.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MEDIA_CRUD],
                 timeoutSeconds: 15,
             ),
             new AutomationActionDefinition(

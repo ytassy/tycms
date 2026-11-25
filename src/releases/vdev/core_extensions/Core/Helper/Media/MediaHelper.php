@@ -6,6 +6,7 @@ use DirectoryIterator;
 use FilesystemIterator;
 use finfo;
 use RuntimeException;
+use YTassy\Tycms\Lib\SvgSanitizer\SvgSanitizer;
 use YTassy\Tycms\Logging\LogEventException;
 use YTassy\Tycms\Application;
 use YTassy\Tycms\BaseApplicationItem;
@@ -218,6 +219,7 @@ class MediaHelper extends BaseHelper
         }
 
         $name = $this->normalizeFileName((string) ($uploadedFile['name'] ?? ''));
+
         $targetPath = $directory . DIRECTORY_SEPARATOR . $name;
         if (file_exists($targetPath) && !$overwrite) {
             throw new RuntimeException('Un fichier porte déjà ce nom dans ce dossier.');
@@ -226,6 +228,32 @@ class MediaHelper extends BaseHelper
         $temporaryTargetPath = $targetPath . '.upload-' . bin2hex(random_bytes(8));
         if (!move_uploaded_file($tmpName, $temporaryTargetPath)) {
             throw $this->storageFailure($space, 'MEDIA_UPLOAD_WRITE_FAILED', 'Impossible d’enregistrer le fichier téléversé.');
+        }
+
+        // Un SVG est un document exécutable : servi depuis le domaine du site,
+        // son script s'exécute dans l'origine du CMS. Il est contrôlé avant
+        // d'être conservé ; un fichier refusé ne laisse rien sur le disque.
+        if (strtolower((string) pathinfo($name, PATHINFO_EXTENSION)) === 'svg') {
+            $rawSvg = file_get_contents($temporaryTargetPath);
+
+            try {
+                if ($rawSvg === false) {
+                    throw new RuntimeException('Le fichier SVG n’a pas pu être lu.');
+                }
+
+                SvgSanitizer::sanitize($rawSvg);
+            } catch (\Throwable $exception) {
+                @unlink($temporaryTargetPath);
+
+                $this->logWarning(
+                    'SVG téléversé refusé.',
+                    ['space_id' => $space->id, 'code' => 'MEDIA_SVG_REJECTED'],
+                    'MEDIA_SVG_REJECTED',
+                    'media',
+                );
+
+                throw new RuntimeException($exception->getMessage());
+            }
         }
 
         $backupPath = null;
@@ -266,6 +294,16 @@ class MediaHelper extends BaseHelper
         $newName = is_dir($sourcePath)
             ? $this->normalizeDirectoryName($newName)
             : $this->normalizeFileName($newName);
+
+        // `normalizeFileName()` refuse déjà une extension hors de la liste
+        // autorisée ; on la contrôle aussi ici, car renommer est le seul
+        // chemin qui change l'extension d'un fichier existant. Un `.txt`
+        // renommé en `.js` ou `.php` serait interprété par le navigateur ou le
+        // serveur, ce qui contournerait l'interdiction d'envoi de ces formats.
+        if (!is_dir($sourcePath)) {
+            $this->assertAllowedExtension($newName);
+        }
+
         $targetPath = dirname($sourcePath) . DIRECTORY_SEPARATOR . $newName;
         if (file_exists($targetPath)) {
             throw new RuntimeException('Un élément porte déjà ce nom dans ce dossier.');
@@ -326,10 +364,56 @@ class MediaHelper extends BaseHelper
     /** @return list<string> */
     public function getAllowedExtensions(): array
     {
-        $extensions = $this->app->getConf()->media_allowed_extensions ?? [];
+        return $this->normalizeExtensionList($this->app->getConf()->media_allowed_extensions ?? []);
+    }
+
+    /**
+     * Extensions réservées aux comptes ROOT.
+     *
+     * Un SCSS peut être importé puis compilé par une template ou un outil de
+     * build, un JS peut être chargé par un outil : ces formats changent le
+     * comportement du site après un simple téléversement. Les confier à un
+     * porteur de `MEDIA_CRUD` reviendrait à contourner l'ACL de code.
+     *
+     * La liste est intersectée avec les extensions autorisées : une extension
+     * réservée mais non autorisée est simplement ignorée.
+     *
+     * @return list<string>
+     */
+    public function getRootOnlyExtensions(): array
+    {
+        $rootOnly = $this->normalizeExtensionList($this->app->getConf()->media_root_only_extensions ?? []);
+
+        return array_values(array_intersect($rootOnly, $this->getAllowedExtensions()));
+    }
+
+    /**
+     * Vrai si l'extension est réservée à ROOT par la configuration.
+     *
+     * Le helper ne décide pas des droits : il répond à une question de
+     * configuration, et c'est le WorkFlow qui compare la réponse au rôle de
+     * l'acteur. Garder la décision dans le WF évite qu'un helper devienne un
+     * point d'autorisation parallèle.
+     */
+    public function isRootOnlyExtension(string $name): bool
+    {
+        $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+
+        return $extension !== '' && in_array($extension, $this->getRootOnlyExtensions(), true);
+    }
+
+    /**
+     * Normalise une liste d'extensions configurée.
+     *
+     * @param mixed $extensions Valeur brute de la configuration.
+     * @return list<string>
+     */
+    private function normalizeExtensionList(mixed $extensions): array
+    {
         if (!is_array($extensions)) {
             return [];
         }
+
         return array_values(array_unique(array_filter(array_map(
             static fn (mixed $extension): string => strtolower(ltrim(trim((string) $extension), '.')),
             $extensions,
@@ -522,6 +606,23 @@ class MediaHelper extends BaseHelper
             throw new RuntimeException('Nom de dossier invalide.');
         }
         return $name;
+    }
+
+    /**
+     * Vérifie qu'une extension figure dans la liste autorisée.
+     *
+     * Garde explicite, distincte de `normalizeFileName()` : renommer un fichier
+     * existant est le seul chemin qui change son extension, donc celui qui
+     * pourrait produire un `.js`, `.php` ou `.htaccess` à partir d'un fichier
+     * déjà présent.
+     */
+    private function assertAllowedExtension(string $name): void
+    {
+        $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
+
+        if ($extension === '' || !in_array($extension, $this->getAllowedExtensions(), true)) {
+            throw new RuntimeException('Cette extension de fichier n’est pas autorisée.');
+        }
     }
 
     private function normalizeFileName(string $name): string

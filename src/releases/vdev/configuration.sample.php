@@ -124,10 +124,19 @@ class Configuration extends ConfigurationBase
     // Attention : toute surcharge de tableau remplace la liste héritée entière.
     // public array $media_allowed_extensions = [
     //     'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg',
-    //     'pdf', 'txt', 'scss', 'csv', 'json',
+    //     'pdf', 'txt', 'scss', 'js', 'csv', 'json',
     //     'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
     //     'mp3', 'wav', 'ogg', 'm4a', 'aac', 'mp4', 'webm',
     //     'zip', 'm3u8', 'ts', 'key', 'keyinfo', 'crypt',
+    // ];
+
+    // Extensions réservées aux comptes ROOT pour le téléversement, le
+    // renommage et l'édition. Elles doivent aussi figurer dans la liste
+    // ci-dessus. Un SCSS compilé plus tard par une template ou un JS chargé
+    // par un outil changeraient le comportement du site : leur maîtrise reste
+    // donc au super administrateur.
+    // public array $media_root_only_extensions = [
+    //     'scss', 'js',
     // ];
 
     // Sans constructeur local, PHP appelle automatiquement celui de la base.

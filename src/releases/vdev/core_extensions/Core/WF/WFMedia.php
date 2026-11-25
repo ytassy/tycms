@@ -67,6 +67,7 @@ class WFMedia extends BaseWF
     public function uploadFile(int $spaceId, string $path, WebRequest $request, bool $overwrite = false): void
     {
         $space = $this->getSpaceForCrud($spaceId);
+        $this->assertExtensionAllowedForActor((string) ($request->file('file')['name'] ?? ''));
         $file = $request->file('file');
         if (!is_array($file)) {
             ExceptionResponse::throwWarning('Aucun fichier n’a été téléversé.');
@@ -80,6 +81,7 @@ class WFMedia extends BaseWF
     public function rename(int $spaceId, string $path, string $name): void
     {
         $space = $this->getSpaceForCrud($spaceId);
+        $this->assertExtensionAllowedForActor($name);
         $this->runMediaAction(function () use ($space, $path, $name): void {
             $this->coreMediaHelper->rename($space, $path, $name);
         });
@@ -111,12 +113,16 @@ class WFMedia extends BaseWF
     public function createEditableFile(int $spaceId, string $path, string $name, string $content): string
     {
         $space = $this->getSpaceForCrud($spaceId);
+        $this->assertExtensionAllowedForActor($name);
+
         return $this->runMediaAction(fn (): string => $this->coreMediaHelper->createEditableFile($space, $path, $name, $content));
     }
 
     public function saveEditableFile(int $spaceId, string $path, string $content, string $version): string
     {
         $space = $this->getSpaceForCrud($spaceId);
+        $this->assertExtensionAllowedForActor($path);
+
         return $this->runMediaAction(fn (): string => $this->coreMediaHelper->saveEditableFile($space, $path, $content, $version));
     }
 
@@ -136,6 +142,23 @@ class WFMedia extends BaseWF
             ExceptionResponse::throwDanger('Vous ne disposez pas des droits pour modifier les médias de cet espace.');
         }
         return $space;
+    }
+
+    /**
+     * Refuse une extension réservée à ROOT pour un acteur ordinaire.
+     *
+     * Le contrôle de droit appartient au WorkFlow : le helper se contente de
+     * dire si l'extension est réservée (`isRootOnlyExtension`). Téléverser,
+     * renommer ou éditer peut produire un fichier interprété plus tard par une
+     * template ou un outil ; ces trois chemins passent donc par ici.
+     */
+    private function assertExtensionAllowedForActor(string $name): void
+    {
+        if ($this->coreMediaHelper->isRootOnlyExtension($name) && !$this->coreAclHelper->isRoot()) {
+            ExceptionResponse::throwWarning(
+                'Ce type de fichier est réservé au super administrateur.',
+            );
+        }
     }
 
     private function getSpaceOrFail(int $spaceId): Space

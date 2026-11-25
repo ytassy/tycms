@@ -43,7 +43,9 @@ abstract class BaseAutomationAction extends BaseHelper implements IAutomationAct
      */
     private static function exceptionMessage(ExceptionResponse $exception): string
     {
-        $message = $exception->getResponse()->data['message'] ?? null;
+        // Le texte vit dans la réponse portée par l'exception ; la classe
+        // expose `getMessage()` et non une clé `message` du tableau de données.
+        $message = $exception->getResponse()->getMessage();
 
         if (is_string($message) && trim($message) !== '') {
             return $message;

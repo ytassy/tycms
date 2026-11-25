@@ -85,7 +85,21 @@ peut les surcharger :
 public string $medias_root = APP_ROOT . '/public/medias';
 public int $media_max_upload_size = 25 * 1024 * 1024;
 public array $media_allowed_extensions = ['jpg', 'png', 'pdf', 'mp3'];
+public array $media_root_only_extensions = ['scss', 'js'];
 ```
+
+`media_root_only_extensions` réserve certains formats aux comptes ROOT pour le
+téléversement, le renommage et l'édition. Le contrôle est fait dans `WFMedia`
+(`assertExtensionAllowedForActor`) : `MediaHelper` se borne à indiquer si une
+extension est réservée (`isRootOnlyExtension`), car un helper ne décide pas des
+droits. Par défaut, `scss` et `js` le sont :
+un SCSS peut être importé puis compilé par une template ou un outil de build, et
+un JS chargé par un outil — dans les deux cas, un simple téléversement changerait
+le comportement du site après coup. Les confier à un porteur de `MEDIA_CRUD`
+contournerait l'ACL de code. Une extension de cette liste qui n'est pas aussi
+dans `media_allowed_extensions` est ignorée ; pour rendre `js` utilisable, il
+doit donc figurer dans les deux listes. Les autres formats restent ouverts aux
+porteurs de `MEDIA_CRUD`.
 
 `medias_root` est un chemin disque. Les configurations locales anciennes qui
 ne déclarent pas cette propriété continuent à utiliser
@@ -135,12 +149,22 @@ ajoutée plus tard doit être déclarée dans les deux listes. Les fichiers SCSS
 sont enregistrés comme source ; le gestionnaire de médias ne compile pas de CSS.
 
 `MEDIA_READ` permet de charger le contenu par l'API. La création et
-l'enregistrement exigent `MEDIA_CRUD` sur l'espace. L'API contrôle les chemins,
+l'enregistrement exigent `MEDIA_CRUD` sur l'espace. Une extension réservée par
+`media_root_only_extensions` (par défaut `scss` et `js`) exige en plus un compte
+ROOT, contrôlé par `WFMedia` : la liste s'applique au téléversement, au renommage et à l'édition, car
+ces trois chemins peuvent produire un fichier interprété plus tard. L'API
+contrôle les chemins,
 refuse les liens symboliques et n'accepte que du texte UTF-8 de 1 Mo maximum.
 L'enregistrement transmet la version SHA-256 lue à l'ouverture afin de signaler
 une modification concurrente. La création refuse un nom déjà présent, mais
 accepte un fichier vide. Les fichiers restent publiquement accessibles par leur
 URL média habituelle.
+
+Renommer revérifie l'extension cible (`assertAllowedExtension()`), en plus du
+contrôle de nom : c'est le seul chemin qui change l'extension d'un fichier
+existant. Un `.txt` renommé en `.js` ou `.php` serait interprété par le
+navigateur ou le serveur, ce qui contournerait l'interdiction d'envoi de ces
+formats.
 
 L'éditeur propose « Enregistrer », qui reste ouvert, et « Enregistrer et fermer ».
 Le premier bouton porte la classe globale `ctrl-s` pour le raccourci Ctrl+S ;
@@ -153,6 +177,29 @@ dispose de `MEDIA_CRUD`. L'action « Prévisualiser » de son menu conserve l'ap
 en lecture seule. Avec `MEDIA_READ` seul, le clic ouvre cet aperçu.
 
 ## Diagrammes
+
+### Contrôle des SVG téléversés
+
+Un SVG est un document exécutable : servi depuis le domaine du site, son script
+s'exécute dans l'origine du CMS. `Lib/SvgSanitizer/SvgSanitizer` le contrôle
+avant tout enregistrement, sur deux niveaux appliqués dans cet ordre :
+
+1. **Contrôle textuel** du contenu brut : déclarations XML (`DOCTYPE`, entité),
+   balises actives (`script`, `foreignObject`, `animate`, `style`, `iframe`),
+   schémas exécutables (`javascript:`, `data:text/html`), gestionnaires
+   d'événements (`onload`, `onclick`…) et toute référence distante.
+2. **Purification par liste blanche** en DOM : les éléments et attributs
+   inconnus sont repérés, et le fichier est **refusé** s'il en contenait. Rien
+   n'est enregistré en version altérée, pour ne pas produire une image cassée
+   dont l'auteur ignorerait la cause.
+
+Le DOM est nécessaire : un sanitizer HTML met les attributs en minuscules, ce
+qui détruit `viewBox` (les noms SVG sont sensibles à la casse). La liste
+blanche couvre formes, texte, dégradés, motifs, découpes, marqueurs et filtres.
+
+Le contrôle est appliqué dans `MediaHelper::uploadFile()`, sur le fichier
+temporaire, avant validation ; un refus ne laisse rien sur le disque et
+journalise `MEDIA_SVG_REJECTED` avec le Space, sans le nom du fichier.
 
 Les fichiers PNG et SVG peuvent être ouverts dans l'éditeur embarqué
 diagram.net. Une sauvegarde exporte une image au format `xmlpng` ou `xmlsvg` :

@@ -107,10 +107,28 @@ class ConfigurationBase
 	/** @var list<string> Extensions de médias acceptées, sans le point initial. */
 	public array $media_allowed_extensions = [
 		'jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg',
-		'pdf', 'txt', 'scss', 'csv', 'json',
+		'pdf', 'txt', 'scss', 'js', 'csv', 'json',
 		'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
 		'mp3', 'wav', 'ogg', 'm4a', 'aac', 'mp4', 'webm',
 		'zip', 'm3u8', 'ts', 'key', 'keyinfo', 'crypt'
+	];
+
+	/**
+	 * Extensions autorisées aux seuls comptes ROOT.
+	 *
+	 * Ces formats sont interprétés après coup et pourraient donc changer le
+	 * comportement du site : un SCSS importé puis compilé par une template ou un
+	 * outil de build, un JS chargé par un outil. Les laisser téléverser ou
+	 * renommer à un porteur de `MEDIA_CRUD` donnerait un moyen d'exécution
+	 * différée, sans passer par l'ACL de code.
+	 *
+	 * Cette liste doit être incluse dans `media_allowed_extensions` ; une
+	 * extension qui n'y figure pas est refusée à tous, ROOT compris.
+	 *
+	 * @var list<string>
+	 */
+	public array $media_root_only_extensions = [
+		'scss', 'js',
 	];
 	
 	public string $log_path = APP_ROOT . '/logs';
