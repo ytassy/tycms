@@ -222,6 +222,29 @@ bilan est le seul endroit où l’administrateur peut le constater. Le contrôle
 compare toujours la configuration réelle, jamais une valeur supposée, et propose
 une correction concrète quand il en existe une.
 
+### Cloisonnement du Space racine
+
+Le Space racine porte l’administration. La segmentation par Space sert de
+seconde barrière pour les accès d’administration : elle perd sa valeur si des
+comptes ordinaires partagent le Space de l’administration, ou si un compte
+d’administration est exposé dans un Space de contenu.
+
+Deux recommandations sont donc contrôlées :
+
+- **le Space racine ne devrait contenir que des comptes ROOT.** Un compte
+  ordinaire rattaché au Space racine est signalé en `danger` ; il doit être
+  déplacé dans un sous-Space de contenu.
+- **un compte ROOT ne devrait pas être rattaché à un sous-Space.** Un compte
+  d’administration dans un Space de contenu rapproche la compromission du contenu
+  de celle de l’administration ; il est signalé en `danger`.
+
+Un compte est ROOT au sens de l’**ACL** : il détient la permission
+`plg_core__ROOT`, directement ou par un rôle, son groupe ou un groupe parent. Ce
+n’est pas une propriété de `users.space_id`. Le contrôle interroge donc la chaîne
+réelle (`users`, `user_groups_map`, `user_groups`, `acl_map`, `acl_permissions`),
+sans passer par les helpers d’ACL : une analyse de sécurité doit rester fiable
+même si un helper porte un défaut.
+
 ## Organisation et migration
 
 - `Plugin.php` : points d’entrée, permission ROOT, hooks de configuration et du WAF.

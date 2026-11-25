@@ -17,6 +17,7 @@ use YTassy\Tycms\CoreExts\Core\Security\Checks\DebugModeCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\FirewallCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\MediaRootOnlyCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\RootAccountsCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\RootSpaceSegregationCheck;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminApiController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLogsController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminExtensionsController;
@@ -270,6 +271,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             'plg_core.media-root-only' => MediaRootOnlyCheck::class,
             'plg_core.debug-mode' => DebugModeCheck::class,
             'plg_core.root-accounts' => RootAccountsCheck::class,
+            'plg_core.root-space-segregation' => RootSpaceSegregationCheck::class,
             'plg_core.cron-token' => CronTokenCheck::class,
             'plg_core.api-tokens' => ApiTokensCheck::class,
             'plg_core.firewall' => FirewallCheck::class,
