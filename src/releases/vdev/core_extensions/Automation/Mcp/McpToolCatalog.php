@@ -166,6 +166,13 @@ final class McpToolCatalog
                 'comment' => 'Aucun objet, aucune méthode, aucun SQL, aucun shell, aucune inclusion.',
             ],
             'syntax' => McpLanguageGuide::syntax(),
+            // Le modèle du site : ce sur quoi le programme agit. Sans lui,
+            // l'agent sait appeler une action mais ignore les règles métier
+            // qui la rendent valide (même Space, statuts, hiérarchie).
+            'domain' => [
+                'model' => McpDomainGuide::model(),
+                'workflows' => McpDomainGuide::workflows(),
+            ],
             'functions' => BuiltinFunctionReference::all(),
             'actions' => $this->actions(),
             'context' => $this->context(),

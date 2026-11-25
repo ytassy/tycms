@@ -325,16 +325,23 @@ mêmes sources de vérité que l'éditeur de scénarios :
 - Chaque action décrit ses paramètres, sa permission et des exemples, afin que
   l'IA compose des appels valides sans aller-retour d'essai/erreur.
 
-À terme, le client MCP devra aussi atteindre la **documentation de domaine et
-d'architecture**, distincte de la référence du langage : le modèle de données
-du CMS (par exemple « une page se crée avec sa définition puis s'attache à une
-entrée de menu en fixant l'URL », ou « une catégorie de cours contient des
-cours, qui contiennent des lesson topics, qui contiennent des leçons »), les
-droits et les procédures métier. Cette connaissance est aujourd'hui rédigée
-pour des humains dans `Docs/*.md` ; elle devra être servie au serveur MCP sous
-une forme exploitée par une IA (ressources MCP dédiées ou référence structurée
-générée depuis les guides). C'est un lot distinct, postérieur au lot 4, qui
-dépend du choix de format ; il n'est pas bloquant pour la v1.
+### Documentation de domaine
+
+`McpDomainGuide` porte la **documentation de domaine**, distincte de la
+référence du langage : le modèle du site et ses règles métier. Elle est servie
+dans `tycms.reference` sous la clé `domain` (modèle et parcours courants) et
+dans le Markdown de `GET /ai/mcp/reference`.
+
+Le guide du langage dit comment écrire un programme ; celui-ci dit sur quoi le
+programme agit. Sans lui, un agent sait appeler `core::createPageMenuItem()`
+mais ignore qu'une entrée ne peut viser qu'une page publiée du même Space, que
+la suppression exige un statut de corbeille, ou qu'un compte n'a jamais de
+droit direct. Il décrit : Space, page, document de page (JSON v3), menu, entrée
+de menu, utilisateur, chaîne ACL, médias, puis quatre parcours courants.
+
+Les règles proviennent de `Docs/PAGE_COMPONENTS.md`, `Docs/USERS.md`,
+`Docs/ROLES.md` et `Docs/MEDIAS.md` ; toute évolution du modèle doit être
+répercutée dans `McpDomainGuide`.
 
 ### Exécution d'un appel
 

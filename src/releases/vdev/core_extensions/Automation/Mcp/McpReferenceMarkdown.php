@@ -26,6 +26,8 @@ final class McpReferenceMarkdown
             '',
             McpLanguageGuide::markdown(),
             '',
+            McpDomainGuide::markdown(),
+            '',
             '## Fonctions standard',
             '',
             'Les signatures ci-dessous sont descriptives : les arguments se passent '
