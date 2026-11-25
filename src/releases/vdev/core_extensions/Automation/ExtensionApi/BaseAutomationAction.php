@@ -18,7 +18,7 @@ abstract class BaseAutomationAction extends BaseHelper implements IAutomationAct
         if ($exception instanceof ExceptionResponse) {
             return ValueTools::error(
                 DiagnosticCode::ACTION_FAILED,
-                $exception->getMessage(),
+                self::exceptionMessage($exception),
                 $context->span,
             );
         }
@@ -31,5 +31,27 @@ abstract class BaseAutomationAction extends BaseHelper implements IAutomationAct
             'L’action a échoué.',
             $context->span,
         );
+    }
+
+    /**
+     * Message métier d'un `ExceptionResponse`.
+     *
+     * `ExceptionResponse` passe une chaîne vide à `\Exception` et conserve le
+     * texte dans sa réponse : `getMessage()` renverrait toujours `''`. Sans ce
+     * déballage, un refus du WF (droit insuffisant, règle métier) arriverait au
+     * scénario comme un générique « L'action a échoué », sans explication.
+     */
+    private static function exceptionMessage(ExceptionResponse $exception): string
+    {
+        $message = $exception->getResponse()->data['message'] ?? null;
+
+        if (is_string($message) && trim($message) !== '') {
+            return $message;
+        }
+
+        // Une exception d'origine porte parfois le message utile.
+        $cause = $exception->exception?->getMessage();
+
+        return is_string($cause) && trim($cause) !== '' ? $cause : 'L’action a échoué.';
     }
 }

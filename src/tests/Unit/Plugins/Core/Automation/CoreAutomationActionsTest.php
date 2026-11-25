@@ -18,13 +18,14 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
     {
         $definitions = CoreAutomationActions::definitions();
 
-        self::assertCount(43, $definitions);
+        self::assertCount(46, $definitions);
         self::assertSame(
             ['core::sendMail', 'core::notify', 'core::sendTelegram', 'core::sendSlack',
                 'core::sendDiscord', 'core::listPageComponents', 'core::listMenuTypes', 'core::getUser',
                 'core::listPermissions', 'core::listRoles', 'core::getRole', 'core::createRole',
                 'core::updateRole', 'core::deleteRole', 'core::listGroups', 'core::getGroup',
                 'core::createGroup', 'core::updateGroup', 'core::setGroupRoles', 'core::deleteGroup',
+                'core::createUser', 'core::updateUser', 'core::deleteUser',
                 'core::listUsers', 'core::addRole',
                 'core::removeRole', 'core::addToGroup', 'core::removeFromGroup',
                 'core::sessionRead', 'core::sessionWrite', 'core::sessionRemove',
@@ -131,6 +132,6 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertTrue($registry->has('core::getUser'));
         self::assertSame('plg_core', $registry->ownerOf('core::getUser'));
 
-        self::assertCount(43, $registry->all());
+        self::assertCount(46, $registry->all());
     }
 }

@@ -11,6 +11,9 @@ use YTassy\Tycms\CoreExts\Automation\Permissions as AutomationPermissions;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddToGroupAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetUserAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateUserAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteUserAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateUserAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMenuTypesAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateGroupAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteGroupAction;
@@ -448,6 +451,64 @@ final class CoreAutomationActions
                 returnType: 'array',
                 effect: FunctionEffect::WRITE,
                 requiredPermissions: [CorePermissions::USER_GROUPS_CRUD],
+                timeoutSeconds: 15,
+            ),
+            // Comptes utilisateurs. Aucune action ne manipule de mot de passe :
+            // la création en génère un qui ne sort jamais, et il ne circule que
+            // par le message de bienvenue.
+            new AutomationActionDefinition(
+                id: 'core::createUser',
+                label: 'Créer un utilisateur',
+                handlerClass: CreateUserAction::class,
+                description: 'Crée un compte dans un Space. Le mot de passe est généré par le serveur et n’est '
+                    . 'jamais renvoyé : il part par le message de bienvenue, activé par défaut. Sans cet envoi, '
+                    . 'le compte doit être réinitialisé par un administrateur.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space du compte.'),
+                    new AutomationParameterDefinition('firstName', 'string', true, null, 'Prénom', 'Prénom du titulaire.'),
+                    new AutomationParameterDefinition('lastName', 'string', true, null, 'Nom', 'Nom du titulaire.'),
+                    new AutomationParameterDefinition('email', 'string', true, null, 'E-mail', 'Adresse, unique sur l’instance.'),
+                    new AutomationParameterDefinition('timezone', 'string', false, 'Europe/Paris', 'Fuseau', 'Fuseau IANA du compte.'),
+                    new AutomationParameterDefinition('blocked', 'bool', false, false, 'Bloqué', 'Compte bloqué dès la création.'),
+                    new AutomationParameterDefinition('sendEmail', 'bool', false, true, 'Recevoir les e-mails', 'Réglage du compte.'),
+                    new AutomationParameterDefinition('sendWelcomeEmail', 'bool', false, true, 'Message de bienvenue', 'Seul moyen pour le titulaire de recevoir son mot de passe.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USERS_CRUD],
+                timeoutSeconds: 20,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::updateUser',
+                label: 'Modifier un utilisateur',
+                handlerClass: UpdateUserAction::class,
+                description: 'Modifie les informations d’un compte : identité, e-mail, fuseau, blocage, e-mails. '
+                    . 'Ni mot de passe ni SSO.',
+                parameters: [
+                    new AutomationParameterDefinition('userId', 'int', true, null, 'Compte', 'Identifiant du compte.'),
+                    new AutomationParameterDefinition('firstName', 'string', true, null, 'Prénom', 'Prénom du titulaire.'),
+                    new AutomationParameterDefinition('lastName', 'string', true, null, 'Nom', 'Nom du titulaire.'),
+                    new AutomationParameterDefinition('email', 'string', true, null, 'E-mail', 'Adresse, unique sur l’instance.'),
+                    new AutomationParameterDefinition('timezone', 'string', false, 'Europe/Paris', 'Fuseau', 'Fuseau IANA du compte.'),
+                    new AutomationParameterDefinition('blocked', 'bool', false, false, 'Bloqué', 'Bloquer le compte.'),
+                    new AutomationParameterDefinition('sendEmail', 'bool', false, true, 'Recevoir les e-mails', 'Réglage du compte.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USERS_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::deleteUser',
+                label: 'Supprimer un utilisateur',
+                handlerClass: DeleteUserAction::class,
+                description: 'Supprime un compte. Refusé pour un compte ROOT ou encore référencé.',
+                parameters: [
+                    new AutomationParameterDefinition('userId', 'int', true, null, 'Compte', 'Identifiant du compte.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USERS_CRUD],
                 timeoutSeconds: 15,
             ),
             new AutomationActionDefinition(

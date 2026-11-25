@@ -71,7 +71,7 @@ final class RootPermissionPolicyTest extends FrameworkTestCase
         (new RoleAdminHelper($app))->assertRootRoleScope([Permissions::ROOT], 1, 0, 1000);
     }
 
-    public function testAssignmentGuardReadsLockedRolePermissionsBeforeRefusingAutomation(): void
+    public function testAssignmentGuardReadsRolePermissionsUnlockedBeforeRefusingAutomation(): void
     {
         [$app, $db] = $this->applicationWithActor(true);
         $role = new AclRole($app);
@@ -79,8 +79,9 @@ final class RootPermissionPolicyTest extends FrameworkTestCase
         $role->space_id = 1;
         $role->type = 0;
         $db->expects(self::once())->method('selectOrmOneOrNull')
-            ->with(AclRole::class, self::stringEndsWith('FOR UPDATE'), [1000])->willReturn($role);
-        $db->expects(self::once())->method('select')->with(self::stringEndsWith('FOR UPDATE'), [1000])
+            ->with(AclRole::class, self::logicalNot(self::stringEndsWith('FOR UPDATE')), [1000])->willReturn($role);
+        $db->expects(self::once())->method('select')
+            ->with(self::logicalNot(self::stringEndsWith('FOR UPDATE')), [1000])
             ->willReturn([(object) ['extension' => 'plg_core', 'name' => 'ROOT']]);
         $db->expects(self::never())->method('execute');
 

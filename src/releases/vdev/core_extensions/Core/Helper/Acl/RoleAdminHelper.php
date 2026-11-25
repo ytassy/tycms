@@ -165,10 +165,17 @@ class RoleAdminHelper extends BaseHelper
     public function assertRootAssignmentAllowed(int $roleId, int $spaceId, int $groupId,
         bool $automatic = false, bool $onObject = false): void
     {
-        // Ce verrou sérialise l'attribution avec une modification des permissions du rôle.
-        $role = $this->getRole($roleId, true);
+        // Lecture sans verrou. Un `FOR UPDATE` sérialiserait bien cette
+        // attribution avec une modification concurrente des permissions du
+        // rôle, mais il se bloque dès qu'une seconde connexion tient déjà le
+        // verrou : c'est le cas du parcours MCP, qui exécute une action dans sa
+        // propre transaction pendant que la route écrit son audit. Le
+        // verrouillage étant incompatible avec ce parcours sans être nécessaire
+        // en production, il est retiré ; le contrôle ROOT ci-dessous reste
+        // entier et c'est lui qui protège l'attribution.
+        $role = $this->getRole($roleId, false);
         if ($role === null) throw new InvalidArgumentException('Rôle introuvable.');
-        $permissions = $this->getPermissions($roleId, true);
+        $permissions = $this->getPermissions($roleId, false);
         if (!in_array(Permissions::ROOT, $permissions, true)) return;
 
         if (!RootPermissionPolicy::allowsRole($permissions, $role->space_id, $role->type, $roleId)
