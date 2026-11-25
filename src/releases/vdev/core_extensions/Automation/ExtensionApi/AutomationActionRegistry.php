@@ -109,12 +109,6 @@ final class AutomationActionRegistry extends BaseApplicationItem
             throw new \LogicException('Action d’automation inconnue : ' . $id);
         }
 
-        // Une action issue d'annotations exécute une méthode de WorkFlow ;
-        // son handler reçoit la cible à invoquer.
-        if ($definition->workflowMethod !== null) {
-            return new WorkflowMethodAction($this->app, $definition->workflowMethod);
-        }
-
         $handlerClass = $definition->handlerClass;
 
         /** @var BaseAutomationAction $handler */

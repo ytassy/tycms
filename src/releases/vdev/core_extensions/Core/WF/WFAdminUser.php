@@ -7,17 +7,9 @@ use YTassy\Tycms\CoreExts\Core\Security\LocalPasswordPolicy;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\UserGroups;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Roles;
-use YTassy\Tycms\CoreExts\Automation\Annotation\ActionParam;
-use YTassy\Tycms\CoreExts\Automation\Annotation\ActionPermission;
-use YTassy\Tycms\CoreExts\Automation\Annotation\ActionTransform;
-use YTassy\Tycms\CoreExts\Automation\Annotation\AutomationAction;
-use YTassy\Tycms\CoreExts\Automation\Annotation\ExposeAutomationActions;
-use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
-use YTassy\Tycms\CoreExts\Core\Automation\Support\UserPayload;
 use YTassy\Tycms\Response\ExceptionResponse;
 use YTassy\Tycms\WF\BaseWF;
 
-#[ExposeAutomationActions(namespace: 'core')]
 class WFAdminUser extends BaseWF
 {
     use TraitAllHelpers;
@@ -236,22 +228,6 @@ class WFAdminUser extends BaseWF
     /**
      * @return array<string, mixed>
      */
-    #[AutomationAction(
-        id: 'core::getUser',
-        label: 'Lire un utilisateur',
-        description: 'Retourne les informations visibles d’un compte.',
-        returnType: 'array',
-        effect: FunctionEffect::READ,
-        targetSpace: 'resource',
-    )]
-    #[ActionParam(
-        name: 'userId',
-        type: 'int',
-        label: 'Identifiant du compte',
-        description: 'Identifiant du compte à lire.',
-    )]
-    #[ActionPermission(Permissions::USERS_READ)]
-    #[ActionTransform(UserPayload::class, 'map')]
     public function getUser(int $userId): array
     {
         $user = $this->getUserRecord($userId, false);

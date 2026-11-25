@@ -58,10 +58,8 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Menu\MenuItemDef;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationActionRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationTriggerRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\IAutomationProvider;
-use YTassy\Tycms\CoreExts\Automation\Annotation\WorkflowActionScanner;
 use YTassy\Tycms\CoreExts\Core\Automation\CoreAutomationActions;
 use YTassy\Tycms\CoreExts\Core\Automation\CoreAutomationTriggers;
-use YTassy\Tycms\CoreExts\Core\WF\WFAdminUser;
 use YTassy\Tycms\Response\ExceptionResponse;
 use YTassy\Tycms\Response\RedirectResponse;
 use YTassy\Tycms\Request\RequestMethod;
@@ -95,13 +93,11 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
 
     public function coreOnRegisterAutomationActions(AutomationActionRegistry $registry): void
     {
+        // Toutes les actions sont déclarées explicitement : une seule façon de
+        // faire, et un test vérifie que le catalogue correspond au registre.
         foreach (CoreAutomationActions::definitions() as $definition) {
             $registry->register($definition);
         }
-
-        // Les actions déclarées par annotations sont découvertes depuis les
-        // classes de WorkFlow listées ici.
-        WorkflowActionScanner::register($registry, [WFAdminUser::class]);
     }
 
     public function coreOnRegisterAutomationTriggers(AutomationTriggerRegistry $registry): void

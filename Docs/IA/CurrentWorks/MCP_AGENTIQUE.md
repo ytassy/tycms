@@ -9,12 +9,10 @@ d'un **compte de service**. Les choix ci-dessous ont été discutés avec Yann l
 24 novembre 2026 et validés ; seuls les éléments marqués « proposition »
 restent ouverts.
 
-Le **lot 1 est livré** : les attributs d'action (`ExposeAutomationActions`,
-`AutomationAction`, `ActionParam`, `ActionPermission`, `ActionTransform`), le
-scanner `WorkflowActionScanner`, le handler générique `WorkflowMethodAction` et
-le support du registre sont en place ; `core::getUser` est déclaré par
-annotation sur `WFAdminUser` et le reste des actions Core conserve le chemin
-impératif. Les tests unitaires associés passent.
+Le **lot 1 a été livré puis partiellement annulé** : les attributs d'action et
+le scanner de réflexion ont été retirés au profit d'un motif impératif unique,
+pour les raisons détaillées au § « Déclaration des actions ». Le registre
+d'actions et ses tests restent en place.
 
 Les **lots 3 et 4 sont livrés** :
 - lot 3 : principal `service` accepté par le dispatcher, effets exclus
@@ -347,52 +345,32 @@ dépend du choix de format ; il n'est pas bloquant pour la v1.
 4. Le code est compilé puis interprété dans la transaction unique.
 5. La sortie est convertie en contenu de réponse MCP (texte ou JSON sûr).
 
-## Actions par annotations
+## Déclaration des actions : motif impératif retenu
 
-Objectif : réduire la charge de définition d'action (aujourd'hui
-`AutomationActionDefinition` + `AutomationParameterDefinition` + un handler par
-action) en annotant directement les méthodes de WF, et faire de ces métadonnées
-la **source unique** du catalogue (éditeur de scénario **et** serveur MCP).
+Le chantier avait exploré des attributs PHP (`#[AutomationAction]`,
+`#[ActionParam]`, `#[ActionPermission]`, `#[ActionTransform]`,
+`#[ExposeAutomationActions]`) avec un scanner de réflexion
+(`WorkflowActionScanner`) et un handler générique (`WorkflowMethodAction`).
+**Ce système a été retiré.**
 
-### Attributs proposés
+Le constat qui a motivé l'abandon :
 
-| Attribut | Portée | Rôle |
-| --- | --- | --- |
-| `#[ExposeAutomationActions(namespace: 'core')]` | classe WF | Déclare que la classe expose des actions ; fixe le namespace (`core::…`). |
-| `#[AutomationAction(id: 'core::getUser', label: …, description: …, returnType: …, effect: …)]` | méthode | Marque une méthode comme action ; porte l'identifiant, le libellé, le type de retour, l'effet, le timeout, la taille de sortie. |
-| `#[ActionParam(name: 'userId', type: 'int', required: true, default: …, label: …, description: …)]` (répétable) | méthode | Décrit un paramètre ; remplace le `Param1/Param2…` positionnel. |
-| `#[ActionPermission(Permissions::X, space: 'spaceId')]` (répétable) | méthode | Permission requise à la publication et à l'exécution ; `space` pointe le paramètre portant le Space (`targetSpace: resource`). |
-| `#[ActionResult('object', schema: …)]` | méthode | Type/schéma de sortie, réutilisable comme schéma JSON d'outil MCP. |
+- une méthode de WF existante prend souvent un `object $data` et ne peut donc
+  pas être annotée directement : il faut écrire une méthode d'adaptation par
+  action, ce qui double presque la surface du WF pour un gain de déclaration ;
+- ces métadonnées mêlent automation et logique métier dans les WF Core ;
+- deux motifs ont fini par coexister (`core::getUser` annoté, les autres
+  impératifs), sans règle de choix : le pire des cas.
 
-Namespace proposé : `YTassy\Tycms\CoreExts\Automation\Annotation\`.
+**Règle retenue** : une action = une entrée dans `CoreAutomationActions::definitions()`
+plus une classe de handler sous `Core/Automation/Actions`. Une seule façon de
+faire, sans exception.
 
-### Règles de liaison
-
-- La méthode de WF doit recevoir des scalaires/tableaux (ou des types
-  convertibles) et retourner des valeurs sûres ; la couche de liaison valide
-  les paramètres depuis les valeurs du langage et purifie la sortie (aucun
-  objet PHP).
-- L'ACL d'exécution reste dans le WF (inchangé) ; l'annotation déclare en plus
-  la **permission de publication** (anti-escalade), qui ne peut pas être
-  déduite automatiquement.
-- **Échappatoire** : une action qui ne correspond pas à une méthode de WF
-  simple (agrégation, modèle d'e-mail, remise en forme) conserve le chemin
-  impératif actuel (`AutomationActionDefinition` + handler). Les annotations
-  sont un sucre pour le cas courant, pas une migration forcée.
-- L'auto-détection se fait par réflexion sur les classes chargées, enregistrées
-  via le registre d'actions existant ; les collisions et namespaces réservés
-  restent refusés.
-
-### Déplacement des schémas JSON vers les WF
-
-Aujourd'hui les schémas JSON sont référencés par `ControllerParamN` via
-`schemaFile`, dans les namespaces des contrôleurs. Conséquence logique de la
-logique « le WF est la source » : **les schémas doivent, pour la plupart,
-migrer vers les WF**, et les contrôleurs les importer depuis le WF pour valider
-les appels HTTP. Le `#[ActionParam]`/`#[ActionResult]` réutilise alors le même
-schéma pour l'action. C'est cohérent avec l'idée « une méthode métier, un
-schéma, plusieurs points d'entrée ». C'est une migration progressive, **pas un
-prérequis** de la v1 MCP : on migre au fil de la conversion des actions.
+Le risque que les annotations devaient couvrir — divergence entre le catalogue
+et le registre réel, illustrée par le `BAD_ARITY` fantôme de `core::listUsers` —
+est couvert par des tests qui comparent la liste attendue des actions au
+registre effectif (`CoreAutomationActionsTest`) et par le fait que le registre
+prime sur les signatures de secours (`AutomationFunctionCatalog`).
 
 ## Sécurité
 
@@ -432,7 +410,7 @@ fichiers (`Mig_1_1_9.php` est le fichier consolidé de `plg_core` pour ce chanti
 | Lot | Contenu | Critère de sortie |
 | --- | --- | --- |
 | 0 | Ce document ; validation des propositions | Décisions validées |
-| 1 | Attributs d'action + auto-détection (`WorkflowActionScanner`) + handler générique `WorkflowMethodAction` ; conversion de `core::getUser` en preuve de concept | Fait : catalogue produit identique, collision/ACL, exécution du handler testée |
+| 1 | Registre d'actions et déclaration impérative (`CoreAutomationActions` + un handler par action) | Fait : attributs et scanner retirés ; catalogue unique, testé |
 | 2 | Comptes de service + jetons d'API (modèle, migration, hachage, révocation, résolution) | Fait : migration `Mig_1_1_9`, modèle, helper, WF ROOT, contrôleur, écran Vue |
 | 3 | Façade `runCode()` + table `mcp_executions` + transaction unique + catalogue sans `external` | Fait : principal `service`, effets exclus, audit ; exécution réelle à valider en intégration |
 | 4 | Endpoint MCP Streamable HTTP (`POST /ai/mcp`) + outils `run`, `list_actions`, `list_context`, `reference`, `ping` | Fait : endpoint, auth par jeton, outil catalogue ; contrat JSON-RPC à valider en intégration |

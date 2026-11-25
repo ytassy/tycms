@@ -10,7 +10,20 @@ use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
 use YTassy\Tycms\CoreExts\Automation\Permissions as AutomationPermissions;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddToGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetUserAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMenuTypesAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListGroupsAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\SetGroupRolesAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateRoleAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteRoleAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\GetRoleAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPermissionsAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListRolesAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPageComponentsAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListUsersAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\NotifyAction;
@@ -232,6 +245,210 @@ final class CoreAutomationActions
                 effect: FunctionEffect::READ,
                 requiredPermissions: [CorePermissions::MENU_READ],
                 timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::getUser',
+                label: 'Lire un utilisateur',
+                handlerClass: GetUserAction::class,
+                description: 'Retourne les informations visibles d’un compte.',
+                parameters: [
+                    new AutomationParameterDefinition(
+                        'userId',
+                        'int',
+                        true,
+                        null,
+                        'Identifiant du compte',
+                        'Identifiant du compte à lire.',
+                    ),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::USERS_READ],
+                targetSpace: 'resource',
+                timeoutSeconds: 10,
+            ),
+            // Rôles et permissions. Le catalogue des permissions se lit avant
+            // d'écrire un rôle : un identifiant inventé serait refusé par le WF.
+            new AutomationActionDefinition(
+                id: 'core::listPermissions',
+                label: 'Lister les permissions assignables',
+                handlerClass: ListPermissionsAction::class,
+                description: 'Renvoie les permissions que l’appelant peut attribuer, avec leur libellé, '
+                    . 'leur groupe et leurs dépendances. À lire avant de créer ou modifier un rôle.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::ROLE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::listRoles',
+                label: 'Lister les rôles',
+                handlerClass: ListRolesAction::class,
+                description: 'Renvoie les rôles lisibles par l’appelant, avec leurs permissions.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::ROLE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::getRole',
+                label: 'Lire un rôle',
+                handlerClass: GetRoleAction::class,
+                description: 'Renvoie un rôle précis, s’il est lisible par l’appelant.',
+                parameters: [
+                    new AutomationParameterDefinition(
+                        'roleId',
+                        'int',
+                        true,
+                        null,
+                        'Rôle',
+                        'Identifiant du rôle à lire.',
+                    ),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::ROLE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createRole',
+                label: 'Créer un rôle',
+                handlerClass: CreateRoleAction::class,
+                description: 'Crée un rôle dans un Space. Les permissions proviennent de '
+                    . 'core::listPermissions ; le type vaut 0 (global), 1 (propre au Space) ou 2 (système).',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space du rôle.'),
+                    new AutomationParameterDefinition('type', 'int', true, null, 'Type', '0 global, 1 propre au Space, 2 système.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du rôle, unique dans le Space.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description facultative.'),
+                    new AutomationParameterDefinition('permissions', 'array', false, [], 'Permissions', 'Liste d’identifiants de permission.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::ROLE_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::updateRole',
+                label: 'Modifier un rôle',
+                handlerClass: UpdateRoleAction::class,
+                description: 'Remplace le nom, la description et la liste complète des permissions d’un rôle. '
+                    . 'Les rôles système ne laissent modifier que leurs permissions.',
+                parameters: [
+                    new AutomationParameterDefinition('roleId', 'int', true, null, 'Rôle', 'Identifiant du rôle.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du rôle.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description.'),
+                    new AutomationParameterDefinition('permissions', 'array', false, [], 'Permissions', 'Liste complète des permissions.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::ROLE_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::deleteRole',
+                label: 'Supprimer un rôle',
+                handlerClass: DeleteRoleAction::class,
+                description: 'Supprime un rôle non système, non attribué et non référencé.',
+                parameters: [
+                    new AutomationParameterDefinition('roleId', 'int', true, null, 'Rôle', 'Identifiant du rôle.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::ROLE_CRUD],
+                timeoutSeconds: 15,
+            ),
+            // Groupes d'utilisateurs. La gestion du groupe et l'attribution de
+            // ses rôles relèvent de deux permissions distinctes.
+            new AutomationActionDefinition(
+                id: 'core::listGroups',
+                label: 'Lister les groupes',
+                handlerClass: ListGroupsAction::class,
+                description: 'Renvoie les groupes d’utilisateurs lisibles par l’appelant, avec leurs rôles.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::USER_GROUPS_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::getGroup',
+                label: 'Lire un groupe',
+                handlerClass: GetGroupAction::class,
+                description: 'Renvoie un groupe précis, s’il est lisible par l’appelant.',
+                parameters: [
+                    new AutomationParameterDefinition('groupId', 'int', true, null, 'Groupe', 'Identifiant du groupe.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::USER_GROUPS_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createGroup',
+                label: 'Créer un groupe',
+                handlerClass: CreateGroupAction::class,
+                description: 'Crée un groupe dans un Space. parentId vaut 0 pour un groupe racine ; '
+                    . 'les rôles se lisent avec core::listRoles et doivent appartenir au même Space.',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space du groupe.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du groupe, unique à ce niveau.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description facultative.'),
+                    new AutomationParameterDefinition('parentId', 'int', false, 0, 'Groupe parent', '0 pour un groupe racine.'),
+                    new AutomationParameterDefinition('roleIds', 'array', false, [], 'Rôles', 'Identifiants des rôles du groupe.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USER_GROUPS_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::updateGroup',
+                label: 'Modifier un groupe',
+                handlerClass: UpdateGroupAction::class,
+                description: 'Modifie le nom, la description et le parent d’un groupe. Les rôles ne changent '
+                    . 'que si roleIds est fourni.',
+                parameters: [
+                    new AutomationParameterDefinition('groupId', 'int', true, null, 'Groupe', 'Identifiant du groupe.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du groupe.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description.'),
+                    new AutomationParameterDefinition('parentId', 'int', false, 0, 'Groupe parent', '0 pour un groupe racine.'),
+                    new AutomationParameterDefinition('roleIds', 'array', false, null, 'Rôles', 'Liste complète des rôles, si modifiée.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USER_GROUPS_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::setGroupRoles',
+                label: 'Attribuer les rôles d’un groupe',
+                handlerClass: SetGroupRolesAction::class,
+                description: 'Remplace l’ensemble des rôles d’un groupe. Les groupes Invité et Utilisateurs ont des rôles fixes.',
+                parameters: [
+                    new AutomationParameterDefinition('groupId', 'int', true, null, 'Groupe', 'Identifiant du groupe.'),
+                    new AutomationParameterDefinition('roleIds', 'array', true, null, 'Rôles', 'Liste complète des rôles.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::GROUP_ROLES_ASSIGN],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::deleteGroup',
+                label: 'Supprimer un groupe',
+                handlerClass: DeleteGroupAction::class,
+                description: 'Supprime un groupe non utilisé. Refusé s’il porte encore des adhésions, des droits '
+                    . 'ou une référence de Space.',
+                parameters: [
+                    new AutomationParameterDefinition('groupId', 'int', true, null, 'Groupe', 'Identifiant du groupe.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::USER_GROUPS_CRUD],
+                timeoutSeconds: 15,
             ),
             new AutomationActionDefinition(
                 id: 'core::listUsers',
