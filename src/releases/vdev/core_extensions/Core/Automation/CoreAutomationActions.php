@@ -22,6 +22,14 @@ use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListGroupsAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SetGroupRolesAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateGroupAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateRoleAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\AbstractCreateMenuItemAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateMenuAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreatePageMenuItemAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateSeparatorMenuItemAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateTextMenuItemAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteMenuItemAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMenusAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\UpdateMenuAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateMediaDirectoryAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\CreateMediaFileAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\DeleteMediaAction;
@@ -654,6 +662,117 @@ final class CoreAutomationActions
                 returnType: 'array',
                 effect: FunctionEffect::WRITE,
                 requiredPermissions: [CorePermissions::MEDIA_CRUD],
+                timeoutSeconds: 15,
+            ),
+            // Menus. La lecture renvoie la hiérarchie par parentId ; l'écriture
+            // d'une entrée passe par une action par type déclaré, pour que
+            // l'agent n'ait jamais à assembler extension/type/params à l'aveugle.
+            new AutomationActionDefinition(
+                id: 'core::listMenus',
+                label: 'Lister les menus',
+                handlerClass: ListMenusAction::class,
+                description: 'Renvoie les menus des Spaces lisibles, avec leurs entrées et la hiérarchie '
+                    . 'par parentId.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::MENU_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createMenu',
+                label: 'Créer un menu',
+                handlerClass: CreateMenuAction::class,
+                description: 'Crée un menu dans un Space. Les entrées se créent ensuite par type '
+                    . '(createPageMenuItem, createTextMenuItem, createSeparatorMenuItem).',
+                parameters: [
+                    new AutomationParameterDefinition('spaceId', 'int', true, null, 'Space', 'Space du menu.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du menu, unique dans le Space.'),
+                    new AutomationParameterDefinition('alias', 'string', false, '', 'Alias', 'Alias technique facultatif.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description facultative.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::updateMenu',
+                label: 'Modifier un menu',
+                handlerClass: UpdateMenuAction::class,
+                description: 'Modifie le nom, l’alias ou la description d’un menu. Le Space n’est pas modifiable.',
+                parameters: [
+                    new AutomationParameterDefinition('menuId', 'int', true, null, 'Menu', 'Identifiant du menu.'),
+                    new AutomationParameterDefinition('name', 'string', true, null, 'Nom', 'Nom du menu.'),
+                    new AutomationParameterDefinition('alias', 'string', false, '', 'Alias', 'Alias technique.'),
+                    new AutomationParameterDefinition('description', 'string', false, '', 'Description', 'Description.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createPageMenuItem',
+                label: 'Créer une entrée de menu vers une page',
+                handlerClass: CreatePageMenuItemAction::class,
+                description: 'Crée une entrée ouvrant une page du même Space que le menu.',
+                parameters: [
+                    new AutomationParameterDefinition('menuId', 'int', true, null, 'Menu', 'Menu d’accueil de l’entrée.'),
+                    new AutomationParameterDefinition('title', 'string', true, null, 'Titre', 'Libellé affiché.'),
+                    new AutomationParameterDefinition('pageId', 'int', true, null, 'Page', 'Page ciblée, du même Space.'),
+                    new AutomationParameterDefinition('parentId', 'int', false, null, 'Entrée parente', 'Parent pour un sous-menu.'),
+                    new AutomationParameterDefinition('alias', 'string', false, '', 'Alias', 'Alias technique facultatif.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createTextMenuItem',
+                label: 'Créer une entrée de menu de texte',
+                handlerClass: CreateTextMenuItemAction::class,
+                description: 'Crée une entrée de texte sans destination, utile comme libellé de sous-menu.',
+                parameters: [
+                    new AutomationParameterDefinition('menuId', 'int', true, null, 'Menu', 'Menu d’accueil de l’entrée.'),
+                    new AutomationParameterDefinition('title', 'string', true, null, 'Titre', 'Libellé affiché.'),
+                    new AutomationParameterDefinition('parentId', 'int', false, null, 'Entrée parente', 'Parent pour un sous-menu.'),
+                    new AutomationParameterDefinition('alias', 'string', false, '', 'Alias', 'Alias technique facultatif.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::createSeparatorMenuItem',
+                label: 'Créer un séparateur de menu',
+                handlerClass: CreateSeparatorMenuItemAction::class,
+                description: 'Crée un séparateur visuel entre deux groupes d’entrées.',
+                parameters: [
+                    new AutomationParameterDefinition('menuId', 'int', true, null, 'Menu', 'Menu d’accueil de l’entrée.'),
+                    new AutomationParameterDefinition('title', 'string', true, null, 'Titre', 'Libellé technique du séparateur.'),
+                    new AutomationParameterDefinition('parentId', 'int', false, null, 'Entrée parente', 'Parent pour un sous-menu.'),
+                    new AutomationParameterDefinition('alias', 'string', false, '', 'Alias', 'Alias technique facultatif.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::deleteMenuItem',
+                label: 'Supprimer une entrée de menu',
+                handlerClass: DeleteMenuItemAction::class,
+                description: 'Supprime une entrée placée dans la corbeille (statut -2) et non référencée '
+                    . 'par la navigation du Space.',
+                parameters: [
+                    new AutomationParameterDefinition('menuItemId', 'int', true, null, 'Entrée', 'Identifiant de l’entrée.'),
+                ],
+                returnType: 'array',
+                effect: FunctionEffect::WRITE,
+                requiredPermissions: [CorePermissions::MENU_CRUD],
                 timeoutSeconds: 15,
             ),
             new AutomationActionDefinition(
