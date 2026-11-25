@@ -27,6 +27,18 @@ class AdminApiController extends BaseController
         return new ApiResponse($this->wfSystemUpdate->context());
     }
 
+    /**
+     * Bilan d'analyse de sécurité du site.
+     *
+     * Lecture seule, réservée aux comptes ROOT : les contrôles sont exécutés à
+     * la demande et rien n'est persisté.
+     */
+    #[ControllerMethod(name: 'SecurityReport', path: 'system/security-report')]
+    public function securityReport(): ApiResponse
+    {
+        return new ApiResponse($this->wfSecurityReport->report());
+    }
+
     #[ControllerMethod(name: 'CheckSystemUpdates', path: 'system-updates/check', methods: [RequestMethod::POST])]
     #[ControllerParam1(name: 'sourceVersion', required: false, varType: VarType::STRING)]
     public function checkSystemUpdates(?string $sourceVersion = null): ApiResponse

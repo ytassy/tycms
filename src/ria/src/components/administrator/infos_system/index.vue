@@ -16,6 +16,9 @@
 				<spinner v-if="processing" />
 				<php v-else-if="data" :data="data.php"></php>
 			</tab>
+			<tab label="Sécurité" icon="fa-solid fa-shield-halved">
+				<security />
+			</tab>
 		</tabs>
 	</section>
 </template>
@@ -24,11 +27,12 @@
 
 import php from './php.vue'
 import routes from './routes.vue'
+import security from './security.vue'
 import system_updates from '../system_updates/index.vue'
 
 export default {
 
-	components: { php, routes, system_updates },
+	components: { php, routes, security, system_updates },
 
 	data() {
 		return {

@@ -29,6 +29,10 @@ trait TraitWF
         get { return $this->getSharedExtensionsClass(WFSystemUpdate::class); }
     }
 
+    protected WFSecurityReport $wfSecurityReport {
+        get { return $this->getSharedExtensionsClass(WFSecurityReport::class); }
+    }
+
     protected WFFont $wfFont {
         get { return $this->getSharedExtensionsClass(WFFont::class); }
     }

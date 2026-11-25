@@ -761,6 +761,22 @@ délégataire ne voit que les parents qu'il peut administrer.
   l'API rende une réponse utilisateur structurée. Les exceptions techniques
   doivent remonter pour provoquer l'annulation de la transaction.
 
+### Réglage de configuration et bilan de sécurité
+
+Un réglage de configuration qui, mal positionné, peut créer un risque de
+sécurité doit être couvert par un contrôle du bilan de sécurité (onglet
+« Sécurité » de l'écran Système, `Core\ExtensionApi\Security\ISecurityCheck`).
+
+Concerne notamment un réglage qui ouvre une exécution différée (un format de
+fichier interprété plus tard), élargit une autorisation, désactive une
+protection, ou laisse une ressource exposée. Sans contrôle, un tel réglage reste
+invisible en exploitation : le bilan est le seul endroit où l'administrateur
+peut constater l'état réel du site et le corriger.
+
+Le contrôle lit toujours la configuration effective, jamais une valeur supposée,
+ne persiste rien, et propose une correction concrète quand il en existe une.
+Voir [Sécurité de l'extension](../PLUGIN_SECURITE.md#bilan-danalyse-de-sécurité).
+
 ## Politique de sécurité HTTP
 
 Le plugin `Security` ajoute les en-têtes de sécurité à chaque `Response`. La

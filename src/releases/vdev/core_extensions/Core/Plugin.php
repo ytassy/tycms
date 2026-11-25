@@ -10,6 +10,13 @@ use YTassy\Tycms\Lib\Forms\FormFactory;
 use YTassy\Tycms\Lib\Forms\FormFieldType;
 use YTassy\Tycms\CoreExts\Core\Controller\ControllerManager;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Security\SecurityCheckRegistry;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\ApiTokensCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\CronTokenCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\DebugModeCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\FirewallCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\MediaRootOnlyCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\RootAccountsCheck;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminApiController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLogsController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminExtensionsController;
@@ -252,6 +259,22 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             foreach ($result as $menuItemDef) {
                 $this->coreMenuRouteHelper->addMenuType($menuItemDef);
             }
+        }
+
+        // Contrôles du bilan de sécurité. Aucun n'est persisté : ce sont des
+        // classes qui lisent l'état du site au moment du rapport. Les
+        // extensions en déclarent d'autres via `coreOnRegisterSecurityChecks`.
+        $security = $this->app->getOrAddSharedExtensionsClass(SecurityCheckRegistry::class);
+
+        foreach ([
+            'plg_core.media-root-only' => MediaRootOnlyCheck::class,
+            'plg_core.debug-mode' => DebugModeCheck::class,
+            'plg_core.root-accounts' => RootAccountsCheck::class,
+            'plg_core.cron-token' => CronTokenCheck::class,
+            'plg_core.api-tokens' => ApiTokensCheck::class,
+            'plg_core.firewall' => FirewallCheck::class,
+        ] as $id => $checkClass) {
+            $security->register($id, new $checkClass($this->app), 'plg_core');
         }
     }
 

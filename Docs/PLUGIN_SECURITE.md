@@ -188,6 +188,40 @@ préférer par méthode pour les éditeurs de HTML ou de code. L’enregistremen
 des configurations d’extension est déjà exempté pour permettre de configurer
 le WAF lui-même.
 
+## Bilan d’analyse de sécurité
+
+L’administration expose un bilan en lecture seule, onglet « Sécurité » de
+l’écran Système, servi par `GET administrator/api/system/security-report`. Il
+est réservé aux comptes ROOT : un bilan de sécurité décrit les faiblesses du
+site et ne doit pas être lisible par un administrateur ordinaire.
+
+Un **contrôle** est du code pur : il lit la configuration, la base ou l’état du
+site, et renvoie des constats. Rien n’est persisté — pas de table, pas de cache :
+le bilan est recalculé à chaque lecture et reflète donc l’état courant. Un
+contrôle qui lève une exception ne prive pas l’administrateur du reste du bilan :
+son échec devient une alerte, sans exposer la cause interne.
+
+Le contrat est `Core\ExtensionApi\Security\ISecurityCheck` : un groupe
+d’affichage et une méthode `check()`. Chaque constat est un `SecurityFinding`
+(titre, statut, description, correction, emplacement). Les statuts sont
+`critical`, `danger`, `info` et `ok` ; le registre trie les constats par gravité
+et place les groupes les plus préoccupants en premier, si bien que l’interface
+n’interprète aucun texte.
+
+Le registre `SecurityCheckRegistry` est extensible : les contrôles de Core sont
+déclarés dans `Plugin::prepareWebsiteCatalogs()`, et une extension peut ajouter
+les siens via `coreOnRegisterSecurityChecks`. Un contrôle peut porter sur
+n’importe quel sujet — réglages, comptes, rôles, groupes, médias, contenu — et
+pas seulement sur la configuration d’une extension.
+
+**Règle de développement.** Un réglage de configuration qui, mal positionné,
+peut créer un risque de sécurité doit être couvert par un contrôle de ce bilan.
+Un réglage qui ouvre une exécution différée, élargit une autorisation ou
+désactive une protection sans être signalé reste invisible en exploitation : le
+bilan est le seul endroit où l’administrateur peut le constater. Le contrôle
+compare toujours la configuration réelle, jamais une valeur supposée, et propose
+une correction concrète quand il en existe une.
+
 ## Organisation et migration
 
 - `Plugin.php` : points d’entrée, permission ROOT, hooks de configuration et du WAF.
