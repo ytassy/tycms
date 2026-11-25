@@ -224,6 +224,15 @@ class Application
         /** @var FormFactory $formFactory */
         $formFactory = $this->getOrAddSharedExtensionsClass(FormFactory::class);
         $this->callExtensionEvent('onRegisterFormTypes', [$formFactory]);
+
+        // Les extensions déclarent ici leurs catalogues de capacités (composants,
+        // menus, rôles…), une fois chargées et avant toute route. Ce point ne
+        // dépend ni du routage ni du Space : un parcours sans routes, comme
+        // l'exécution d'un scénario ou d'un programme MCP, en dispose donc
+        // aussi. Le framework ne nomme aucun métier ; chaque extension décide
+        // de ce qu'elle prépare.
+        $this->callExtensionEvent('onPrepareExtensions');
+
         // Router. Un run d'automation n'a pas besoin de routes publiques et
         // évite ainsi les dépendances de langue, de menu et de WAF du Space.
         $this->router = new Router($this);

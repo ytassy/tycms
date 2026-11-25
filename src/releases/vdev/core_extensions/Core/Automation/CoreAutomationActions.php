@@ -10,6 +10,8 @@ use YTassy\Tycms\CoreExts\Automation\Language\Registry\FunctionEffect;
 use YTassy\Tycms\CoreExts\Automation\Permissions as AutomationPermissions;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\AddToGroupAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListMenuTypesAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListPageComponentsAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\ListUsersAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\NotifyAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\RemoveFromGroupAction;
@@ -203,6 +205,33 @@ final class CoreAutomationActions
                 effect: FunctionEffect::EXTERNAL,
                 requiredPermissions: [AutomationPermissions::PUBLISH],
                 timeoutSeconds: 15,
+            ),
+            // Découverte des contrats de composition : un agent qui veut créer
+            // une page ou une entrée de menu a besoin de connaître les types
+            // disponibles et leurs paramètres avant d'écrire.
+            new AutomationActionDefinition(
+                id: 'core::listPageComponents',
+                label: 'Lister les composants de page',
+                handlerClass: ListPageComponentsAction::class,
+                description: 'Renvoie le catalogue des composants utilisables dans une page : '
+                    . 'identifiant de type, zones acceptées, propriétés attendues et exemples de valeurs.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::PAGE_READ],
+                timeoutSeconds: 10,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::listMenuTypes',
+                label: 'Lister les types d’entrée de menu',
+                handlerClass: ListMenuTypesAction::class,
+                description: 'Renvoie les types d’entrée de menu proposés à l’IA, avec l’action de '
+                    . 'création associée et le schéma de leurs paramètres.',
+                parameters: [],
+                returnType: 'array',
+                effect: FunctionEffect::READ,
+                requiredPermissions: [CorePermissions::MENU_READ],
+                timeoutSeconds: 10,
             ),
             new AutomationActionDefinition(
                 id: 'core::listUsers',

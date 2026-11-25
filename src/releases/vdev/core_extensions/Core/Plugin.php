@@ -9,6 +9,7 @@ use YTassy\Tycms\Lib\Forms\Form;
 use YTassy\Tycms\Lib\Forms\FormFactory;
 use YTassy\Tycms\Lib\Forms\FormFieldType;
 use YTassy\Tycms\CoreExts\Core\Controller\ControllerManager;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminApiController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLogsController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminExtensionsController;
@@ -219,33 +220,56 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
         return parent::onAfterLoadExtensions();
     }
 
+    /**
+     * Prépare les catalogues métier du site, une fois les extensions chargées.
+     *
+     * Les composants de page et les types de menu décrivent ce que le site sait
+     * composer. Ils ne dépendent ni de la requête, ni du Space courant, ni des
+     * routes : un parcours sans routage (exécution d'un scénario ou d'un
+     * programme MCP) doit pouvoir les consulter et les utiliser.
+     *
+     * Le remplissage a lieu ici, et non pendant l'enregistrement des routes,
+     * pour que l'ordre soit explicite : les types de menu sont connus avant
+     * `MenuRouteHelper::registerRoutes()`, qui les transforme en routes.
+     */
+    #[Override]
+    public function onPrepareExtensions(): void
+    {
+        $this->prepareWebsiteCatalogs();
+    }
+
+    private function prepareWebsiteCatalogs(): void
+    {
+        // Composants de page : chaque fournisseur déclare ses classes, le
+        // registre refuse les doublons et les identifiants invalides.
+        $registry = $this->app->getOrAddSharedExtensionsClass(PageComponentRegistry::class);
+
+        foreach ($this->app->getExtensions() as $owner => $extension) {
+            if ($extension instanceof IPageComponentProvider) {
+                $registry->withOwner($owner, fn () => $extension->coreOnRegisterPageComponents($registry));
+            }
+        }
+
+        // Types d'entrée de menu : déclarés par les extensions, indexés par
+        // « extension__type » dans le routeur de menu.
+        foreach ($this->app->callExtensionEvent('coreOnRegisterMenuTypes') as $result) {
+            foreach ($result as $menuItemDef) {
+                $this->coreMenuRouteHelper->addMenuType($menuItemDef);
+            }
+        }
+    }
+
     #[Override]
     public function onRegisterRoutes(Router $router)
     {
+        // Le Space et ses locales se résolvent au moment de servir une page :
+        // ce parcours est propre à la requête HTTP et reste hors de la
+        // préparation des catalogues.
         $this->coreSpaceHelper->resolveInitialSpace();
 
         // Le Space de session gagne toujours ; sa configuration détermine les locales admissibles.
         $spaceId = $this->coreSpaceHelper->getCurrentSpace()->id;
         $this->corePublicLocaleHelper->prepare($this->request, $spaceId);
-
-        $registry = $this->app->getOrAddSharedExtensionsClass(PageComponentRegistry::class);
-        foreach ($this->app->getExtensions() as $owner => $extension) {
-            if ($extension instanceof \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider) {
-                $registry->withOwner($owner, fn () => $extension->coreOnRegisterPageComponents($registry));
-            }
-        }
-
-        $results = $this->app->callExtensionEvent('coreOnRegisterMenuTypes');
-
-        
-        foreach($results as $result)
-        {
-            /** @var MenuItemDef $menuItemDef */
-            foreach($result as $menuItemDef)
-            {
-                $this->coreMenuRouteHelper->addMenuType($menuItemDef);
-            }
-        }
 
         // Register Routes
         $this->coreMenuRouteHelper->registerRoutes($router);
@@ -272,8 +296,18 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
      */
     public function coreOnRegisterMenuTypes(): array{
         return [
-            new MenuItemDef('plg_core', 'text', null, null, 'Texte', '', ''),
-            new MenuItemDef('plg_core', 'separator', null, null, 'Séparateur', '', ''),
+            new MenuItemDef('plg_core', 'text', null, null, 'Texte', '', '',
+                ai: true,
+                aiMcpAction: 'createTextMenuItem',
+                aiMcpDoc: 'Entrée de texte sans destination de navigation : sert de '
+                    . 'libellé dans un sous-menu. Aucun paramètre attendu.',
+            ),
+            new MenuItemDef('plg_core', 'separator', null, null, 'Séparateur', '', '',
+                ai: true,
+                aiMcpAction: 'createSeparatorMenuItem',
+                aiMcpDoc: 'Séparateur visuel entre deux groupes d’entrées. N’a pas de '
+                    . 'destination et ne sert pas de parent. Aucun paramètre attendu.',
+            ),
             new MenuItemDef(
                 'plg_core',
                 'page',
@@ -296,13 +330,21 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
                         ]],
                     ]],
                 ],
+                ai: true,
+                aiMcpAction: 'createPageMenuItem',
+                aiMcpDoc: 'Entrée ouvrant une page. La page visée doit appartenir au '
+                    . 'même Space que le menu, et rester publiée.',
             ),
             new MenuItemDef('plg_core', 'logout', new UserController($this),
-                ['GET' => 'logout'], 'Deconnexion', '', ''),
+                ['GET' => 'logout'], 'Deconnexion', '', '',
+                ai: false,
+            ),
 
             // Admin
             new MenuItemDef('plg_core', 'admin', new AdminController($this),
-                ['GET' => 'home'], 'Administration', '', ''),
+                ['GET' => 'home'], 'Administration', '', '',
+                ai: false,
+            ),
         ];
     }
 

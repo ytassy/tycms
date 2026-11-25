@@ -101,6 +101,17 @@ abstract class BaseExtension extends BaseApplicationItem implements IMigration
      */
     public function onRegisterFormTypes(FormFactory $formFactory): void {}
 
+    /**
+     * Declares the extension's capability catalogues once it is loaded and
+     * before any route is registered.
+     *
+     * This step must not depend on the request, the current Space or the
+     * routing: code paths without routes (scenario or MCP execution, tests,
+     * migrations) still need those catalogues. The framework names no
+     * business concept here; each extension decides what it prepares.
+     */
+    public function onPrepareExtensions(): void {}
+
     public function onRegisterRoutes(Router $router) {}
 
     
