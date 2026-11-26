@@ -101,7 +101,9 @@ profondeur). Le réglage est local, jamais activable par une URL.
   suite du serveur de distribution. Aucun secret. Pas de `pull_request` :
   le développement se fait sur `dev_*` et le push suffit. Une branche `prod_*`
   ne relance pas ces contrôles : elle ne reçoit que des merges déjà vérifiés,
-  et son push déclenche la release.
+  et son push déclenche la release. Aucune étape de notification : un push de
+  développement n'envoie jamais rien, et la garder n'aurait produit que du code
+  mort.
 - [`.github/workflows/release.yml`](../../../.github/workflows/release.yml) :
   `push` sur `prod_*`. Construit dans l'image isolée, puis envoie la
   proposition avec les secrets de l'environnement `production`.
@@ -194,10 +196,16 @@ l'audit manuel en cours.
 
 ## Limites ouvertes
 
-- Le test `src/ria/tests/pageMediaComponents.test.js` échoue quand
-  `security_sources.media` est renseigné : le CSP produit duplique l'origine
-  (`media-src https://site.test https://site.test`). Le test passe sans source
-  configurée ; le cas réel reste à trancher (dédoublonner ou assouplir le test).
-- Le canal bêta n'est pas encore demandable par le client (A2/A3).
-- Les extensions ne disposent pas encore de CI ni de validation de canal.
-- Les notifications n'envoient rien tant qu'aucun webhook n'est configuré.
+- **CI des extensions reportée** (lot D) tant que le Core n'est pas stabilisé :
+  le développement d'une extension se fait dans `dev_X_Y`.
+- **Workflow de correction de ticket jamais exécuté en réel.** L'analyse l'est ;
+  la correction (`fix-approved`) n'a pas encore tourné. Ses premiers défauts
+  éventuels — branche, commit, rapport — apparaîtront à ce moment-là.
+- **Notifications silencieuses sans secret** : c'est voulu, ce n'est pas une
+  limite. Un canal absent ne produit aucun envoi.
+- `security_X` n'a pas encore produit d'audit réel : `DERNIER_AUDIT` attend le
+  SHA de fin de l'audit manuel en cours.
+
+Les faits périmés ont été retirés : le test média est corrigé, le canal bêta est
+demandable par le client (A2/A3 livrés) et le catalogue valide ses canaux
+(lot E livré).
