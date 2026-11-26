@@ -23,6 +23,13 @@ class Configuration extends ConfigurationBase
     // Jeton attendu par la crontab sur POST /cron.
     // public $cron_token = 'REMPLACER_PAR_UN_JETON_LONG_ET_ALEATOIRE';
 
+    // Jeton du worker de la file de jobs, appelé par un second CRON.
+    // public $job_worker_token = 'REMPLACER_PAR_UN_JETON_LONG_ET_ALEATOIRE';
+
+    // Déclenchement de la file par le trafic du site. Actif par défaut ;
+    // false s'en remet au seul CRON de la file.
+    // public $job_traffic_trigger = true;
+
     // Connexion SQL : utiliser un compte dédié à la base de cette installation.
     // public $db_host = '127.0.0.1';
     // public $db_dbname = 'votre_base';

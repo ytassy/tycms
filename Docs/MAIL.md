@@ -79,8 +79,10 @@ un avertissement générique est placé dans `PendingMessageQueue`. La création
 administrative renvoie aussi `welcome_email_sent` (`true`, `false` ou `null`
 si l'option n'a pas été demandée). Le mot de passe initial ne figure que dans
 le corps du modèle administratif : ne pas le mettre dans l'objet, les journaux
-ou les messages d'erreur. L'envoi suit les transactions déjà en place dans les
-parcours ; il n'y a pas de file d'envoi différé.
+ou les messages d'erreur. Les bienvenues d'inscription locale et SSO passent par
+la [file de jobs](JOBS.md) : l'envoi a lieu après le commit, au prochain passage
+du worker. L'accueil d'un compte créé par un administrateur reste synchrone,
+car il porte le mot de passe initial.
 
 Le canal `mail` conserve les causes techniques absorbées lors d'une bienvenue
 (`WELCOME_MAIL_FAILED`, ERROR), ou signale le retour `false` du transport
@@ -358,15 +360,18 @@ vide. Le délai de connexion SMTP est limité à 4 secondes.
 configuration invalide ou un échec de transport lève une exception. La réussite signifie que
 le serveur SMTP a accepté le message, pas qu’il est arrivé en boîte de réception.
 Une version texte est déduite du HTML pour les clients qui n’affichent pas le HTML.
-L’envoi est synchrone : il peut avoir lieu avant la validation de la transaction
-HTTP qui l’a déclenché.
+`sendHtml()` et `sendTemplate()` envoient immédiatement. Un appel direct depuis
+une transaction peut donc partir avant sa validation ; les parcours qui ne
+doivent pas en dépendre passent par la [file de jobs](JOBS.md), qui envoie après
+le commit.
 
-Les actions de scénario s'appuient sur ces helpers.
-`core::sendMailTemplate(template, to, ?vars)` envoie un modèle déclaré dans le
-Space du run. `core::sendMail(to, subject, htmlBody)` purifie d'abord le corps
+Les actions de scénario passent par la [file de jobs](JOBS.md).
+`core::sendMailTemplate(template, to, ?vars)` met en file un modèle déclaré dans
+le Space du run. `core::sendMail(to, subject, htmlBody)` purifie d'abord le corps
 avec `EmailHtmlSanitizer`, le profil strict commun aux modèles : pas de script,
 iframe, vidéo ni formulaire, liens limités à HTTPS et `mailto`, images des médias
-du site. Il l'envoie ensuite en mode `default` avec l'habillage du Space. L'objet
+du site. L'envoi a lieu au prochain passage du worker, en mode `default` avec
+l'habillage du Space. L'objet
 tient sur une ligne de 255 octets au maximum, le corps est borné à 131 072
 octets et un corps vide après purification est refusé. Les deux actions exigent
 `SPACE_ADMIN` sur le Space réel du run.
