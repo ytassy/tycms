@@ -330,7 +330,15 @@ alors la bêta **et** les release, pour pouvoir revenir à une version stable sa
 changer de catalogue. Sans paramètre, seules les release sont servies.
 
 La réactivation d'une version retirée **conserve son canal** : réactiver une
-bêta ne la publie pas pour tous. Une migration (`Mig_1_0_5`) ajoute la colonne
+bêta ne la publie pas pour tous.
+
+Côté client, le canal est un réglage **par source de catalogue**
+(`extension_catalog_sources.channel`, `release` par défaut) : une installation
+peut suivre la bêta de son catalogue et rester en release sur celui d'un tiers.
+`CatalogSourceClient` ajoute `?channel=` à ses demandes de versions ; une valeur
+inconnue retombe sur `release` plutôt que de faire échouer une consultation. Le
+client de publication choisit le canal au dépôt (`--channel`, ou menu bêta /
+brouillon / release) et peut promouvoir une bêta (`--promote`). Une migration (`Mig_1_0_5`) ajoute la colonne
 avec `release` par défaut, donc les versions déjà publiées restent servies comme
 avant.
 

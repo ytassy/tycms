@@ -7,6 +7,7 @@ namespace YTassy\Tycms\CoreExts\TyCatalog\Controller;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseController;
 use YTassy\Tycms\CoreExts\TyCatalog\Exception\PublicationException;
 use YTassy\Tycms\CoreExts\TyCatalog\Models\CatalogToken;
+use YTassy\Tycms\CoreExts\TyCatalog\Models\CatalogVersion;
 use YTassy\Tycms\CoreExts\TyCatalog\Traits\TraitTyCatalogHelpers;
 use YTassy\Tycms\Exceptions\AccessDeniedException;
 use YTassy\Tycms\Request\RequestMethod;
@@ -116,9 +117,12 @@ final class TyCatalogPublishApiController extends BaseController
     public function publish(object $data): ApiResponse
     {
         $context = $this->authorizeAction($data);
+        // Canal facultatif : sans précision, la version part en release comme avant.
+        $channel = isset($data->channel) && is_string($data->channel) && $data->channel !== ''
+            ? $data->channel : CatalogVersion::CHANNEL_RELEASE;
         try {
             $this->tyCatalogPublicationHelper->publish(
-                $context['catalog'], (int) $data->versionId, $context['token']->created_by,
+                $context['catalog'], (int) $data->versionId, $context['token']->created_by, $channel,
             );
         } catch (PublicationException $exception) {
             ExceptionResponse::throwWarning($exception->getMessage());
@@ -126,7 +130,25 @@ final class TyCatalogPublishApiController extends BaseController
 
         $this->logAction($context, 'publish');
         $cleanup = $this->tyCatalogPublicationHelper->cleanupSafely($context['catalog']);
-        return new ApiResponse(['published' => true, 'cleanup' => $cleanup]);
+        return new ApiResponse(['published' => true, 'channel' => $channel, 'cleanup' => $cleanup]);
+    }
+
+    /** Promouvoir une bêta en release ; sens unique. */
+    #[ControllerMethod(name: 'promote', path: 'promote', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/VersionAction.php')]
+    public function promote(object $data): ApiResponse
+    {
+        $context = $this->authorizeAction($data);
+        try {
+            $this->tyCatalogPublicationHelper->promote(
+                $context['catalog'], (int) $data->versionId, $context['token']->created_by,
+            );
+        } catch (PublicationException $exception) {
+            ExceptionResponse::throwWarning($exception->getMessage());
+        }
+
+        $this->logAction($context, 'promote');
+        return new ApiResponse(['promoted' => true]);
     }
 
     #[ControllerMethod(name: 'withdraw', path: 'withdraw', methods: [RequestMethod::POST])]

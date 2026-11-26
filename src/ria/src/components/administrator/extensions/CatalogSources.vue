@@ -62,6 +62,16 @@
 							<label class="form-check-label" for="extension-source-enabled">Source active</label>
 						</div>
 					</div>
+					<div class="col-md-6">
+						<label class="form-label" for="extension-source-channel">Canal demandé</label>
+						<select id="extension-source-channel" v-model="draft.channel" class="form-select">
+							<option value="release">Release (versions stables)</option>
+							<option value="beta">Bêta (versions d'essai)</option>
+						</select>
+						<div class="form-text">
+							La bêta n'est proposée que si ce catalogue en publie ; les versions release restent visibles.
+						</div>
+					</div>
 				</div>
 
 				<div class="d-flex justify-content-end gap-2 mt-4">
@@ -200,6 +210,7 @@ function emptyDraft() {
 		license: '',
 		clear_license: false,
 		enabled: true,
+		channel: 'release',
 		has_license: false,
 	}
 }
@@ -255,6 +266,7 @@ export default {
 					license: '',
 					clear_license: false,
 					enabled: source.enabled,
+					channel: source.channel === 'beta' ? 'beta' : 'release',
 					has_license: source.has_license,
 				}
 			this.editorVisible = true
@@ -292,6 +304,7 @@ export default {
 					license: this.draft.license === '' ? null : this.draft.license,
 					clearLicense: this.draft.clear_license,
 					enabled: this.draft.enabled,
+					channel: this.draft.channel,
 				})
 				this.showModaleSuccess('Source enregistrée.')
 				this.editorVisible = false

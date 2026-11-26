@@ -57,6 +57,12 @@ final class CatalogSourceHelper extends BaseHelper
             throw new RuntimeException('Source de catalogue introuvable.');
         }
 
+        // Canal : la valeur fournie prime, sinon celle déjà enregistrée, sinon release.
+        $channel = $data['channel'] ?? $existing?->channel ?? 'release';
+        if (!in_array($channel, ['release', 'beta'], true)) {
+            throw new RuntimeException('Canal de catalogue invalide.');
+        }
+
         $licenseEncrypted = $existing?->license_encrypted;
         if ($data['clear_license']) {
             $licenseEncrypted = null;
@@ -67,20 +73,20 @@ final class CatalogSourceHelper extends BaseHelper
         if ($existing === null) {
             $this->db->execute(
                 'INSERT INTO extension_catalog_sources
-                    (name, base_url, key_id, public_key, license_encrypted, enabled, created_by)
-                 VALUES (%, %, %, %, %, %, %)',
+                    (name, base_url, key_id, public_key, license_encrypted, enabled, channel, created_by)
+                 VALUES (%, %, %, %, %, %, %, %)',
                 [$data['name'], $data['base_url'], $data['key_id'], $data['public_key'],
-                    $licenseEncrypted, $data['enabled'], $userId],
+                    $licenseEncrypted, $data['enabled'], $channel, $userId],
             );
             $id = $this->db->getLastInsertId();
         } else {
             $this->db->execute(
                 'UPDATE extension_catalog_sources
                  SET name = %, base_url = %, key_id = %, public_key = %, license_encrypted = %,
-                     enabled = %, updated = CURRENT_TIMESTAMP
+                     enabled = %, channel = %, updated = CURRENT_TIMESTAMP
                  WHERE id = %',
                 [$data['name'], $data['base_url'], $data['key_id'], $data['public_key'],
-                    $licenseEncrypted, $data['enabled'], $id],
+                    $licenseEncrypted, $data['enabled'], $channel, $id],
             );
         }
 
@@ -111,6 +117,7 @@ final class CatalogSourceHelper extends BaseHelper
             'key_id' => $source->key_id,
             'public_key' => $source->public_key,
             'enabled' => $source->enabled,
+            'channel' => $source->channel,
             'has_license' => $source->license_encrypted !== null && $source->license_encrypted !== '',
             'created' => $source->created->format(DATE_ATOM),
             'updated' => $source->updated?->format(DATE_ATOM),

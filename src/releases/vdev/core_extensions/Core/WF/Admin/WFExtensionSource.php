@@ -87,6 +87,8 @@ final class WFExtensionSource extends BaseWF
             'enabled' => (bool) ($data->enabled ?? true),
             'license' => $license,
             'clear_license' => $clearLicense,
+            // Absent : la valeur enregistrée est conservée par `save()`.
+            'channel' => is_string($data->channel ?? null) ? $data->channel : null,
         ], $this->session->getUserId());
 
         // Le journal ne contient ni URL, ni clé publique, ni licence.

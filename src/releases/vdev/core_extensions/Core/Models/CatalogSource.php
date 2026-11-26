@@ -34,6 +34,15 @@ final class CatalogSource extends BaseOrmObject
     #[Field('enabled', FieldType::BOOL)]
     public bool $enabled = true;
 
+    /**
+     * Canal demandé à ce catalogue : `release` (défaut) ou `beta`.
+     *
+     * Le réglage est propre à chaque source : une instance peut suivre la bêta
+     * de son catalogue et rester en release sur celui d'un tiers.
+     */
+    #[Field('channel')]
+    public string $channel = 'release';
+
     #[Field('created_by', FieldType::INT, nullable: true)]
     public ?int $created_by = null;
 

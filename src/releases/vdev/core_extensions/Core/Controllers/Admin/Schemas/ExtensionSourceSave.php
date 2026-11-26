@@ -19,6 +19,8 @@ return [
         'license' => ['type' => ['string', 'null'], 'maxLength' => 1000],
         'clearLicense' => ['type' => 'boolean'],
         'enabled' => ['type' => 'boolean'],
+        // Canal demandé à ce catalogue ; absent = conserver la valeur enregistrée.
+        'channel' => ['type' => 'string', 'enum' => ['release', 'beta']],
     ],
     'required' => ['name', 'baseUrl', 'keyId', 'publicKey'],
     'additionalProperties' => false,

@@ -103,7 +103,7 @@ final class CatalogSourceClient extends BaseHelper
                 $result['pending_update'] = $this->updateState->pending($identifier);
             }
             $versions = $this->json(
-                $base . '/extensions/' . rawurlencode($identifier) . '/versions?page=1&limit=1',
+                $this->versionsUrl($source, $identifier),
                 $headers,
             );
             $latest = is_array($versions['items'][0] ?? null) ? ($versions['items'][0]['version'] ?? null) : null;
@@ -113,7 +113,7 @@ final class CatalogSourceClient extends BaseHelper
             $result['latest_version'] = $latest;
 
             $detail = $this->json(
-                $base . '/extensions/' . rawurlencode($identifier) . '/versions/' . rawurlencode($latest),
+                $this->versionUrl($source, $identifier, $latest),
                 $headers,
             );
             $metadata = $this->verifiedMetadata($detail, $source, $identifier, $latest);
@@ -154,9 +154,8 @@ final class CatalogSourceClient extends BaseHelper
      */
     public function latestVersion(CatalogSource $source, string $identifier): string
     {
-        $base = rtrim($source->base_url, '/');
         $versions = $this->json(
-            $base . '/extensions/' . rawurlencode($identifier) . '/versions?page=1&limit=1',
+            $this->versionsUrl($source, $identifier),
             $this->headers($source),
         );
         $latest = is_array($versions['items'][0] ?? null) ? ($versions['items'][0]['version'] ?? null) : null;
@@ -180,7 +179,7 @@ final class CatalogSourceClient extends BaseHelper
     {
         $base = rtrim($source->base_url, '/');
         $detail = $this->json(
-            $base . '/extensions/' . rawurlencode($identifier) . '/versions/' . rawurlencode($version),
+            $this->versionUrl($source, $identifier, $version),
             $this->headers($source),
         );
         $verified = $this->verifyDetail($detail, $source, $identifier, $version);
@@ -306,6 +305,33 @@ final class CatalogSourceClient extends BaseHelper
     }
 
     /** @return list<string> */
+    /**
+     * Canal demandé à cette source.
+     *
+     * Une valeur inconnue retombe sur `release` : une base modifiée à la main ne
+     * doit pas faire échouer une consultation, ni faire recevoir une bêta à une
+     * instance qui ne l'a pas demandée.
+     */
+    private function channel(CatalogSource $source): string
+    {
+        return $source->channel === 'beta' ? 'beta' : 'release';
+    }
+
+    private function versionsUrl(CatalogSource $source, string $identifier): string
+    {
+        return rtrim($source->base_url, '/')
+            . '/extensions/' . rawurlencode($identifier)
+            . '/versions?page=1&limit=1&channel=' . $this->channel($source);
+    }
+
+    private function versionUrl(CatalogSource $source, string $identifier, string $version): string
+    {
+        return rtrim($source->base_url, '/')
+            . '/extensions/' . rawurlencode($identifier)
+            . '/versions/' . rawurlencode($version)
+            . '?channel=' . $this->channel($source);
+    }
+
     private function headers(CatalogSource $source): array
     {
         $headers = ['Accept: application/json'];

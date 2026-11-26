@@ -219,7 +219,11 @@ sont conservés. L’installateur devra associer ces deux racines aux destinatio
 déduites des métadonnées validées, sans accepter de chemin libre.
 
 Le client `tycatalog-publish.php` envoie un paquet signé à l’API distante avec un
-jeton Bearer. Sans argument, il propose un menu :
+jeton Bearer. Il choisit aussi le **canal de diffusion** : `release` par défaut, ou `beta` pour n'être servi qu'aux installations qui le demandent. Une bêta peut ensuite être promue en release, jamais l'inverse.
+
+En mode interactif, après le dépôt, le menu propose : `1` publier en bêta, `2` laisser en brouillon (défaut), `3` publier en release. En ligne de commande, `--channel=beta` accompagne `--publish` ou `--publish-version`, et `--promote=N` promeut une bêta déjà publiée.
+
+Sans argument, il propose un menu :
 
 ```bash
 php build_extensions/tycatalog-publish.php
@@ -228,7 +232,8 @@ php build_extensions/tycatalog-publish.php
 Copier `tycatalog-publish.sample.php` vers `tycatalog-publish.local.php` (ignoré
 par Git) pour fixer l’URL, le catalogue, le dossier `dist/` et le fichier de
 jeton. Les options directes (`--url`, `--catalog`, `--zip`, `--notes`,
-`--signature`, `--publish`) restent disponibles pour les scripts.
+`--signature`, `--publish`, `--channel`, `--promote`) restent disponibles pour
+les scripts.
 
 ## 6. Vérifier le ZIP signé
 

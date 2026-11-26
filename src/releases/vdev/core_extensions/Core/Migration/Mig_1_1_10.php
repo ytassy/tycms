@@ -44,9 +44,15 @@ final class Mig_1_1_10 extends BaseMigrationVersion
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             SQL);
 
+        $this->db->execute(
+            'ALTER TABLE `extension_catalog_sources`
+             ADD COLUMN `channel` varchar(16) NOT NULL DEFAULT \'release\' AFTER `enabled`',
+        );
+
         return [
             'tables' => ['page_history'],
             'indexes' => ['page_history.idx_page_history_page_created'],
+            'columns' => ['extension_catalog_sources.channel']
         ];
     }
 }

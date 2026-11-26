@@ -17,7 +17,7 @@ if (PHP_SAPI !== 'cli') {
 $options = getopt('', [
     'url:', 'catalog:', 'token::', 'zip::', 'notes::', 'signature::',
     'display-name::', 'description::', 'publish', 'archive-url::', 'notes-url::',
-    'publish-version:', 'withdraw:', 'reactivate:', 'interactive', 'help',
+    'publish-version:', 'withdraw:', 'reactivate:', 'promote:', 'channel:', 'interactive', 'help',
 ]);
 
 if (isset($options['help'])) {
@@ -35,6 +35,13 @@ Usage direct :
     --signature=…extension-signature.json [--publish]
 
   php build_extensions/tycatalog-publish.php --url=… --catalog=1 --publish-version=12
+
+Le canal de diffusion se choisit avec --channel=release (défaut) ou beta :
+  php build_extensions/tycatalog-publish.php --url=… --catalog=1 \
+    --zip=… --notes=… --signature=… [--publish] [--channel=beta]
+
+Actions directes sur une version existante :
+  --publish-version=12  --withdraw=12  --reactivate=12  --promote=12
 
 Configuration locale : build_extensions/tycatalog-publish.local.php
 Jeton : TYCMS_TYCATALOG_TOKEN, --token, ou clé « token » de la configuration locale.
@@ -355,12 +362,31 @@ function cleanupSummary(mixed $cleanup): string
     return $summary;
 }
 
-function publishVersion(string $base, string $token, int $catalogId, int $versionId): void
+function publishVersion(string $base, string $token, int $catalogId, int $versionId,
+    string $channel = 'release'): void
 {
     $result = postJson($base . '/tycms-catalog-api/v1/publish', $token, [
-        'catalogId' => $catalogId, 'versionId' => $versionId,
+        'catalogId' => $catalogId, 'versionId' => $versionId, 'channel' => $channel,
     ]);
-    fwrite(STDOUT, 'Version #' . $versionId . ' publiée.' . cleanupSummary($result['cleanup'] ?? null) . "\n");
+    $label = $channel === 'beta' ? 'publiée en bêta' : 'publiée en release';
+    fwrite(STDOUT, 'Version #' . $versionId . ' ' . $label
+        . cleanupSummary($result['cleanup'] ?? null) . "\n");
+}
+
+/**
+ * Demander où diffuser la version déposée.
+ *
+ * @return string|null 'beta', 'release', ou null pour la laisser en brouillon
+ */
+function askDiffusion(): ?string
+{
+    fwrite(STDOUT, "\nDiffusion de cette version :\n");
+    fwrite(STDOUT, "1. Publier en bêta (instances qui la demandent seulement)\n");
+    fwrite(STDOUT, "2. Laisser en brouillon (aucune diffusion)\n");
+    fwrite(STDOUT, "3. Publier en release (toutes les instances)\n");
+    $choice = prompt('Choix', '2');
+
+    return ['1' => 'beta', '3' => 'release'][$choice] ?? null;
 }
 
 function versionAction(string $base, string $token, int $catalogId, string $action, int $versionId): void
@@ -368,7 +394,7 @@ function versionAction(string $base, string $token, int $catalogId, string $acti
     $result = postJson($base . '/tycms-catalog-api/v1/' . $action, $token, [
         'catalogId' => $catalogId, 'versionId' => $versionId,
     ]);
-    $labels = ['withdraw' => 'retirée', 'reactivate' => 'réactivée'];
+    $labels = ['withdraw' => 'retirée', 'reactivate' => 'réactivée', 'promote' => 'promue en release'];
     fwrite(STDOUT, 'Version #' . $versionId . ' ' . ($labels[$action] ?? $action) . '.'
         . cleanupSummary($result['cleanup'] ?? null) . "\n");
 }
@@ -389,8 +415,14 @@ if (!$interactive) {
     $tokenData = resolveToken($config, $options, false);
     $token = $tokenData['token'];
 
+    // Canal de publication : `release` par défaut, `beta` sur demande explicite.
+    $channel = (string) ($options['channel'] ?? 'release');
+    if (!in_array($channel, ['release', 'beta'], true)) {
+        fail('--channel doit valoir release ou beta.');
+    }
+
     if (isset($options['publish-version'])) {
-        publishVersion($base, $token, $catalogId, (int) $options['publish-version']);
+        publishVersion($base, $token, $catalogId, (int) $options['publish-version'], $channel);
         exit(0);
     }
     if (isset($options['withdraw'])) {
@@ -399,6 +431,10 @@ if (!$interactive) {
     }
     if (isset($options['reactivate'])) {
         versionAction($base, $token, $catalogId, 'reactivate', (int) $options['reactivate']);
+        exit(0);
+    }
+    if (isset($options['promote'])) {
+        versionAction($base, $token, $catalogId, 'promote', (int) $options['promote']);
         exit(0);
     }
 
@@ -426,7 +462,7 @@ if (!$interactive) {
 
     fwrite(STDOUT, 'Brouillon déposé : version #' . $versionId . ".\n");
     if (isset($options['publish'])) {
-        publishVersion($base, $token, $catalogId, $versionId);
+        publishVersion($base, $token, $catalogId, $versionId, $channel);
     }
     exit(0);
 }
@@ -453,12 +489,13 @@ while (true) {
     fwrite(STDOUT, 'Catalogue : #' . $catalogId . "\n");
     fwrite(STDOUT, 'Jeton : ' . $tokenSource . "\n");
     fwrite(STDOUT, 'Paquets : ' . $distDir . "\n\n");
-    fwrite(STDOUT, "1. Déposer un paquet local et le publier\n");
+    fwrite(STDOUT, "1. Déposer un paquet local, puis choisir la diffusion\n");
     fwrite(STDOUT, "2. Déposer un paquet local en brouillon\n");
     fwrite(STDOUT, "3. Déposer par URL externe\n");
     fwrite(STDOUT, "4. Publier une version existante\n");
     fwrite(STDOUT, "5. Retirer une version\n");
     fwrite(STDOUT, "6. Réactiver une version\n");
+    fwrite(STDOUT, "7. Promouvoir une bêta en release\n");
     fwrite(STDOUT, "0. Annuler\n");
     $choice = prompt('Choix', '0');
 
@@ -479,7 +516,13 @@ while (true) {
             $versionId = depositLocal($base, $token, $catalogId, $files, $displayName, $description);
             fwrite(STDOUT, 'Brouillon déposé : version #' . $versionId . ".\n");
             if ($choice === '1') {
-                publishVersion($base, $token, $catalogId, $versionId);
+                // La version reste en brouillon tant que la diffusion n'est pas choisie.
+                $channel = askDiffusion();
+                if ($channel !== null) {
+                    publishVersion($base, $token, $catalogId, $versionId, $channel);
+                } else {
+                    fwrite(STDOUT, "Version laissée en brouillon.\n");
+                }
             }
         } elseif ($choice === '3') {
             $archiveUrl = promptRequired('URL HTTPS du ZIP');
@@ -493,24 +536,33 @@ while (true) {
             }
             $versionId = depositExternal($base, $token, $catalogId, $archiveUrl, $notesUrl, $signature, $displayName, $description);
             fwrite(STDOUT, 'Brouillon déposé : version #' . $versionId . ".\n");
-            if (confirm('Publier cette version maintenant ?')) {
-                publishVersion($base, $token, $catalogId, $versionId);
+            $channel = askDiffusion();
+            if ($channel !== null) {
+                publishVersion($base, $token, $catalogId, $versionId, $channel);
+            } else {
+                fwrite(STDOUT, "Version laissée en brouillon.\n");
             }
         } else {
             $versionId = (int) promptRequired('Identifiant de version');
             if ($versionId < 1) {
                 fail('Identifiant de version invalide.');
             }
-            $action = ['4' => 'publish', '5' => 'withdraw', '6' => 'reactivate'][$choice] ?? null;
+            $action = ['4' => 'publish', '5' => 'withdraw', '6' => 'reactivate', '7' => 'promote'][$choice] ?? null;
             if ($action === null) {
                 fail('Choix invalide.');
             }
-            $actionLabels = ['publish' => 'Publier', 'withdraw' => 'Retirer', 'reactivate' => 'Réactiver'];
+            $actionLabels = ['publish' => 'Publier', 'withdraw' => 'Retirer',
+                'reactivate' => 'Réactiver', 'promote' => 'Promouvoir en release'];
             if (!confirm($actionLabels[$action] . ' la version #' . $versionId . ' ?')) {
                 continue;
             }
             if ($action === 'publish') {
-                publishVersion($base, $token, $catalogId, $versionId);
+                $channel = askDiffusion();
+                if ($channel === null) {
+                    fwrite(STDOUT, "Version laissée en brouillon.\n");
+                } else {
+                    publishVersion($base, $token, $catalogId, $versionId, $channel);
+                }
             } else {
                 versionAction($base, $token, $catalogId, $action, $versionId);
             }
