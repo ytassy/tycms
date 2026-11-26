@@ -576,10 +576,11 @@ doivent donc être maintenues alignées, et un test de non-régression vérifie
 qu'une définition à quatre paramètres produit bien `maxArity = 4`.
 
 Chacune déclare ses permissions, vérifie l'ACL sur le Space réel du principal
-et nettoie ses entrées. `core::sendMailTemplate` prend un modèle et des
-variables ; `core::sendMail` purifie son corps HTML avec le profil e-mail avant
-l'envoi et l'insère dans l'habillage du Space. Le HTML fourni à `core::sendMail`
-est toujours purifié ; aucun envoi ne transmet du HTML brut.
+et nettoie ses entrées. `core::sendMailTemplate` prend un modèle (d'extension
+ou personnalisé du Space) et des variables ; `core::sendMail` purifie son corps
+HTML avec le profil e-mail avant l'envoi et l'insère dans l'habillage du Space.
+Le HTML fourni à `core::sendMail` est toujours purifié ; aucun envoi ne
+transmet du HTML brut.
 
 Les actions de session portent un état court entre deux requêtes d'un même
 visiteur, par exemple les étapes d'une inscription ou d'un assistant

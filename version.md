@@ -4,6 +4,7 @@ Ce document présente uniquement les changements utiles aux utilisateurs de Tycm
 
 ## Nouveautés
 
+- Modèles d’e-mails : l’administration permet de créer des modèles personnalisés par espace, de modifier leurs informations (libellé, description, mise en page, variables) et de les supprimer. Ils sont hérités par les espaces descendants, personnalisables en contenu par langue et utilisables dans les scénarios d’automatisation par leur clé `custom__…`.
 - Catalogue d'extensions : une version publiée peut être diffusée en **bêta** ou en **release**. La bêta n'est servie qu'aux installations qui la demandent ; une bêta peut être promue en release, jamais l'inverse. L'administration indique le canal de chaque version. Chaque source de catalogue a son propre **canal demandé** (Release par défaut, ou Bêta) : une source en bêta reçoit aussi les versions d'essai, les autres sources ne les voient pas.
 - Serveur MCP : TyCMS expose un point d'entrée `/ai/mcp` (Model Context Protocol) permettant à un agent IA de lire et modifier le site. L'accès s'effectue avec un jeton d'API rattaché à un compte de service ; les actions à effet externe (e-mails, notifications, Google) sont indisponibles par ce canal.
 - Comptes de service : nouvel écran réservé au super administrateur pour créer des comptes sans connexion interactive, gérer leurs jetons d'API et les supprimer. Leurs groupes et rôles se gèrent depuis la liste des utilisateurs, qui distingue désormais les types de comptes.

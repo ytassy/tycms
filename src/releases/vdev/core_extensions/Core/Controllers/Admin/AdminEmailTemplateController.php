@@ -43,6 +43,32 @@ final class AdminEmailTemplateController extends BaseController
         return $this->privateResponse($this->wfEmailTemplate->describe($spaceId, $locale, $key));
     }
 
+    #[ControllerMethod(name: 'create', path: 'create', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'spaceId', required: true, varType: VarType::INT)]
+    #[ControllerParam2(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/EmailTemplateCreate.php')]
+    public function create(int $spaceId, object $data): ApiResponse
+    {
+        return $this->privateResponse($this->wfEmailTemplate->create($spaceId, $data));
+    }
+
+    #[ControllerMethod(name: 'update', path: 'update', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'spaceId', required: true, varType: VarType::INT)]
+    #[ControllerParam2(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/EmailTemplateMeta.php')]
+    public function update(int $spaceId, object $data): ApiResponse
+    {
+        $this->wfEmailTemplate->updateMeta($spaceId, $data);
+        return new ApiResponse(['updated' => true]);
+    }
+
+    #[ControllerMethod(name: 'delete', path: 'delete', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'spaceId', required: true, varType: VarType::INT)]
+    #[ControllerParam2(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/EmailTemplateDelete.php')]
+    public function delete(int $spaceId, object $data): ApiResponse
+    {
+        $this->wfEmailTemplate->delete($spaceId, $data);
+        return new ApiResponse(['deleted' => true]);
+    }
+
     #[ControllerMethod(name: 'save', path: 'save', methods: [RequestMethod::POST])]
     #[ControllerParam1(name: 'spaceId', required: true, varType: VarType::INT)]
     #[ControllerParam2(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/EmailTemplateWrite.php')]

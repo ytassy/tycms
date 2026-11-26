@@ -13,6 +13,15 @@ export const useAdminEmailTemplatesStore = {
 				async save(spaceId, data) {
 					return application.api.post('/administrator/api/email-templates/save', { spaceId, data })
 				},
+				async create(spaceId, data) {
+					return application.api.post('/administrator/api/email-templates/create', { spaceId, data })
+				},
+				async update(spaceId, data) {
+					return application.api.post('/administrator/api/email-templates/update', { spaceId, data })
+				},
+				async remove(spaceId, data) {
+					return application.api.post('/administrator/api/email-templates/delete', { spaceId, data })
+				},
 				async restore(spaceId, data) {
 					return application.api.post('/administrator/api/email-templates/restore', { spaceId, data })
 				},

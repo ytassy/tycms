@@ -6,14 +6,28 @@ Les extensions peuvent déclarer des `EmailTemplateDefinition` par
 `IEmailTemplateProvider::emailTemplates()`. Chaque définition possède un ID
 local stable, des variantes par langue, la liste des variables `%nom%`, un
 mode de mise en page (`default` ou `blank`) et le booléen `customizable`
-(désactivé par défaut). Le registre ajoute le préfixe de l'extension, par
+(indique si les textes peuvent être personnalisés dans un espace ; désactivé
+par défaut). Le registre ajoute le préfixe de l'extension, par
 exemple `plg_core__registration_welcome`. Les modèles Core sont regroupés dans
 `Core/Mail/CoreEmailTemplates.php` : `password_reset` (récupération publique),
 `registration_welcome` (inscription locale), `registration_sso_welcome`
 (première création de compte SSO) et `admin_account_welcome` (création par
 l'administration avec mot de passe initial). Ils sont consultables et
-personnalisables. Le catalogue expose tous les modèles déclarés sans statut
-d'utilisation dans leur définition, les réponses de l'API ou l'interface.
+personnalisables. Le catalogue expose tous les modèles du code et les modèles
+personnalisés, sans statut d'utilisation dans leur définition, les réponses de
+l'API ou l'interface.
+
+Un modèle personnalisé est créé depuis l'administration pour un Space. Sa
+définition (libellé, description, mise en page, langue de base et variables)
+est stockée dans `email_templates` ; son contenu reste dans
+`email_template_overrides`, comme une surcharge du Space. Sa clé suit la
+convention du registre et commence obligatoirement par `custom__`, par exemple
+`custom__bienvenue_commande`. Elle est unique dans l'installation, stable, et
+sert de référence à `core::sendMailTemplate`. Un modèle personnalisé n'est
+visible que dans son espace propriétaire et ses descendants. Les variables
+qu'il déclare sont de type `text`, obligatoires à l'envoi, avec un exemple
+facultatif pour l'aperçu. Elles ne peuvent pas occuper un `href` : un lien
+variable exige un type URL déclaré par le code.
 
 `MailHelper::sendTemplate(key, to, values, sourceSpace, locale)` résout le
 modèle dans le Space source, remplace les variables une seule fois, applique
@@ -44,6 +58,18 @@ Une variable peut être interdite dans l'objet (`allowedInSubject: false`) ou
 obligatoire dans le contenu (`requiredInBody: true`). Le mot de passe initial
 du modèle administratif applique ces deux restrictions, y compris aux
 surcharges.
+
+Un modèle personnalisé suit ce mécanisme pour son contenu. Le contenu de base
+est la surcharge de son espace propriétaire dans la langue de création
+(`base_locale`) ; sans contenu dans la langue demandée, ce contenu de base est
+repris. Un espace enfant peut enregistrer sa propre version puis restaurer
+l'héritage. En revanche, ses informations (libellé, description, mise en page,
+variables) et sa suppression ne sont accessibles que depuis l'espace
+propriétaire, avec `EMAIL_TEMPLATE_EDIT`. Retirer ou renommer une variable
+encore utilisée par un contenu existant est refusé. La suppression retire aussi
+les surcharges de tous les espaces descendants ; les scénarios qui utilisent la
+clé `custom__...` échouent alors jusqu'à leur correction. Un modèle déclaré par
+une extension ne se supprime pas depuis l'administration.
 
 `UserWelcomeMailHelper` envoie les trois messages de bienvenue avec le Space
 d'inscription ou de création, et sa langue active ou la langue par défaut du
@@ -103,9 +129,11 @@ Le registre contrôle les identifiants et les collisions au chargement. `id`
 et les noms de variables suivent `[a-z][a-z0-9_]*` ; le registre préfixe l'ID
 avec le propriétaire réel. La clé complète est limitée à 150 caractères.
 `label`, `description` et une variante `fr` sont à fournir au constructeur.
+Le propriétaire `custom` est réservé aux modèles créés depuis l'administration.
 Les modes de modèle sont `default` et `blank` ; `raw` est réservé à l'envoi
-direct. Les définitions et variables appartiennent au code, sans création
-libre dans l'UI. Exemple d'envoi depuis le métier de `plg_lms` :
+direct. Un modèle du code ne se crée pas depuis l'interface ; l'administration
+peut en revanche créer un modèle personnalisé, dont la clé commence par
+`custom__`. Exemple d'envoi depuis le métier de `plg_lms` :
 
 ```php
 $sent = $this->coreMailHelper->sendTemplate(
@@ -117,11 +145,25 @@ $sent = $this->coreMailHelper->sendTemplate(
 );
 ```
 
+Un modèle personnalisé s'envoie de la même façon depuis un scénario, avec sa
+clé et ses variables :
+
+```php
+$sent = $this->coreMailHelper->sendTemplate(
+    key: 'custom__bienvenue_commande',
+    to: $user->email,
+    values: ['first_name' => $user->first_name, 'order_id' => $order->reference],
+    sourceSpace: $space->id,
+);
+```
+
 Le WF appelant autorise le destinataire, le Space source et l'action métier.
 L'accès partagé `coreEmailTemplateHelper` expose aussi `describe()` et
 `prepare()` ; il ne remplace pas l'ACL du WF. `describe()` distingue les sources
-`space`, `parent`, `code` et `code_fr_fallback`, avec `sourceSpaceId`,
-`effectiveLocale` et la surcharge locale. `prepare()` fournit l'objet, le corps,
+`space`, `parent`, `custom`, `code` et `code_fr_fallback`, avec `sourceSpaceId`,
+`sourceSpaceTitle`, `effectiveLocale` et la surcharge locale. Pour un modèle
+personnalisé, il expose aussi `custom`, `ownerSpaceId`, `ownerSpaceTitle` et
+`baseLocale`. `prepare()` fournit l'objet, le corps,
 le mode et la langue effective. Celle-ci arrive à `EmailRenderContext` et au
 `html[lang]` de MainTemplate ; le pied de page reste commun aux langues du Space.
 
@@ -130,6 +172,17 @@ le mode et la langue effective. Celle-ci arrive à `EmailRenderContext` et au
 - La langue doit être active dans le Space source de l'envoi. Une surcharge
   d'un parent reste héritable même si sa langue y est désactivée. Sans surcharge
   `en`, une surcharge `fr` ne s'applique pas : le repli français vise le code.
+  Un modèle personnalisé sans contenu dans la langue demandée reprend son
+  contenu de base (`base_locale`), même si cette langue n'est pas active dans
+  l'espace courant.
+- Un modèle personnalisé n'existe que dans son espace propriétaire et ses
+  descendants. Seul le propriétaire modifie ses informations et le supprime.
+  Son contenu de base est la surcharge de son espace dans `base_locale` ; il ne
+  peut pas être retiré. Les autres espaces peuvent enregistrer leur propre
+  version puis restaurer l'héritage. Toutes les variables personnalisées sont
+  de type texte et obligatoires à l'envoi ; retirer ou renommer une variable
+  encore utilisée par un contenu existant est refusé. La suppression retire
+  aussi les surcharges des espaces descendants.
 - Un modèle devenu incompatible avec ses variables bloque l'envoi avant SMTP,
   sans repli silencieux. Une définition retirée devient indisponible ; renommer
   son ID ne reprend pas ses surcharges sans migration explicite.
@@ -158,13 +211,20 @@ Routes sous `/administrator/api/email-templates`, déléguées à `WFEmailTempla
 | `GET spaces` | Spaces autorisés et langues. |
 | `GET /` | Liste et provenance pour `spaceId`, `locale`. |
 | `GET detail` | Définition et valeurs pour `spaceId`, `locale`, `key`. |
+| `POST create` | Création d'un modèle personnalisé et de son contenu de base. |
+| `POST update` | Libellé, description, mise en page et variables d'un modèle personnalisé. |
+| `POST delete` | Suppression du modèle et de ses personnalisations descendantes. |
 | `POST preview` | Aperçu du brouillon, sans sauvegarde. |
 | `POST save` | Surcharge complète du couple objet/contenu. |
 | `POST restore` | Retrait de la surcharge locale pour restaurer l'héritage. |
 
 Le WF contrôle le Space, `EMAIL_TEMPLATE_EDIT`, la langue, le modèle connu et
-`customizable` avant l'écriture. Les POST utilisent CSRF et transaction de
-route. Détail et aperçu portent `Cache-Control: private, no-store`.
+`customizable` avant l'écriture. La création et la modification des informations
+vérifient les variables et tous les contenus existants. Les métadonnées et la
+suppression exigent que le Space courant soit le propriétaire du modèle ; le
+contenu de base du propriétaire ne peut pas être restauré. Les POST utilisent
+CSRF et transaction de route. Détail et aperçu portent
+`Cache-Control: private, no-store`.
 
 ## Envoi direct et mise en page
 

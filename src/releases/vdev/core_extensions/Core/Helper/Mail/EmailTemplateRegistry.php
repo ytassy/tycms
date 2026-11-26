@@ -16,7 +16,9 @@ final class EmailTemplateRegistry extends BaseHelper
     public function register(string $owner, EmailTemplateDefinition $definition): void
     {
         $key = $owner . '__' . $definition->id;
+        // `custom` est réservé aux modèles créés depuis l'administration.
         if (preg_match('/^[a-z][a-z0-9_]*$/D', $owner) !== 1
+            || $owner === 'custom'
             || preg_match('/^[a-z][a-z0-9_]*$/D', $definition->id) !== 1
             || strlen($key) > 150 || isset($this->entries[$key])
             || !in_array($definition->renderMode, ['default', 'blank'], true)

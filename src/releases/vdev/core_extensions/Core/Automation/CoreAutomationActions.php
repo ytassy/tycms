@@ -108,14 +108,14 @@ final class CoreAutomationActions
                 id: 'core::sendMailTemplate',
                 label: 'Envoyer un modèle d’e-mail',
                 handlerClass: SendMailTemplateAction::class,
-                description: 'Envoie un modèle d’e-mail déclaré dans le Space.',
+                description: 'Envoie un modèle d’e-mail déclaré par une extension ou créé pour le Space.',
                 parameters: [
                     new AutomationParameterDefinition(
                         'template',
                         'string',
                         true,
                         label: 'Modèle',
-                        description: 'Clé du modèle d’e-mail déclaré dans le Space.',
+                        description: 'Clé du modèle d’e-mail : clé d’extension ou clé personnalisée du Space.',
                     ),
                     new AutomationParameterDefinition(
                         'to',

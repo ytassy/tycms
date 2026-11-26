@@ -63,6 +63,7 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_10;
 use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_12;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
@@ -150,6 +151,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.9' => [Mig_1_1_9::class],
             '1.1.10' => [Mig_1_1_10::class],
             '1.1.11' => [Mig_1_1_11::class],
+            '1.1.12' => [Mig_1_1_12::class],
         ];
 	}
 
