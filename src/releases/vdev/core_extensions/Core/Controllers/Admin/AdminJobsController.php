@@ -74,6 +74,12 @@ final class AdminJobsController extends BaseController
         return new ApiResponse(['cancelled' => $this->wfJobs()->cancel($id)]);
     }
 
+    #[ControllerMethod(name: 'run', path: 'run', methods: [RequestMethod::POST])]
+    public function run(): ApiResponse
+    {
+        return new ApiResponse($this->wfJobs()->run());
+    }
+
     #[ControllerMethod(name: 'purge', path: 'purge', methods: [RequestMethod::POST])]
     public function purge(): ApiResponse
     {

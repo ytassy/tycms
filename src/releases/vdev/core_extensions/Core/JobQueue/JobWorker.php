@@ -29,6 +29,7 @@ final class JobWorker extends BaseHelper
 {
     public const SOURCE_CRON = 'cron';
     public const SOURCE_TRAFFIC = 'traffic';
+    public const SOURCE_ADMIN = 'admin';
 
     /** Budget du CRON de la file : un passage par minute sur mutualisé. */
     public const CRON_MAX_JOBS = 20;
@@ -37,6 +38,10 @@ final class JobWorker extends BaseHelper
     /** Budget du déclenchement par le trafic : court, il ne paie pas une visite. */
     public const TRAFFIC_MAX_JOBS = 3;
     public const TRAFFIC_BUDGET_SECONDS = 5;
+
+    /** Exécution manuelle depuis l'administration : plus large, mais bornée. */
+    public const ADMIN_MAX_JOBS = 10;
+    public const ADMIN_BUDGET_SECONDS = 20;
 
     /** Fenêtre de candidats lue en une requête. */
     private const SCAN_WINDOW = 20;
@@ -78,8 +83,11 @@ final class JobWorker extends BaseHelper
     public function run(string $source = self::SOURCE_CRON): array
     {
         $startedAt = microtime(true);
-        $maxJobs = $source === self::SOURCE_TRAFFIC ? self::TRAFFIC_MAX_JOBS : self::CRON_MAX_JOBS;
-        $budget = $source === self::SOURCE_TRAFFIC ? self::TRAFFIC_BUDGET_SECONDS : self::CRON_BUDGET_SECONDS;
+        [$maxJobs, $budget] = match ($source) {
+            self::SOURCE_TRAFFIC => [self::TRAFFIC_MAX_JOBS, self::TRAFFIC_BUDGET_SECONDS],
+            self::SOURCE_ADMIN => [self::ADMIN_MAX_JOBS, self::ADMIN_BUDGET_SECONDS],
+            default => [self::CRON_MAX_JOBS, self::CRON_BUDGET_SECONDS],
+        };
         $deadline = $startedAt + $budget;
 
         $summary = [

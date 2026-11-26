@@ -24,8 +24,14 @@ final class JobTrafficTrigger extends BaseHelper
     /** Route technique appelée par le navigateur. */
     public const PING_PATH = '/api/jobs/ping';
 
-    /** Intervalle minimal entre deux tentatives d'un même onglet, en millisecondes. */
-    public const THROTTLE_MS = 300000;
+    /**
+     * Intervalle minimal entre deux tentatives d'un même onglet.
+     *
+     * Aligné sur le budget du worker de trafic. Plus court ne servirait à rien :
+     * le verrou du worker répondrait `ran: 0`. Le tag n'étant émis que lorsqu'un
+     * job est dû, la cadence s'arrête d'elle-même quand la file se vide.
+     */
+    public const THROTTLE_MS = 5000;
 
     /** Clé de stockage local du limiteur. */
     public const STORAGE_KEY = 'tycms-jobs-ping';
@@ -65,16 +71,23 @@ final class JobTrafficTrigger extends BaseHelper
 <script nonce="{$nonce}">
 (function () {
     var key = '{$key}';
+    // Millisecondes : une tentative par onglet au plus toutes les cinq secondes.
+    var throttle = {$throttleMs};
     try {
         var last = parseInt(sessionStorage.getItem(key) || '0', 10) || 0;
-        if (Date.now() - last < {$throttleMs}) { return; }
-        sessionStorage.setItem(key, String(Date.now()));
+        if (Date.now() - last < throttle) { return; }
     } catch (error) {
         // Stockage indisponible : le serveur plafonne de toute façon le worker.
     }
     var send = function () {
         try {
             fetch('{$path}', { method: 'POST', credentials: 'omit', keepalive: true })
+                .then(function (response) {
+                    // Ne compter la tentative que si elle a abouti : un échec
+                    // réseau ou serveur ne doit pas bloquer cinq minutes.
+                    if (!response.ok) { return; }
+                    try { sessionStorage.setItem(key, String(Date.now())); } catch (error) {}
+                })
                 .catch(function () { /* déclenchement au mieux, aucune conséquence */ });
         } catch (error) {
             // Aucun effet sur la page.

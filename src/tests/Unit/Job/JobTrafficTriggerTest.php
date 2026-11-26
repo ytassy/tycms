@@ -25,8 +25,11 @@ final class JobTrafficTriggerTest extends TestCase
         $html = JobTrafficTrigger::render('nonce', 1234);
 
         self::assertStringContainsString(JobTrafficTrigger::STORAGE_KEY, $html);
-        self::assertStringContainsString('1234', $html);
+        self::assertStringContainsString('var throttle = 1234;', $html);
         self::assertStringContainsString('sessionStorage.setItem', $html);
+
+        // La tentative n'est comptée qu'après une réponse réussie.
+        self::assertStringContainsString('response.ok', $html);
     }
 
     public function testScriptNeverBlocksThePage(): void

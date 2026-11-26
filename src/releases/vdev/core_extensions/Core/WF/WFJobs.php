@@ -125,6 +125,32 @@ final class WFJobs extends BaseWF
     }
 
     /**
+     * Lance un passage du worker sans attendre le CRON ni une visite.
+     *
+     * Borné comme les autres déclencheurs ; utile pour vérifier une
+     * installation ou drainer une file après un correctif.
+     *
+     * @return array<string, mixed>
+     */
+    public function run(): array
+    {
+        $this->assertRoot();
+
+        /** @var JobWorker $worker */
+        $worker = $this->getSharedExtensionsClass(JobWorker::class);
+        $summary = $worker->run(JobWorker::SOURCE_ADMIN);
+
+        $this->logInfo(
+            'Worker de la file lancé manuellement.',
+            ['ran' => $summary['ran'], 'failed' => $summary['failed']],
+            'JOB_ADMIN_RUN',
+            'jobs',
+        );
+
+        return $summary;
+    }
+
+    /**
      * Valeurs réelles de configuration, pour l'onglet Documentation.
      *
      * Aucun secret n'est renvoyé : seulement la présence d'un jeton.

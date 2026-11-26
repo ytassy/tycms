@@ -135,6 +135,16 @@ final class JobAdminIntegrationTest extends TestCase
         self::assertNotNull($this->queue->status($pending));
     }
 
+    public function testManualRunDrainsTheQueue(): void
+    {
+        $jobId = $this->insertJob('pending');
+
+        $summary = $this->wf->run();
+
+        self::assertSame(1, $summary['ran']);
+        self::assertSame('completed', $this->queue->status($jobId)['status']);
+    }
+
     public function testDetailExposesThePayloadButNeverTheReservationToken(): void
     {
         $jobId = $this->insertJob('failed');

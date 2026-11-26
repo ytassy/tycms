@@ -38,6 +38,11 @@ export const useAdminJobsStore = {
 					await application.api.post(`${base}/${id}/cancel`, {})
 					await this.load()
 				},
+				async runWorker() {
+					const summary = await application.api.post(`${base}/run`, {})
+					await this.load()
+					return summary
+				},
 				async purge(days) {
 					const result = await application.api.post(`${base}/purge`, { days })
 					await this.load()

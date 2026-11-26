@@ -42,6 +42,9 @@
 				<button type="submit" class="btn btn-primary btn-sm">Filtrer</button>
 			</div>
 			<div class="col-auto ms-auto">
+				<button type="button" class="btn btn-outline-primary btn-sm me-2" :disabled="store.loading" @click="runWorker">
+					Lancer le worker
+				</button>
 				<button type="button" class="btn btn-outline-danger btn-sm" :disabled="store.loading" @click="purge">
 					Purger les terminés
 				</button>
@@ -66,33 +69,83 @@
 						</tr>
 					</thead>
 					<tbody>
-						<tr v-for="job in store.result.items" :key="job.id">
-							<td class="fw-semibold">{{ job.id }}</td>
-							<td>
-								<code>{{ job.type }}</code>
-								<div class="text-muted small">{{ job.producer }}</div>
-							</td>
-							<td><span class="badge" :class="statusClass(job.status)">{{ job.status }}</span></td>
-							<td>{{ job.attempts }}/{{ job.maxAttempts }}</td>
-							<td>{{ job.spaceId ?? '—' }}</td>
-							<td class="small text-nowrap">{{ job.availableAt }}</td>
-							<td class="small text-truncate" style="max-width: 22rem;" :title="job.lastError ?? ''">
-								{{ job.lastError || '—' }}
-							</td>
-							<td class="text-end text-nowrap">
-								<button type="button" class="btn btn-outline-secondary btn-sm me-1" @click="openDetail(job.id)">
-									Détail
-								</button>
-								<button v-if="canRetry(job)" type="button" class="btn btn-outline-primary btn-sm me-1"
-									@click="retry(job)">
-									Relancer
-								</button>
-								<button v-if="canCancel(job)" type="button" class="btn btn-outline-danger btn-sm"
-									@click="cancel(job)">
-									Annuler
-								</button>
-							</td>
-						</tr>
+						<template v-for="job in store.result.items" :key="job.id">
+							<tr>
+								<td class="fw-semibold">{{ job.id }}</td>
+								<td>
+									<code>{{ job.type }}</code>
+									<div class="text-muted small">{{ job.producer }}</div>
+								</td>
+								<td><span class="badge" :class="statusClass(job.status)">{{ job.status }}</span></td>
+								<td>{{ job.attempts }}/{{ job.maxAttempts }}</td>
+								<td>{{ job.spaceId ?? '—' }}</td>
+								<td class="small text-nowrap">{{ job.availableAt }}</td>
+								<td class="small text-truncate" style="max-width: 22rem;" :title="job.lastError ?? ''">
+									{{ job.lastError || '—' }}
+								</td>
+								<td class="text-end text-nowrap">
+									<button type="button" class="btn btn-outline-secondary btn-sm me-1" @click="toggleDetail(job)">
+										{{ isOpen(job) ? 'Fermer' : 'Détail' }}
+									</button>
+									<button v-if="canRetry(job)" type="button" class="btn btn-outline-primary btn-sm me-1"
+										@click="retry(job)">
+										Relancer
+									</button>
+									<button v-if="canCancel(job)" type="button" class="btn btn-outline-danger btn-sm"
+										@click="cancel(job)">
+										Annuler
+									</button>
+								</td>
+							</tr>
+
+							<tr v-if="isOpen(job)" class="table-active">
+								<td colspan="8" class="p-0">
+									<div class="p-3">
+										<dl class="row mb-0 small">
+											<dt class="col-sm-3">Principal</dt>
+											<dd class="col-sm-9">
+												{{ store.detail.principal }}
+												<span v-if="store.detail.execUserId">(compte {{ store.detail.execUserId }})</span>
+											</dd>
+
+											<dt class="col-sm-3">Priorité</dt>
+											<dd class="col-sm-9">{{ store.detail.priority }}</dd>
+
+											<dt class="col-sm-3">Espace / auteur</dt>
+											<dd class="col-sm-9">
+												{{ store.detail.spaceId ?? '—' }} / {{ store.detail.createdBy ?? '—' }}
+											</dd>
+
+											<dt class="col-sm-3">Déduplication</dt>
+											<dd class="col-sm-9">
+												<code v-if="store.detail.dedupKey">{{ store.detail.dedupKey }}</code><span v-else>—</span>
+											</dd>
+
+											<dt class="col-sm-3">Bail</dt>
+											<dd class="col-sm-9">
+												{{ store.detail.reservedUntil ?? '—' }}
+												<span v-if="store.detail.cancelRequested" class="badge text-bg-warning ms-2">arrêt demandé</span>
+											</dd>
+
+											<dt class="col-sm-3">Créé / démarré / fini</dt>
+											<dd class="col-sm-9">
+												{{ store.detail.created }} · {{ store.detail.startedAt ?? '—' }} · {{ store.detail.finishedAt ?? '—' }}
+											</dd>
+
+											<dt class="col-sm-3">Durée</dt>
+											<dd class="col-sm-9">{{ store.detail.durationMs === null ? '—' : store.detail.durationMs + ' ms' }}</dd>
+										</dl>
+
+										<h3 class="h6 mt-3">Erreur</h3>
+										<pre class="bg-light rounded p-2 small text-wrap mb-0">{{ store.detail.lastError || 'Aucune erreur enregistrée.' }}</pre>
+
+										<h3 class="h6 mt-3">Payload</h3>
+										<pre class="bg-light rounded p-2 small text-wrap mb-0">{{ payloadText }}</pre>
+									</div>
+								</td>
+							</tr>
+						</template>
+
 						<tr v-if="store.result.items.length === 0">
 							<td colspan="8" class="text-center text-muted py-4">Aucun job pour ces filtres.</td>
 						</tr>
@@ -114,65 +167,6 @@
 				</li>
 			</ul>
 		</nav>
-
-		<div v-if="store.detail" class="card shadow-sm border-0 mt-4">
-			<div class="card-header d-flex justify-content-between align-items-center">
-				<span class="fw-semibold">Job #{{ store.detail.id }} — {{ store.detail.type }}</span>
-				<button type="button" class="btn-close" aria-label="Fermer le détail" @click="store.detail = null"></button>
-			</div>
-			<div class="card-body">
-				<dl class="row mb-0 small">
-					<dt class="col-sm-3">Statut</dt>
-					<dd class="col-sm-9"><span class="badge" :class="statusClass(store.detail.status)">{{ store.detail.status }}</span></dd>
-
-					<dt class="col-sm-3">Producteur</dt>
-					<dd class="col-sm-9">{{ store.detail.producer }}</dd>
-
-					<dt class="col-sm-3">Priorité</dt>
-					<dd class="col-sm-9">{{ store.detail.priority }}</dd>
-
-					<dt class="col-sm-3">Tentatives</dt>
-					<dd class="col-sm-9">{{ store.detail.attempts }} / {{ store.detail.maxAttempts }}</dd>
-
-					<dt class="col-sm-3">Principal</dt>
-					<dd class="col-sm-9">
-						{{ store.detail.principal }}
-						<span v-if="store.detail.execUserId">(compte {{ store.detail.execUserId }})</span>
-					</dd>
-
-					<dt class="col-sm-3">Espace / auteur</dt>
-					<dd class="col-sm-9">
-						{{ store.detail.spaceId ?? '—' }} / {{ store.detail.createdBy ?? '—' }}
-					</dd>
-
-					<dt class="col-sm-3">Déduplication</dt>
-					<dd class="col-sm-9"><code v-if="store.detail.dedupKey">{{ store.detail.dedupKey }}</code><span v-else>—</span></dd>
-
-					<dt class="col-sm-3">Disponible à</dt>
-					<dd class="col-sm-9">{{ store.detail.availableAt ?? '—' }}</dd>
-
-					<dt class="col-sm-3">Bail</dt>
-					<dd class="col-sm-9">
-						{{ store.detail.reservedUntil ?? '—' }}
-						<span v-if="store.detail.cancelRequested" class="badge text-bg-warning ms-2">arrêt demandé</span>
-					</dd>
-
-					<dt class="col-sm-3">Créé / démarré / fini</dt>
-					<dd class="col-sm-9">
-						{{ store.detail.created }} · {{ store.detail.startedAt ?? '—' }} · {{ store.detail.finishedAt ?? '—' }}
-					</dd>
-
-					<dt class="col-sm-3">Durée</dt>
-					<dd class="col-sm-9">{{ store.detail.durationMs === null ? '—' : store.detail.durationMs + ' ms' }}</dd>
-				</dl>
-
-				<h3 class="h6 mt-4">Erreur</h3>
-				<pre class="bg-light rounded p-2 small text-wrap mb-0">{{ store.detail.lastError || 'Aucune erreur enregistrée.' }}</pre>
-
-				<h3 class="h6 mt-4">Payload (lecture seule)</h3>
-				<pre class="bg-light rounded p-2 small text-wrap mb-0">{{ payloadText }}</pre>
-			</div>
-		</div>
 	</section>
 </template>
 
@@ -236,8 +230,16 @@ export default {
 			this.store.load()
 		},
 
-		openDetail(id) {
-			return this.store.openDetail(id)
+		isOpen(job) { return this.store.detail?.id === job.id },
+
+		// Un seul détail ouvert à la fois : rouvrir le même referme la ligne.
+		async toggleDetail(job) {
+			if (this.isOpen(job)) {
+				this.store.detail = null
+				return
+			}
+
+			await this.store.openDetail(job.id)
 		},
 
 		canRetry(job) { return job.status === 'failed' || job.status === 'cancelled' },
@@ -272,6 +274,19 @@ export default {
 			}
 
 			if (done) this.showModaleSuccess()
+		},
+
+		async runWorker() {
+			this.showModaleWait()
+			let ran = null
+			try {
+				const summary = await this.store.runWorker()
+				ran = summary?.ran ?? 0
+			} finally {
+				this.hideModaleWait()
+			}
+
+			if (ran !== null) this.showModaleSuccess(ran === 0 ? 'Aucun job exécuté.' : `${ran} job(s) exécuté(s).`)
 		},
 
 		async purge() {
