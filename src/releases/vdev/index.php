@@ -25,6 +25,10 @@ use YTassy\Tycms\ErrorPages\ErrorPages;
 
 $conf = new Configuration();
 
+// Appliquer les réglages PHP d'erreurs avant la moindre réponse ou page d'erreur.
+// Les erreurs survenues avant le chargement de configuration.php restent régies par php.ini.
+$conf->applyPhpErrorSettings();
+
 if ($conf->offline){
     ErrorPages::printErrorPageAndExit($conf->site_name, $conf->offline_message, 503, $conf, null,
         false, false, false, false);

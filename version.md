@@ -13,6 +13,7 @@ Ce document présente uniquement les changements utiles aux utilisateurs de Tycm
 
 ## Changements
 
+- Configuration : le bootstrap applique désormais `display_errors`, `log_errors` et `error_reporting_level`. Par défaut, les erreurs PHP ne sont plus affichées aux visiteurs, restent écrites dans le journal du serveur et les dépréciations sont ignorées (`E_ALL & ~E_DEPRECATED`). Le développement continue d'afficher toutes les erreurs. Un nouveau contrôle du bilan **Sécurité** signale une configuration risquée.
 
 ## Corrections
 

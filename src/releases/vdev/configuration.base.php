@@ -21,6 +21,15 @@ class ConfigurationBase
 	public $dev = false;
 	public $RESET_DATABASE = false; // RESET DATA BASE AT EACH REQUEST
 
+	/** Afficher les erreurs PHP dans la réponse HTTP ; garder false en production. */
+	public bool $display_errors = false;
+
+	/** Niveau error_reporting appliqué au bootstrap ; la production ignore seulement les dépréciations. */
+	public int $error_reporting_level = E_ALL & ~E_DEPRECATED;
+
+	/** Écrire les erreurs PHP dans le journal du serveur ; garder true quand display_errors est false. */
+	public bool $log_errors = true;
+
 
 	// php | database : seule la base permet de révoquer toutes les sessions d'un compte
 	// après une réinitialisation de mot de passe ; avec PHP, les autres sessions restent actives.
@@ -173,5 +182,30 @@ class ConfigurationBase
         // Ajouter ici les conversions successives lors d'une évolution du contrat.
         // Les nouvelles options simples sont déjà fournies par les propriétés héritées.
         $this->configVersion = self::CURRENT_CONFIG_VERSION;
+    }
+
+    /**
+     * Appliquer les réglages PHP d'erreurs, appelés une fois par le bootstrap web.
+     *
+     * Garder ce traitement hors du constructeur : les tests et les outils CLI
+     * construisent aussi une configuration et ne doivent pas modifier
+     * l'environnement PHP de leur processus.
+     */
+    public function applyPhpErrorSettings(): void
+    {
+        // Ne pas interrompre le site si l'hébergement interdit ini_set() ;
+        // le php.ini du serveur reste alors la seule autorité.
+        if (function_exists('ini_set')) {
+            // Masquer les erreurs dans la réponse évite d'exposer chemins et détails internes.
+            ini_set('display_errors', $this->display_errors ? '1' : '0');
+
+            // Conserver une trace serveur : sans elle, une erreur masquée devient invisible.
+            ini_set('log_errors', $this->log_errors ? '1' : '0');
+        }
+
+        // Le niveau ne couvre que les erreurs non interceptées par l'application.
+        if (function_exists('error_reporting')) {
+            error_reporting($this->error_reporting_level);
+        }
     }
 }

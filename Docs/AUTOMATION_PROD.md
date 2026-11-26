@@ -21,6 +21,8 @@ ne remplace pas l’audit de sécurité formel ni les essais de charge.
 Dans `configuration.php`, hors dépôt :
 
 - [ ] `dev = false`, `debug = false`.
+- [ ] `display_errors = false`, `log_errors = true` et
+      `error_reporting_level = E_ALL & ~E_DEPRECATED`.
 - [ ] `secret` long, stable et sauvegardé. Le changer rend illisibles les
       secrets chiffrés (Google, notifications).
 - [ ] `cron_token` long et aléatoire. Vide signifie route `/cron` en `503`.

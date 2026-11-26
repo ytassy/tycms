@@ -12,6 +12,10 @@ class Configuration extends ConfigurationBase
     public $site_name = 'Mon site';
     public $mailonline = true;
 
+    // Afficher toutes les erreurs PHP en développement ; la production garde display_errors à false.
+    public bool $display_errors = true;
+    public int $error_reporting_level = E_ALL;
+
     // Désactiver uniquement ces deux extensions facultatives pour ce site.
     public array $core_extensions_enabled = [
         'plg_tools' => true,

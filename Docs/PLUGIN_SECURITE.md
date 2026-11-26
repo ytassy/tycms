@@ -245,6 +245,23 @@ réelle (`users`, `user_groups_map`, `user_groups`, `acl_map`, `acl_permissions`
 sans passer par les helpers d’ACL : une analyse de sécurité doit rester fiable
 même si un helper porte un défaut.
 
+### Erreurs PHP
+
+Le contrôle `plg_core.php-error-settings`, dans le groupe « Environnement »,
+reprend les trois réglages appliqués par le bootstrap : `display_errors`,
+`log_errors` et `error_reporting_level`. Il lit la configuration réelle, jamais
+le `php.ini` supposé de l'hébergement.
+
+- `display_errors = true` est signalé en `danger` : les réponses peuvent
+  révéler des chemins, des requêtes SQL ou d'autres détails internes.
+- Une journalisation serveur désactivée (`log_errors = false`) ou un
+  `error_reporting_level` qui exclut `E_ERROR` ou `E_WARNING` est signalé en
+  `info` : une panne devient alors difficile à diagnostiquer.
+
+Les corrections renvoient aux clés de `configuration.php`. Les valeurs par
+défaut (`display_errors = false`, `log_errors = true`,
+`error_reporting_level = E_ALL & ~E_DEPRECATED`) sont conformes.
+
 ## Organisation et migration
 
 - `Plugin.php` : points d’entrée, permission ROOT, hooks de configuration et du WAF.

@@ -128,6 +128,19 @@ de structure, ajouter les conversions successives selon la version lue avant
 de porter la version en mémoire au contrat courant. Préserver les choix locaux
 et rendre les appels répétés sans effet supplémentaire.
 
+Le bootstrap web applique trois réglages PHP d'erreurs après avoir construit la
+configuration et avant toute réponse : `display_errors` (`false` par défaut),
+`log_errors` (`true`) et `error_reporting_level` (`E_ALL & ~E_DEPRECATED`).
+`display_errors = true` est réservé au développement. Ces valeurs sont
+appliquées par `ConfigurationBase::applyPhpErrorSettings()`, appelée par le
+point d'entrée de la release ; le constructeur ne modifie pas le processus,
+afin que les tests et les outils CLI ne soient pas affectés. Les erreurs
+survenues avant ce point d'entrée, notamment un `configuration.php` illisible
+ou invalide, restent régies par le `php.ini` de l'hébergement : `log_errors`
+doit y rester actif. Une surcharge locale conserve le type booléen de
+`display_errors` et `log_errors`, et le type entier de `error_reporting_level`.
+Le [bilan de sécurité](PLUGIN_SECURITE.md#erreurs-php) vérifie ces trois valeurs.
+
 La normalisation s'effectue uniquement en mémoire : elle ne réécrit ni le PHP
 local, ni les secrets, ni la version déclarée dans le fichier. Aucun changement
 de structure n'est nécessaire dans le contrat initial. La propriété `offline`

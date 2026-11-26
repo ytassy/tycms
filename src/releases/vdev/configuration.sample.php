@@ -43,6 +43,15 @@ class Configuration extends ConfigurationBase
     // public $dev = false;
     // public $RESET_DATABASE = false;
 
+    // Erreurs PHP : display_errors affiche les erreurs dans la réponse HTTP.
+    // Le garder à false en production pour ne pas exposer chemins et détails internes.
+    // log_errors conserve une trace dans le journal du serveur, même quand l'affichage est coupé.
+    // error_reporting_level règle les erreurs journalisées, pas leur affichage.
+    // Production recommandée : E_ALL & ~E_DEPRECATED. Développement : E_ALL.
+    // public bool $display_errors = false;
+    // public bool $log_errors = true;
+    // public int $error_reporting_level = E_ALL & ~E_DEPRECATED;
+
     // Extensions Core facultatives : Tools, Matrix et Automation sont actives
     // par défaut. TyCatalog suit dev si sa clé est omise : actif en DEV, inactif
     // en production.

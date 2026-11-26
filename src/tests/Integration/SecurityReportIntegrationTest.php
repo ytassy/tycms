@@ -38,6 +38,7 @@ final class SecurityReportIntegrationTest extends TestCase
         // catalogues, donc disponibles sans servir de page.
         self::assertArrayHasKey('plg_core.media-root-only', $registry->all());
         self::assertArrayHasKey('plg_core.debug-mode', $registry->all());
+        self::assertArrayHasKey('plg_core.php-error-settings', $registry->all());
         self::assertArrayHasKey('plg_core.cron-token', $registry->all());
 
         $report = $registry->report();
