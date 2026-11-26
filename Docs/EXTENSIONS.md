@@ -183,6 +183,8 @@ qui définit sa propre CSP doit aussi y autoriser ce nonce.
 - `registerPageForm`, `registerPageCanvas`, `registerFormFieldComponent` et
   `registerPublicPageComponent` : registres décrits dans
   [Composants de page](PAGE_COMPONENTS.md#registres-vue-et-compilation) ;
+- `registerExtensionConfigView('lms/config', composant)` : vue de
+  configuration propre à l’extension, décrite ci-dessous ;
 - `registerExtensionStore('useLmsStore', factory)` : factory suivant le contrat
   `get(vueApp, application)` des stores Core, sans remplacement d’un nom Core ;
 - `useApplication()` : contexte de la racine courante, notamment API et CSRF,
@@ -209,6 +211,106 @@ export function registerFrontend() {
 L’ancien `assets/page-components.js` découvert par `import.meta.glob` n’est
 plus incorporé au build Core : déplacer le frontend dans son projet, déclarer
 `getFrontendEntry()` et exporter `registerFrontend`.
+
+## Vue de configuration d’une extension
+
+L’écran **Extensions → Paramètres** est un shell générique : il choisit le
+Space, charge les valeurs et laisse à l’extension le rendu de son formulaire.
+Deux déclarations sont possibles.
+
+### Formulaire déclaratif
+
+`coreRegisterConfigForm()` retourne un `Form` PHP. Le Core affiche alors son
+interface générique et valide la soumission contre cette même définition
+serveur. C’est le mode par défaut, suffisant pour des champs courants.
+
+### Vue propre à l’extension
+
+L’extension peut déclarer un identifiant logique :
+
+```php
+public function getConfigViewComponentName(): ?string
+{
+    return 'lms/config';
+}
+```
+
+Le Core transmet uniquement cet identifiant dans le champ `config_view` de
+l’API. Il ne transmet jamais de chemin d’import, de classe, de template ni de
+HTML. Le bundle Vue de l’extension enregistre le composant correspondant :
+
+```js
+import { registerExtensionConfigView } from '@tycms/api'
+import LmsConfig from './LmsConfig.vue'
+
+export function registerFrontend() {
+    registerExtensionConfigView('lms/config', LmsConfig)
+}
+```
+
+Le registre refuse un identifiant invalide, le préfixe `core/` et les
+doublons. Une extension installée n’a besoin d’aucun rebuild du Core : son
+propre manifeste Vite et l’Import Map fournissent le composant.
+
+La vue reçoit les props suivantes :
+
+| Prop | Contrat |
+| --- | --- |
+| `extension` | Métadonnées et configurations des Spaces autorisés pour cette extension. |
+| `space` | Space sélectionné, avec son `template`, son `mail_from` et ses `params`. |
+| `spaces` | Spaces que le compte peut configurer pour cette extension. |
+| `definition` | Formulaire de confiance préparé pour Vue, sections masquées retirées, ou `null` si aucun formulaire n’est déclaré. |
+| `params` | Brouillon courant, en `v-model:params` ; la vue émet `update:params`. |
+| `errors`, `saving` | Erreurs de champs et état d’enregistrement. |
+| `save(values?)` | Enregistre la configuration dans la table `config` via le WF commun, en ne retenant que les champs déclarés dans `definition`. |
+
+Une vue qui intègre le formulaire générique utilise le composant global
+`form_renderer`, y compris ses slots `section-header` et `section-footer`. Elle
+porte elle-même son bouton d’enregistrement et lui donne la classe `ctrl-s`
+pour conserver le raccourci commun. Si `definition` vaut `null`, `save()`
+n’écrit rien : une vue sans formulaire reste responsable de ses propres
+endpoints.
+
+```vue
+<template>
+    <form @submit.prevent="submit">
+        <form_renderer v-if="definition" v-model="draft" :definition="definition" />
+        <button type="submit" class="btn btn-primary ctrl-s" :disabled="saving">Enregistrer</button>
+    </form>
+</template>
+<script>
+export default {
+    props: ['extension', 'spaces', 'space', 'definition', 'params', 'errors', 'saving', 'save'],
+    computed: {
+        draft: {
+            get() { return this.params },
+            set(value) { this.$emit('update:params', value) },
+        },
+    },
+    methods: {
+        async submit() { await this.save(this.draft) },
+    },
+}
+</script>
+```
+
+La vue peut appeler ses propres API avec `this.api` en Vue Options API ou
+`useApplication().api` en Composition API. `save()` ne couvre que la table
+`config` : aucun mécanisme ne rend atomiques la configuration et un stockage
+externe. Ordonner les appels, traiter un échec partiel et rendre les endpoints
+propres à l’extension idempotents restent de sa responsabilité. Ses routes
+conservent leurs ACL, leur CSRF et leurs validations.
+
+Si `config_view` est déclaré mais que le bundle chargé ne l’enregistre pas,
+l’écran affiche un avertissement et revient au formulaire déclaratif lorsqu’il
+existe. Une extension dont le frontend est incomplet ne bloque donc pas sa
+propre administration.
+
+Le contrat reste lié au Space sélectionné, comme le formulaire générique. Un
+réglage réellement global demanderait un mode séparé. Les extensions Core
+Sécurité et Template principale utilisent ce même registre pour leurs vues
+propres ; elles sont enregistrées par le bundle Core, puisque seules les
+extensions installées fournissent un frontend compilé.
 
 ## Une extension en développement, les autres compilées
 

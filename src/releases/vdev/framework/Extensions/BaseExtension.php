@@ -49,6 +49,19 @@ abstract class BaseExtension extends BaseApplicationItem implements IMigration
         return [];
     }
 
+    /**
+     * Identifiant logique du composant Vue de configuration, ou null pour
+     * utiliser l'interface générique du Core.
+     *
+     * Le composant est enregistré par le frontend de l'extension. Le serveur
+     * ne transmet jamais de chemin d'import, de classe ni de template : seul
+     * cet identifiant est résolu dans le registre Vue de confiance.
+     */
+    public function getConfigViewComponentName(): ?string
+    {
+        return null;
+    }
+
     /** Vérifier les champs soumis avant la validation du formulaire générique. */
     public function assertConfigSubmissionAllowed(int $spaceId, object $params): void {}
 

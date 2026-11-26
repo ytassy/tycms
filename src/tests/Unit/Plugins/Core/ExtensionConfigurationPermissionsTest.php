@@ -149,6 +149,9 @@ final class ExtensionConfigurationPermissionsTest extends FrameworkTestCase
         self::assertSame([2], $data['extensions']['plg_custom']['space_ids']);
         self::assertSame([1], array_keys($data['extensions']['plg_security']['conf_by_spaces']));
         self::assertSame([2], array_keys($data['extensions']['tpl_main']['conf_by_spaces']));
+        // Le Core transmet seulement l’identifiant logique des vues spécialisées.
+        self::assertSame('security/config', $data['extensions']['plg_security']['config_view']);
+        self::assertSame('main-template/config', $data['extensions']['tpl_main']['config_view']);
 
         // Un droit sur l'autre extension ne permet pas d'écrire sa configuration.
         try {
@@ -245,6 +248,32 @@ final class ExtensionConfigurationPermissionsTest extends FrameworkTestCase
 
         $this->expectException(AccessDeniedException::class);
         (new WFExtensions($app))->saveConfiguration(1, 'plg_security', $params);
+    }
+
+    public function testInvalidConfigViewIdentifierIsRejectedBeforeRendering(): void
+    {
+        $app = $this->createApplication();
+        $invalid = new class($app) extends SecurityPlugin {
+            public function getConfigViewComponentName(): ?string
+            {
+                return '../config';
+            }
+        };
+        (new ReflectionProperty(Application::class, 'extensions'))->setValue($app, ['plg_invalid' => $invalid]);
+
+        $acl = $this->createStub(AclHelper::class);
+        $acl->method('getSpacesHavingGlobalPermission')->willReturn([1]);
+        $spaces = $this->createStub(SpaceHelper::class);
+        $spaces->method('getSpacesByIds')->willReturn([1 => $this->space($app, 1)]);
+        $extensions = $this->createStub(ExtensionsHelper::class);
+        $extensions->method('getFormsByExtension')->willReturn([]);
+        $extensions->method('getExtensionsConfForSpaces')->willReturn([]);
+        (new ReflectionProperty(Application::class, 'sharedExtensionsClasses'))->setValue($app, [
+            AclHelper::class => $acl, SpaceHelper::class => $spaces, ExtensionsHelper::class => $extensions,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+        (new WFExtensions($app))->getDatas();
     }
 
     private function space(Application $app, int $id): Space

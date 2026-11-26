@@ -54,9 +54,12 @@ export default {
 			this.success = false
 			this.error = ''
 			try {
-				const response = await this.stores.useAdminExtensionsStore().sendTemplateTestMail(
-					this.spaceId, this.recipient, this.mode, this.submittedValues(),
-				)
+				// L’appel appartient à la Template : le store commun ne connaît pas
+				// les endpoints propres à une extension.
+				const response = await this.api.post('/administrator/api/templates/main/mail/test', {
+					spaceId: this.spaceId, recipient: this.recipient, mode: this.mode,
+					params: this.submittedValues(),
+				})
 				this.success = response.sent === true
 				if (!this.success) this.error = 'L’envoi d’e-mails est désactivé pour cet espace.'
 			} catch (_) {

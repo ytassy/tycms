@@ -15,7 +15,7 @@
 	</section>
 </template>
 <script>
-import CodeEditor from '../../common/CodeEditor.vue'
+import CodeEditor from '../../../../common/CodeEditor.vue'
 
 export default {
 	components: { CodeEditor },

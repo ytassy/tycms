@@ -6,7 +6,13 @@ un canevas Vue sans données et sans rendu public. Ce canevas réutilise le mixi
 et une directive du Core pour vérifier l’intégration.
 
 La page `lms/home` est enregistrée pour une future `RiaView` ; aucun écran de
-formation n’est encore exposé. Les choix métier sont à définir avant les migrations.
+formation n’est encore exposé. L’onglet **Paramètres** de l’écran Extensions
+propose une configuration réelle, stockée dans la table `config` : cours par
+page et affichage du nombre de cours. Sa vue `LmsConfig.vue` est compilée dans
+le bundle de l’extension et enregistrée par `registerExtensionConfigView` ;
+elle intègre le formulaire générique du Core et illustre le point d’extension
+décrit dans le [contrat des extensions](../../../../Docs/EXTENSIONS.md#vue-de-configuration-dune-extension).
+Les choix métier sont à définir avant les migrations.
 
 Développement : `DEV_EXTENSION=plugins/Lms` dans `docker/dev/.env`, puis
 `./docker/dev/start.sh`. Le Core charge alors le frontend sur le Vite dédié.

@@ -126,12 +126,6 @@ export const useAdminExtensionsStore = {
 			}
 		},
 
-		async sendTemplateTestMail(spaceId, recipient, mode, params) {
-			return await application.api.post('/administrator/api/templates/main/mail/test', {
-				spaceId, recipient, mode, params,
-			})
-		},
-
 		async loadMigrations(silent = false) {
 			if (!silent) this.migrationsLoading = true
 			this.migrationsError = null

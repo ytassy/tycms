@@ -43,45 +43,47 @@
 							</div>
 						</div>
 
-						<form v-if="editableForm" @submit.prevent="saveConfiguration">
-							<form_renderer
-								:key="`${selectedExtension.name}:${selectedSpace?.id ?? ''}`"
-								v-model="draftParams"
-								:definition="editableForm"
-								:context="{ spaceId: selectedSpace?.id ?? null }"
-								:errors="fieldErrors"
-							>
-								<template #section-header="{ section }">
-									<p v-if="selectedExtension.name === 'tpl_main' && section.id === 'theme_typography'" class="text-body-secondary">
-										Les polices téléchargées dans la rubrique « Polices » de l’administration sont proposées ici après installation.
-									</p>
-									<div v-if="selectedExtension.name === 'tpl_main' && ['email_default', 'email_blank'].includes(section.id) && !selectedSpace?.params?.main_host"
-										class="alert alert-warning mb-3" role="alert">
-										Le domaine principal de cet espace n’est pas renseigné. Ajoutez-le dans les paramètres de l’espace pour utiliser les e-mails avec Template.
-									</div>
-								</template>
-								<template #section-footer="{ section }">
-									<WafInheritedConfiguration v-if="section.id === 'waf' && inheritsRootWaf"
-										:configuration="selectedExtension.conf_by_spaces?.[1]?.params ?? null" />
-									<EmailTestPanel v-if="canTestMail && ['email_default', 'email_blank'].includes(section.id)"
-										:key="`${selectedSpace.id}:${section.id}`"
-										:mode="section.id === 'email_default' ? 'default' : 'blank'"
-										:space-id="selectedSpace.id" :sender-email="selectedSpace.mail_from" :main-host="selectedSpace.params?.main_host"
-										:definition="editableForm" :draft-params="draftParams" :saving="adminExtensionsStore.saving" />
-								</template>
-							</form_renderer>
+						<component
+							v-if="configView"
+							:is="configView"
+							:key="`${selectedExtension.name}:${selectedSpace?.id ?? ''}`"
+							v-model:params="draftParams"
+							:extension="selectedExtension"
+							:spaces="spaces"
+							:space="selectedSpace"
+							:definition="configurationForm"
+							:errors="fieldErrors"
+							:saving="adminExtensionsStore.saving"
+							:save="saveConfiguration"
+						/>
 
-							<div class="d-flex align-items-center gap-3 mt-4">
-								<button type="submit" class="btn btn-primary ctrl-s" :disabled="adminExtensionsStore.saving || !selectedSpace">
-									<span v-if="adminExtensionsStore.saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
-									Enregistrer
-								</button>
+						<template v-else>
+							<div v-if="configViewMissing" class="alert alert-warning" role="alert">
+								La vue de configuration de cette extension n’est pas disponible dans le bundle Vue chargé.
+								{{ configurationForm ? 'Le formulaire générique est affiché à la place.' : 'Aucun formulaire de repli n’est déclaré.' }}
 							</div>
-						</form>
 
-						<div v-else class="alert alert-secondary mb-0">
-							Cette extension ne déclare pas de formulaire de configuration.
-						</div>
+							<form v-if="configurationForm" @submit.prevent="submitConfiguration">
+								<form_renderer
+									:key="`${selectedExtension.name}:${selectedSpace?.id ?? ''}`"
+									v-model="draftParams"
+									:definition="configurationForm"
+									:context="{ spaceId: selectedSpace?.id ?? null }"
+									:errors="fieldErrors"
+								/>
+
+								<div class="d-flex align-items-center gap-3 mt-4">
+									<button type="submit" class="btn btn-primary ctrl-s" :disabled="adminExtensionsStore.saving || !selectedSpace">
+										<span v-if="adminExtensionsStore.saving" class="spinner-border spinner-border-sm me-2" aria-hidden="true" />
+										Enregistrer
+									</button>
+								</div>
+							</form>
+
+							<div v-else class="alert alert-secondary mb-0">
+								Cette extension ne déclare pas de formulaire de configuration.
+							</div>
+						</template>
 					</section>
 
 					<section v-else>
@@ -123,19 +125,18 @@
 </template>
 
 <script>
-import EmailTestPanel from './EmailTestPanel.vue'
 import CatalogSources from './CatalogSources.vue'
 import ExtensionsManagement from './ExtensionsManagement.vue'
 import ExtensionsUpdates from './ExtensionsUpdates.vue'
-import WafInheritedConfiguration from './WafInheritedConfiguration.vue'
-import { securityWafForm } from './securityWafForm.js'
+import { resolveExtensionConfigView } from '../../../application/configViewRegistry.js'
+import './configViews/registerCoreConfigViews.js'
 
 function cloneJson(value) {
 	return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 }
 
 export default {
-	components: { CatalogSources, EmailTestPanel, ExtensionsManagement, ExtensionsUpdates, WafInheritedConfiguration },
+	components: { CatalogSources, ExtensionsManagement, ExtensionsUpdates },
 	data() {
 		return {
 			draftParams: {},
@@ -182,28 +183,24 @@ export default {
 		selectedConfiguration() {
 			return this.adminExtensionsStore.selectedConfiguration
 		},
+
+		// Le Core ne connaît que les sections masquées déclarées par l’extension.
 		configurationForm() {
 			const form = this.selectedExtension?.form
 			const hidden = this.selectedExtension?.hidden_sections_by_space?.[this.selectedSpace?.id] ?? []
 			if (!form) return form
-			const visible = hidden.length === 0 ? form : { ...form, sections: form.sections.filter(section => !hidden.includes(section.id)) }
-			return this.selectedExtension?.name === 'plg_security'
-				? securityWafForm(visible, this.selectedSpace?.id, false) : visible
+			return hidden.length === 0 ? form : { ...form, sections: form.sections.filter(section => !hidden.includes(section.id)) }
 		},
 
-		inheritsRootWaf() {
-			return this.selectedExtension?.name === 'plg_security' && this.selectedSpace?.id !== 1
-				&& this.draftParams.waf_use_root === true
+		// Composant désigné par l’extension et résolu dans le registre de confiance.
+		// null : formulaire générique, ou avertissement de repli s’il est déclaré.
+		configView() {
+			const name = this.selectedExtension?.config_view
+			return name ? resolveExtensionConfigView(name) : null
 		},
 
-		editableForm() {
-			const form = this.configurationForm
-			if (!form || !this.inheritsRootWaf) return form
-			return securityWafForm(form, this.selectedSpace?.id, true)
-		},
-
-		canTestMail() {
-			return this.selectedExtension?.name === 'tpl_main' && this.selectedSpace?.template === 'tpl_main'
+		configViewMissing() {
+			return Boolean(this.selectedExtension?.config_view) && this.configView === null
 		},
 
 	},
@@ -271,29 +268,45 @@ export default {
 			this.draftParams = draft
 		},
 
-		submittedValues() {
+		/**
+		 * Filtrer sur les champs du formulaire de confiance. Une vue custom peut
+		 * transmettre ses propres paramètres sans élargir ce qui est écrit dans
+		 * la table config.
+		 */
+		submittedValues(values = null) {
+			const source = values ?? this.draftParams
 			const params = {}
 			for (const field of this.configurationForm?.sections?.flatMap((section) => section.fields ?? []) ?? []) {
-				if (!field.name || field.submittable === false || !Object.prototype.hasOwnProperty.call(this.draftParams, field.name)) continue
-				params[field.name] = this.draftParams[field.name]
+				if (!field.name || field.submittable === false || !Object.prototype.hasOwnProperty.call(source, field.name)) continue
+				params[field.name] = source[field.name]
 			}
 			return params
 		},
 
-		async saveConfiguration() {
-			if (!this.editableForm || !this.selectedSpace) return
+		// Soumission du formulaire générique : le store affiche le message et
+		// conserve le brouillon, sans rejet non géré dans le template.
+		async submitConfiguration() {
+			try {
+				await this.saveConfiguration()
+			} catch {
+				// Le store conserve le message d’erreur.
+			}
+		},
+
+		// Contrat fourni à une vue custom : elle peut enchaîner ses propres
+		// appels avec la sauvegarde de config et interrompre la suite sur échec.
+		async saveConfiguration(values = null) {
+			if (!this.configurationForm || !this.selectedSpace) return null
 
 			this.fieldErrors = {}
-			try {
-				await this.adminExtensionsStore.saveConfiguration(
-					this.selectedSpace.id,
-					this.selectedExtension.name,
-					this.submittedValues(),
-				)
-				this.resetDraft()
-			} catch {
-				// The API service displays the server message; keep the current draft.
-			}
+			const configuration = await this.adminExtensionsStore.saveConfiguration(
+				this.selectedSpace.id,
+				this.selectedExtension.name,
+				this.submittedValues(values),
+			)
+			this.resetDraft()
+
+			return configuration
 		},
 	},
 }

@@ -110,4 +110,11 @@ class Plugin extends BasePlugin implements IExtensionEvents
     {
         return ConfigurationForm::build($this);
     }
+
+    /** La vue gère l’héritage WAF et la lecture de la configuration Root. */
+    #[Override]
+    public function getConfigViewComponentName(): ?string
+    {
+        return 'security/config';
+    }
 }

@@ -123,6 +123,13 @@ class Template extends BaseTemplate implements IExtensionEvents
         return $conf->getConfigForm();
     }
 
+    /** La vue ajoute l’essai d’e-mail et les avertissements propres à la Template. */
+    #[Override]
+    public function getConfigViewComponentName(): ?string
+    {
+        return 'main-template/config';
+    }
+
     /** Le menu principal et le pied de page restent dans le Space configuré ou ses parents. */
     public function assertConfigSubmissionAllowed(int $spaceId, object $params): void
     {

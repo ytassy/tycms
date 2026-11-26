@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { securityWafForm } from '../src/components/administrator/extensions/securityWafForm.js'
+import { securityWafForm } from '../src/components/administrator/extensions/configViews/security/securityWafForm.js'
 
 const definition = {
 	sections: [

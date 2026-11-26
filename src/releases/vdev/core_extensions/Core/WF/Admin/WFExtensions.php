@@ -94,6 +94,9 @@ class WFExtensions extends BaseWF
                 'description' => $extension->getDescription(),
                 'icon' => $extension->getIconClass(),
                 'form' => $form == null ? null : $form->getDefForRia(),
+                // Identifiant logique uniquement : le bundle de l’extension résout
+                // lui-même le composant dans son registre Vue.
+                'config_view' => $this->configViewComponentName($extension),
                 'space_ids' => $allowedIds,
                 'hidden_sections_by_space' => $hiddenSectionsBySpace,
                 'conf_by_spaces' => $configurationBySpace,
@@ -526,6 +529,25 @@ class WFExtensions extends BaseWF
         if (!$this->coreAclHelper->isRoot()) {
             throw new AccessDeniedException();
         }
+    }
+
+    /**
+     * Valide l’identifiant de vue avant de l’exposer au navigateur.
+     * Le Core ne construit ni ne résout ici de chemin de composant.
+     */
+    private function configViewComponentName(BaseExtension $extension): ?string
+    {
+        $id = $extension->getConfigViewComponentName();
+        if ($id === null) {
+            return null;
+        }
+
+        if (str_starts_with($id, 'core/')
+            || preg_match('~^[a-z][a-z0-9_-]*/(?:[a-zA-Z0-9_-]+)(?:/[a-zA-Z0-9_-]+)*$~D', $id) !== 1) {
+            throw new RuntimeException('Identifiant de vue de configuration d’extension invalide : ' . $id);
+        }
+
+        return $id;
     }
 
     /** @return array<int> */
