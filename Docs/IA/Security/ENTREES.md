@@ -158,3 +158,18 @@ Ces valeurs n'ont pas été éprouvées. Une limite vérifiée après lecture du
 corps ou entre deux appels externes ne garantit pas un plafond global en mémoire
 ou en durée. Les réglages PHP/Apache hébergés restent inconnus. Les schémas et
 quotas spécifiques devront être suivis opération par opération aux lots 03/08/12.
+
+## File de jobs différés (surfaces ajoutées après l'instantané du lot 03)
+
+Ces entrées sont postérieures à [ROUTES.csv](ROUTES.csv) ; elles seront reprises
+à la régénération du prochain lot. Les contrôles listés sont des intentions
+lues dans le code, pas des garanties éprouvées.
+
+| Entrée | Contrôle actuel | À éprouver |
+| --- | --- | --- |
+| `GET/POST /queue-worker` | Jeton `job_worker_token` en Bearer, query ou corps ; une seule source ; `hash_equals` ; `503` si le secret n'est pas configuré ; hors CSRF et hors WAF ; `#[NoTransaction]`. | Jeton en query recopié dans les journaux d'accès ; GET imposé par l'hébergeur ; rejeu rapide et concurrence (verrou `GET_LOCK`) ; aucune fuite du jeton dans une réponse ou un journal. |
+| `POST /api/jobs/ping` | Anonyme, sans paramètre, sans session ; renvoie des compteurs ; reste sous WAF ; `Sec-Fetch-Site: cross-site` refusé quand l'en-tête est présent ; verrou non bloquant et lot borné (10 jobs, 5 s). | Abus par appels répétés : aucun jeton par conception, la borne réelle est le verrou et le budget. Un visiteur ne doit ni créer, ni réordonner, ni relire un job. Mesurer le coût d'un démarrage PHP par appel. |
+| `administrator/api/jobs/*` : `list`, `state`, `detail`, `documentation` (GET) ; `retry`, `cancel`, `purge`, `run` (POST) | Écran ROOT ; `#[Acl(ROOT, space 1)]` sur les lectures ; CSRF automatique sur les POST ; `assertRoot()` dans `WFJobs`. | `run` exécute réellement des jobs : vérifier qu'aucun autre rôle n'y accède. Payload lisible mais jamais modifiable. Purge bornée (365 jours, 500 lignes). Actions journalisées `JOB_ADMIN_*`. |
+| Compte système `users.id = 2` | Type `service`, sans mot de passe, rattaché au groupe 3 (rôle ROOT) ; suppression refusée pour les identifiants 1–999 ; recréé au premier besoin. | Escalade par principal `system` : tout producteur de job exécute du code avec les droits ROOT. La frontière est l'installation des extensions, pas l'enfilement. Vérifier que l'ID 2 n'est jamais réattribué à un compte réel et que le provisionnement reste idempotent. |
+| Payload de job | JSON ≤ 256 Ko, stocké en `mediumtext`, affiché en lecture seule dans l'écran ROOT. | Aucun secret ne doit y transiter malgré la règle documentée (jetons, mots de passe). Type résolu par registre, jamais par nom de classe stocké. Un handler rejoué doit rester idempotent. |
+| Dates | `SET time_zone = '+00:00'` à la connexion ; `DateTools` pour les écritures PHP ; exception documentée pour les colonnes `date` (jour calendaire). | Aucune comparaison d'une heure SQL avec `time()` en PHP ; lignes historiques écrites avant l'alignement, potentiellement en heure locale. |

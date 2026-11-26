@@ -12,7 +12,10 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\UserGroups;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobTrafficTrigger;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
+use YTassy\Tycms\CoreExts\Core\JobQueue\SystemAccount;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobWorker;
 use YTassy\Tycms\DB\Database;
 use YTassy\Tycms\Request\Request;
@@ -239,6 +242,99 @@ final class JobQueueIntegrationTest extends TestCase
         $this->worker->run(JobWorker::SOURCE_CRON);
 
         self::assertSame('cancelled', $this->queue->status($jobId)['status']);
+    }
+
+    public function testTrafficTagIsSilentWithoutDueWork(): void
+    {
+        /** @var JobTrafficTrigger $trigger */
+        $trigger = $this->app->getOrAddSharedExtensionsClass(JobTrafficTrigger::class);
+
+        self::assertSame('', $trigger->tag());
+    }
+
+    public function testTrafficTagIsSilentWhenDisabled(): void
+    {
+        $this->queue->enqueue(new JobRequest('plg_test.noop', [], ['space_id' => 1]));
+        $this->app->getConf()->job_traffic_trigger = false;
+
+        /** @var JobTrafficTrigger $trigger */
+        $trigger = $this->app->getOrAddSharedExtensionsClass(JobTrafficTrigger::class);
+
+        self::assertSame('', $trigger->tag());
+    }
+
+    public function testTrafficTagWaitsForACspNonce(): void
+    {
+        $this->queue->enqueue(new JobRequest('plg_test.noop', [], ['space_id' => 1]));
+
+        // Aucun rendu de page n'a eu lieu : le nonce CSP n'existe pas encore.
+        /** @var JobTrafficTrigger $trigger */
+        $trigger = $this->app->getOrAddSharedExtensionsClass(JobTrafficTrigger::class);
+
+        self::assertSame('', $trigger->tag());
+    }
+
+    public function testSystemAccountIsRecreatedWithItsRootGroup(): void
+    {
+        $this->db->execute('DELETE FROM users WHERE id = %', [SystemAccount::USER_ID]);
+        $this->db->execute('DELETE FROM user_groups_map WHERE user_id = %', [SystemAccount::USER_ID]);
+
+        /** @var SystemAccount $account */
+        $account = $this->app->getOrAddSharedExtensionsClass(SystemAccount::class);
+
+        self::assertSame(SystemAccount::USER_ID, $account->id());
+
+        $user = $this->db->selectOneOrNull(
+            'SELECT id, type FROM users WHERE id = %',
+            [SystemAccount::USER_ID],
+        );
+        self::assertNotNull($user);
+        self::assertSame('service', $user->type);
+
+        $mapping = $this->db->selectOneOrNull(
+            'SELECT group_id FROM user_groups_map WHERE user_id = % AND group_id = %',
+            [SystemAccount::USER_ID, UserGroups::GROUP_ROOT],
+        );
+        self::assertNotNull($mapping);
+    }
+
+    public function testWorkerStopsWhenAnotherConnectionHoldsTheLock(): void
+    {
+        // Une seconde connexion, comme un autre worker, tient le verrou nommé.
+        $other = new Application(TestEnvironment::load()->configuration());
+        $other->initialiseOrThrow(new Request(), false, null, false);
+        $otherDb = $other->getDatabase();
+        $lock = JobWorker::lockNameFor((string) $other->getConf()->db_dbname);
+
+        $locked = $otherDb->selectOneOrNull('SELECT GET_LOCK(%, 0) AS locked', [$lock]);
+        self::assertSame(1, (int) $locked->locked);
+
+        try {
+            $summary = $this->worker->run(JobWorker::SOURCE_CRON);
+
+            self::assertTrue($summary['busy']);
+            self::assertSame(0, $summary['ran']);
+        } finally {
+            $otherDb->selectOneOrNull('SELECT RELEASE_LOCK(%) AS released', [$lock]);
+        }
+    }
+
+    public function testWorkerPurgesOldTerminalJobsOncePerInterval(): void
+    {
+        $old = $this->queue->enqueue(new JobRequest('plg_test.noop', [], ['space_id' => 1]));
+        $this->db->execute(
+            "UPDATE jobs SET status = 'completed', finished_at = DATE_SUB(now(), INTERVAL 20 DAY) WHERE id = %",
+            [$old],
+        );
+        $this->db->execute('UPDATE job_worker_state SET last_purge_at = NULL WHERE id = 1');
+
+        $first = $this->worker->run(JobWorker::SOURCE_CRON);
+        self::assertSame(1, $first['purged']);
+        self::assertNull($this->queue->status($old));
+
+        // L'intervalle d'une heure n'est pas écoulé : rien de plus.
+        $second = $this->worker->run(JobWorker::SOURCE_CRON);
+        self::assertSame(0, $second['purged']);
     }
 }
 

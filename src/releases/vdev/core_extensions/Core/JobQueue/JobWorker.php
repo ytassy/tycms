@@ -636,11 +636,14 @@ final class JobWorker extends BaseHelper
      * Le nom dépend de la base : sur un mutualisé, plusieurs installations
      * peuvent partager le même serveur MariaDB sans se sérialiser entre elles.
      */
+    public static function lockNameFor(string $database): string
+    {
+        return 'tycms_job_' . substr(sha1($database), 0, 32);
+    }
+
     private function lockName(): string
     {
-        $database = (string) ($this->app->getConf()->db_dbname ?? '');
-
-        return 'tycms_job_' . substr(sha1($database), 0, 32);
+        return self::lockNameFor((string) ($this->app->getConf()->db_dbname ?? ''));
     }
 
     private function jobType(string $type): ?JobType
