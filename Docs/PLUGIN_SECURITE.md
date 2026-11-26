@@ -249,8 +249,11 @@ même si un helper porte un défaut.
 
 Le contrôle `plg_core.php-error-settings`, dans le groupe « Environnement »,
 reprend les trois réglages appliqués par le bootstrap : `display_errors`,
-`log_errors` et `error_reporting_level`. Il lit la configuration réelle, jamais
-le `php.ini` supposé de l'hébergement.
+`log_errors` et `error_reporting_level`. Il lit les valeurs effectives de la
+requête avec `ini_get()` et `error_reporting()`, puis les compare à
+`configuration.php`. Il distingue donc un réglage local incorrect d'un
+hébergement qui refuse de l'appliquer : dans ce second cas, la correction vise
+`php.ini` ou `.user.ini`.
 
 - `display_errors = true` est signalé en `danger` : les réponses peuvent
   révéler des chemins, des requêtes SQL ou d'autres détails internes.

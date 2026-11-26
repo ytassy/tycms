@@ -139,7 +139,8 @@ survenues avant ce point d'entrée, notamment un `configuration.php` illisible
 ou invalide, restent régies par le `php.ini` de l'hébergement : `log_errors`
 doit y rester actif. Une surcharge locale conserve le type booléen de
 `display_errors` et `log_errors`, et le type entier de `error_reporting_level`.
-Le [bilan de sécurité](PLUGIN_SECURITE.md#erreurs-php) vérifie ces trois valeurs.
+Le [bilan de sécurité](PLUGIN_SECURITE.md#erreurs-php) vérifie ces trois valeurs
+effectives et signale un hébergement qui refuse de les appliquer.
 
 La normalisation s'effectue uniquement en mémoire : elle ne réécrit ni le PHP
 local, ni les secrets, ni la version déclarée dans le fichier. Aucun changement
