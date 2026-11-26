@@ -166,7 +166,8 @@ final class BuiltinFunctionCatalog implements FunctionCatalog
             // existe, ses définitions priment (AutomationFunctionCatalog).
             // Les maintenir ici reste nécessaire : un éditeur ou un test qui
             // valide sans application doit reconnaître ces identifiants.
-            'core::sendMail' => [2, 3, FunctionEffect::EXTERNAL],
+            'core::sendMail' => [3, 3, FunctionEffect::EXTERNAL],
+            'core::sendMailTemplate' => [2, 3, FunctionEffect::EXTERNAL],
             'core::notify' => [1, 3, FunctionEffect::EXTERNAL],
             'core::sendTelegram' => [1, 3, FunctionEffect::EXTERNAL],
             'core::sendSlack' => [1, 3, FunctionEffect::EXTERNAL],

@@ -53,6 +53,7 @@ use YTassy\Tycms\CoreExts\Core\Automation\Actions\RemoveFromGroupAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\RemoveRoleAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendDiscordAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendMailAction;
+use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendMailTemplateAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendSlackAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendTelegramAction;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SessionReadAction;
@@ -67,10 +68,46 @@ final class CoreAutomationActions
     public static function definitions(): array
     {
         return [
+            // Envoi libre : le corps est purifié avec le profil e-mail du site
+            // avant d'être inséré dans l'habillage du Space.
             new AutomationActionDefinition(
                 id: 'core::sendMail',
                 label: 'Envoyer un e-mail',
                 handlerClass: SendMailAction::class,
+                description: 'Envoie un message dont le corps HTML est fourni par le scénario, '
+                    . 'après purification, avec l’habillage e-mail du Space.',
+                parameters: [
+                    new AutomationParameterDefinition(
+                        'to',
+                        'string',
+                        true,
+                        label: 'Destinataire',
+                        description: 'Adresse e-mail du destinataire.',
+                    ),
+                    new AutomationParameterDefinition(
+                        'subject',
+                        'string',
+                        true,
+                        label: 'Objet',
+                        description: 'Objet du message, sur une seule ligne.',
+                    ),
+                    new AutomationParameterDefinition(
+                        'htmlBody',
+                        'string',
+                        true,
+                        label: 'Corps HTML',
+                        description: 'Contenu HTML du message ; il est purifié avant l’envoi.',
+                    ),
+                ],
+                returnType: 'bool',
+                effect: FunctionEffect::EXTERNAL,
+                requiredPermissions: [CorePermissions::SPACE_ADMIN],
+                timeoutSeconds: 15,
+            ),
+            new AutomationActionDefinition(
+                id: 'core::sendMailTemplate',
+                label: 'Envoyer un modèle d’e-mail',
+                handlerClass: SendMailTemplateAction::class,
                 description: 'Envoie un modèle d’e-mail déclaré dans le Space.',
                 parameters: [
                     new AutomationParameterDefinition(

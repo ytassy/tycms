@@ -690,7 +690,7 @@ export default {
                         '    util::log("Compte reçu : " . fullName($user));',
                         '',
                         '    if ($principal->type == "user") {',
-                        '        core::sendMail("welcome", $user->email, [',
+                        '        core::sendMailTemplate("welcome", $user->email, [',
                         '            "firstName" => $user->firstName',
                         '        ]);',
                         '    }',
@@ -1288,6 +1288,13 @@ export default {
                 })
                 this.result = { kind: 'run', ...response }
                 this.$refs.history?.reload()
+
+                // Confirmer le succès sans masquer le détail : le panneau du run
+                // reste affiché plus bas dans la page.
+                if (response.status === 'success') {
+                    const runLabel = response.run_id ? `Run #${response.run_id}` : 'Le run'
+                    this.showModaleInfo(`${runLabel} exécuté avec succès. Le détail s’affiche plus bas.`)
+                }
             } catch (error) {
                 this.error = error?.message ?? 'L’exécution a échoué.'
             } finally {

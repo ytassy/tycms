@@ -72,7 +72,7 @@ final class DryRunActionDispatcherTest extends FrameworkTestCase
 
         try {
             $dispatcher->dispatch(
-                'core::sendMail',
+                'core::sendMailTemplate',
                 ['template', 'to@example.test', []],
                 $this->span(),
                 $this->services(),

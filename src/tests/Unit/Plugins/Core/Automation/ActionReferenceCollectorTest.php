@@ -26,7 +26,7 @@ function main() {
     $name = str::upper("x");
     $user = core::getUser(1);
     if ($user->blocked) {
-        core::sendMail("template", "a@b.test", ["name" => $name]);
+        core::sendMailTemplate("template", "a@b.test", ["name" => $name]);
     }
     return $user;
 }
@@ -38,7 +38,7 @@ TXT);
         $collector = new ActionReferenceCollector($registry);
 
         self::assertSame(
-            ['core::getUser', 'core::sendMail'],
+            ['core::getUser', 'core::sendMailTemplate'],
             $collector->collect($parsed->program),
         );
     }

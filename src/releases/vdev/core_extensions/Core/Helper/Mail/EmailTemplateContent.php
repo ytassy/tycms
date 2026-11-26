@@ -2,8 +2,6 @@
 
 namespace YTassy\Tycms\CoreExts\Core\Helper\Mail;
 
-use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
-use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Mail\EmailTemplateVariable;
 use YTassy\Tycms\CoreExts\Core\Helper\Media\MediaHelper;
 use YTassy\Tycms\CoreExts\Core\Models\Space;
@@ -72,7 +70,7 @@ final class EmailTemplateContent
             throw new ApplicationException('Contenu HTML invalide.');
         }
 
-        $sanitized = self::sanitizer()->sanitize($protected);
+        $sanitized = EmailHtmlSanitizer::sanitize($protected);
         foreach ($sentinels as $sentinel => $token) {
             if (substr_count($sanitized, $sentinel) !== 1) {
                 throw new ApplicationException('Un lien variable a été retiré du contenu HTML.');
@@ -148,23 +146,5 @@ final class EmailTemplateContent
         );
 
         return [$renderedSubject, $renderedBody];
-    }
-
-    private static function sanitizer(): HtmlSanitizer
-    {
-        $config = (new HtmlSanitizerConfig())
-            ->allowElement('p')->allowElement('div')->allowElement('span')
-            ->allowElement('h1')->allowElement('h2')->allowElement('h3')->allowElement('h4')
-            ->allowElement('strong')->allowElement('b')->allowElement('em')->allowElement('i')
-            ->allowElement('br')->allowElement('hr')->allowElement('ul')->allowElement('ol')
-            ->allowElement('li')->allowElement('table')->allowElement('tbody')
-            ->allowElement('thead')->allowElement('tr')->allowElement('td')
-            ->allowElement('th')->allowElement('a', ['href', 'title'])
-            ->allowElement('img', ['src', 'alt'])
-            ->allowLinkSchemes(['https', 'mailto'])
-            ->allowRelativeMedias()
-            ->forceHttpsUrls();
-
-        return new HtmlSanitizer($config);
     }
 }

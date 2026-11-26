@@ -11,7 +11,7 @@ registres d'actions/déclencheurs, `RunSession`, hook `onAfterRouteExecuted`,
 repository de persistance, exécuteur de run synchrone, WF de run manuel et
 journalisation des runs/steps. Un smoke test a créé un scénario, publié une
 version, exécuté un run et relu la sortie et son étape. Les actions Core
-(`sendMail`, `notify`, `sendTelegram`/`sendSlack`/`sendDiscord`, lecture
+(`sendMailTemplate` et `sendMail`, `notify`, `sendTelegram`/`sendSlack`/`sendDiscord`, lecture
 utilisateurs, rôles et groupes), les notifications d'échec et de scénario
 configurées par Space avec secrets chiffrés, les profils nommés et l'endpoint
 `POST administrator/api/automation/run` sont branchés. Le buffer d'événements,
@@ -168,7 +168,7 @@ données en paramètres ; ils ne lisent pas les variables locales de `main`.
 - Identifiants : `[A-Za-z_][A-Za-z0-9_]*`, sensibles à la casse, ASCII en v1.
 - Variables : `$` suivi d'un identifiant.
 - Fonctions qualifiées : `namespace::nom`, par exemple `str::upper`,
-  `core::sendMail`.
+  `core::sendMailTemplate`.
 - Fonctions utilisateur : identifiant nu, par exemple `displayName`.
 - Commentaires : `//` jusqu'en fin de ligne, `/* ... */` non imbriqués.
 - Nombres : décimaux, flottants avec `.`, exposant `e`/`E`. Pas d'hexadécimal,
@@ -306,7 +306,7 @@ function fullName($user) {
 }
 
 function invite($user, $sender) {
-    core::sendMail("meeting-invite", $user->email, [
+    core::sendMailTemplate("meeting-invite", $user->email, [
         "firstName"  => $user->firstName,
         "senderName" => $sender->firstName
     ]);
@@ -555,7 +555,8 @@ function main() {
 
 Actions impures, à titre d'exemple :
 
-`core::sendMail(template, to, ?vars)`, `core::notify(message, ?title, ?channels)`,
+`core::sendMailTemplate(template, to, ?vars)`, `core::sendMail(to, subject, htmlBody)`,
+`core::notify(message, ?title, ?channels)`,
 `core::sendTelegram(message, ?title, ?target)`, `core::sendSlack(...)`,
 `core::sendDiscord(...)`, `core::getUser(userId)`,
 `core::listUsers(?page, ?perPage, ?search, ?type)`, `core::addRole(userId, roleId, spaceId)`,
@@ -575,8 +576,10 @@ doivent donc être maintenues alignées, et un test de non-régression vérifie
 qu'une définition à quatre paramètres produit bien `maxArity = 4`.
 
 Chacune déclare ses permissions, vérifie l'ACL sur le Space réel du principal
-et nettoie ses entrées. `core::sendMail` prend un modèle et des variables, pas
-du HTML brut.
+et nettoie ses entrées. `core::sendMailTemplate` prend un modèle et des
+variables ; `core::sendMail` purifie son corps HTML avec le profil e-mail avant
+l'envoi et l'insère dans l'habillage du Space. Le HTML fourni à `core::sendMail`
+est toujours purifié ; aucun envoi ne transmet du HTML brut.
 
 Les actions de session portent un état court entre deux requêtes d'un même
 visiteur, par exemple les étapes d'une inscription ou d'un assistant
@@ -1173,8 +1176,9 @@ perdre leur `event_id` lorsque l'événement correspondant est purgé plus tôt.
   nettoyage ne supprime aucun statut actif et reste irréversible côté données.
 - **SSRF** : allowlist, IP privées bloquées, timeouts, redirections
   désactivées, réponse bornée.
-- **Injection** : échappement par sink. `core::sendMail` utilise un modèle et
-  des variables, jamais du HTML concaténé.
+- **Injection** : échappement par sink. `core::sendMailTemplate` utilise un
+  modèle et des variables ; `core::sendMail` applique le profil e-mail
+  (`EmailHtmlSanitizer`) à son corps HTML avant l'envoi.
 - **Journaux** : codes stables, Space réel, masquage, rétention.
 - **Déduplication** : `event_id` unique, `dedup_key` par scénario, profondeur
   de chaîne bornée.
@@ -1297,7 +1301,7 @@ les services. Les actions sont déclarées par leur extension ; `plg_core` décl
 | 1 | Lexer, parser, AST, validation statique, tests | Fait : tests dédiés, erreurs positionnées, reprise au niveau des instructions |
 | 2 | Interpréteur, built-ins, budgets, journal mémoire | Fait : interpréteur, built-ins purs, portées, budgets, journal en mémoire, frontière de valeurs, tests |
 | 3 | Tables, versions, registres, hook après commit, `RunSession`, run manuel synchrone | Fait (socle) : schéma, permissions, registres, hook, exécuteur, persistance runs/steps, WF manuel et smoke test |
-| 4 | Actions Core (`sendMail`, users, rôles), notifications d'échec puis de scénario, profils nommés, endpoint manuel, config chiffrée | Fait (actions, notifications, endpoint) ; UI et exercice author/service à venir |
+| 4 | Actions Core (`sendMail`/`sendMailTemplate`, users, rôles), notifications d'échec puis de scénario, profils nommés, endpoint manuel, config chiffrée | Fait (actions, notifications, endpoint) ; UI et exercice author/service à venir |
 | 5 | Éditeur textuel, dry-run, historique | Fait : liste, création, brouillon, vérification en lecture seule, publication, exécution, historique des runs, catalogues serveur et référence Markdown téléchargeable |
 | 6 | Buffer d'événements, déclencheurs domaine, bouton de page, API productrice, webhook, planifié | Buffer, drain, `core.user.created`, bouton de page, `emit`/`triggerNow`, `scenario-choices`, webhook, planification et worker cron faits ; tests d'intégration et exercice réel à venir |
 | 7 | Maintenance manuelle, reprise des événements bloqués, runs interrompus, rétention, durcissement | Fait : panneau Maintenance, réservations atomiques, runs marqués en échec avec notification, rétention configurable, tests d'intégration ; audit de sécurité et essai réel à poursuivre |

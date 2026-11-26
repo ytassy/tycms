@@ -18,9 +18,9 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
     {
         $definitions = CoreAutomationActions::definitions();
 
-        self::assertCount(64, $definitions);
+        self::assertCount(65, $definitions);
         self::assertSame(
-            ['core::sendMail', 'core::notify', 'core::sendTelegram', 'core::sendSlack',
+            ['core::sendMail', 'core::sendMailTemplate', 'core::notify', 'core::sendTelegram', 'core::sendSlack',
                 'core::sendDiscord', 'core::listPageComponents', 'core::listPageHistory',
                 'core::readPageVersion', 'core::listMenuTypes', 'core::getUser',
                 'core::listPermissions', 'core::listRoles', 'core::getRole', 'core::createRole',
@@ -69,6 +69,28 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertSame('target', $definitions['core::sendSlack']->parameters[2]->name);
         self::assertSame('target', $definitions['core::sendDiscord']->parameters[2]->name);
         self::assertSame('channels', $definitions['core::notify']->parameters[2]->name);
+    }
+
+    #[Test]
+    public function mailActionsExposeTheirPublicParameters(): void
+    {
+        $definitions = array_column(CoreAutomationActions::definitions(), null, 'id');
+
+        foreach (['core::sendMail', 'core::sendMailTemplate'] as $id) {
+            $definition = $definitions[$id];
+            self::assertSame('bool', $definition->returnType);
+            self::assertSame('external', $definition->effect);
+            self::assertContains('plg_core__SPACE_ADMIN', $definition->requiredPermissions);
+        }
+
+        self::assertSame(
+            ['to', 'subject', 'htmlBody'],
+            array_map(static fn ($parameter): string => $parameter->name, $definitions['core::sendMail']->parameters),
+        );
+        self::assertSame(
+            ['template', 'to', 'vars'],
+            array_map(static fn ($parameter): string => $parameter->name, $definitions['core::sendMailTemplate']->parameters),
+        );
     }
 
     #[Test]
@@ -124,6 +146,7 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         $registry->registerProvider('plg_core', new Plugin($app));
 
         self::assertTrue($registry->has('core::sendMail'));
+        self::assertTrue($registry->has('core::sendMailTemplate'));
         self::assertTrue($registry->has('core::notify'));
         self::assertTrue($registry->has('core::sendTelegram'));
         self::assertTrue($registry->has('core::addRole'));
@@ -134,6 +157,7 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertTrue($registry->has('google_sheets::upsertRow'));
         self::assertTrue($registry->has('google_calendar::createEvent'));
         self::assertSame('plg_core', $registry->ownerOf('core::sendMail'));
+        self::assertSame('plg_core', $registry->ownerOf('core::sendMailTemplate'));
         self::assertSame('plg_core', $registry->ownerOf('google_sheets::appendRow'));
         self::assertSame('plg_core', $registry->ownerOf('google_calendar::createEvent'));
 
@@ -141,6 +165,6 @@ final class CoreAutomationActionsTest extends FrameworkTestCase
         self::assertTrue($registry->has('core::getUser'));
         self::assertSame('plg_core', $registry->ownerOf('core::getUser'));
 
-        self::assertCount(64, $registry->all());
+        self::assertCount(65, $registry->all());
     }
 }

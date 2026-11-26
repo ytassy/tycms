@@ -239,6 +239,34 @@ final class MailHelperTest extends FrameworkTestCase
         self::assertCount(2, $selected);
     }
 
+    public function testTemplatedModesAbsolutizeRelativeMediaUrlsButRawModeDoesNot(): void
+    {
+        $app = $this->createMailApplication();
+        $space = $this->space($app, 1);
+        $space->title = 'Espace source';
+        $space->params['main_host'] = 'source.example.test';
+        $config = new Config($app);
+        $config->params = (object) [
+            'email_default_outer_background' => '#EAEAEA',
+        ];
+        $templateHelper = $this->createStub(TemplateHelper::class);
+        $templateHelper->method('getTemplateAndExtension')
+            ->willReturn([$config, new MainTemplate($app)]);
+        $mailer = new RecordingMailer();
+        $helper = $this->helper($app, $space, [1 => $space], $mailer, $templateHelper);
+        $html = '<p><img src="/medias/source/photo.jpg" alt="Photo"></p>';
+
+        self::assertTrue($helper->sendDefaultHtml('to@example.test', 'Sujet', $html));
+        self::assertStringContainsString(
+            'https://source.example.test/medias/source/photo.jpg',
+            $mailer->Body,
+        );
+
+        // Le mode raw ne doit pas réécrire le HTML fourni.
+        self::assertTrue($helper->sendRawHtml('to@example.test', 'Sujet', $html));
+        self::assertSame($html, $mailer->Body);
+    }
+
     public function testTemplateMailPreviewUsesDraftPresentationAndSavedSmtpSettings(): void
     {
         $app = $this->createMailApplication();

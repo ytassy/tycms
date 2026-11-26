@@ -298,7 +298,7 @@ final class InterpreterTest extends LanguageTestCase
     public function unavailableActionFailsCleanly(): void
     {
         $this->assertFailure(DiagnosticCode::ACTION_UNAVAILABLE, $this->runScenario(
-            'function main() { core::sendMail("template", "to@example.test", []); }',
+            'function main() { core::sendMailTemplate("template", "to@example.test", []); }',
         ));
     }
 

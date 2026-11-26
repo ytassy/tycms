@@ -75,7 +75,7 @@ final class ValidatorTest extends LanguageTestCase
     public function qualifiedFunctionArityIsChecked(): void
     {
         $this->assertDiagnostic(
-            'function main() { core::sendMail("template"); }',
+            'function main() { core::sendMailTemplate("template"); }',
             DiagnosticCode::BAD_ARITY,
         );
     }
@@ -155,7 +155,7 @@ final class ValidatorTest extends LanguageTestCase
 
             function main() {
                 $name = displayName($input->user);
-                core::sendMail("meeting", $input->email, ["name" => $name]);
+                core::sendMailTemplate("meeting", $input->email, ["name" => $name]);
                 $now = date::now();
                 return ["name" => $name, "at" => $now];
             }

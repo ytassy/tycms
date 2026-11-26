@@ -20,6 +20,8 @@ class MailHelper extends BaseHelper
      * Returns false without sending when global mailonline or the source Space's
      * mail_online is disabled. Configuration and transport errors are exceptions.
      * The source Space selects its template; renderMode is default, blank or raw.
+     * In default and blank modes, relative /medias/ image sources become absolute
+     * URLs; raw mode transmits the HTML unchanged.
      *
      * @param string|array<int|string, string> $to
      * @param string|array<int|string, string> $cc
@@ -47,6 +49,13 @@ class MailHelper extends BaseHelper
         $params = is_object($space->params) ? get_object_vars($space->params) : (is_array($space->params) ? $space->params : []);
         if (!($params['mail_online'] ?? true)) {
             return false;
+        }
+
+        // Les images des médias restent relatives dans un contenu libre. Un
+        // client de messagerie ne sait pas les résoudre : les modes avec
+        // habillage reçoivent donc une URL absolue. Le mode raw reste intact.
+        if ($renderMode !== 'raw') {
+            $html = $this->absoluteMediaUrls($html, $space);
         }
 
         $html = $this->prepareHtml($html, $space, $renderMode, $emailLocale);

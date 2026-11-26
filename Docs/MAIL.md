@@ -207,6 +207,10 @@ directement, avec les mêmes autres paramètres que `sendHtml()`. Un document HT
 complet fourni par l'appelant peut utiliser `raw` ; les deux autres modes
 attendent le HTML du contenu à encapsuler.
 
+En modes `default` et `blank`, une image dont le `src` commence par `/medias/`
+reçoit une URL absolue sur le domaine principal du Space source. Le mode `raw`
+transmet le HTML sans réécriture.
+
 La Template est toujours celle déclarée par `spaces.template` du Space source,
 et sa configuration est lue pour ce même Space, comme dans
 `BaseController::renderAndGetTemplateResponse()`. Chaque classe `BaseTemplate`
@@ -235,8 +239,9 @@ pour l'e-mail (Arial, Georgia, Verdana, Tahoma, Trebuchet), les tailles de texte
 et de titres, l'interligne, ainsi que les couleurs du texte, des titres et des
 liens. L'habillage utilise des tables et des styles de présentation inline ;
 les styles des titres et liens sont également déclarés dans le document HTML.
-Le HTML fourni par l'appelant reste volontairement libre et doit être de
-confiance.
+Le HTML fourni directement à `sendHtml()` reste volontairement libre et doit
+être de confiance ; l'action de scénario `core::sendMail` applique le profil
+e-mail avant l'appel.
 
 `Core\Helper\Mail\MailAdminHelper` porte `protectSmtpPassword()` et
 `sendTestHtml()`. Son accès typé `$this->coreMailAdminHelper` est déclaré dans
@@ -295,6 +300,16 @@ le serveur SMTP a accepté le message, pas qu’il est arrivé en boîte de réc
 Une version texte est déduite du HTML pour les clients qui n’affichent pas le HTML.
 L’envoi est synchrone : il peut avoir lieu avant la validation de la transaction
 HTTP qui l’a déclenché.
+
+Les actions de scénario s'appuient sur ces helpers.
+`core::sendMailTemplate(template, to, ?vars)` envoie un modèle déclaré dans le
+Space du run. `core::sendMail(to, subject, htmlBody)` purifie d'abord le corps
+avec `EmailHtmlSanitizer`, le profil strict commun aux modèles : pas de script,
+iframe, vidéo ni formulaire, liens limités à HTTPS et `mailto`, images des médias
+du site. Il l'envoie ensuite en mode `default` avec l'habillage du Space. L'objet
+tient sur une ligne de 255 octets au maximum, le corps est borné à 131 072
+octets et un corps vide après purification est refusé. Les deux actions exigent
+`SPACE_ADMIN` sur le Space réel du run.
 
 Le rendu e-mail est testé sans serveur SMTP réel. Aucun test SMTP réel n’est
 inclus dans la suite unitaire. Voir `Docs/CRYPTO.md` pour le format chiffré et

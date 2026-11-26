@@ -203,7 +203,7 @@ final class AutomationMcpIntegrationTest extends TestCase
             'params' => [
                 'name' => 'tycms.run',
                 'arguments' => [
-                    'source' => 'function main() { return core::sendMail("welcome", "a@example.test", []); }',
+                    'source' => 'function main() { return core::sendMailTemplate("welcome", "a@example.test", []); }',
                 ],
             ],
         ]));

@@ -34,26 +34,34 @@ final class AutomationReferenceDocumentTest extends TestCase
             [[
                 'id' => 'core::sendMail',
                 'label' => 'Envoyer un e-mail',
-                'description' => 'Envoie un modèle.',
+                'description' => 'Envoie un corps HTML purifié.',
                 'return_type' => 'bool',
                 'effect' => 'external',
                 'required_permissions' => ['plg_core__SPACE_ADMIN'],
                 'parameters' => [
                     [
-                        'name' => 'template',
+                        'name' => 'to',
                         'type' => 'string',
                         'required' => true,
                         'default' => null,
-                        'label' => 'Modèle',
-                        'description' => 'Clé du modèle.',
+                        'label' => 'Destinataire',
+                        'description' => 'Adresse du destinataire.',
                     ],
                     [
-                        'name' => 'vars',
-                        'type' => 'array',
-                        'required' => false,
-                        'default' => [],
-                        'label' => 'Variables',
-                        'description' => 'Variables | du modèle.',
+                        'name' => 'subject',
+                        'type' => 'string',
+                        'required' => true,
+                        'default' => null,
+                        'label' => 'Objet',
+                        'description' => 'Objet | du message.',
+                    ],
+                    [
+                        'name' => 'htmlBody',
+                        'type' => 'string',
+                        'required' => true,
+                        'default' => null,
+                        'label' => 'Corps HTML',
+                        'description' => 'Contenu HTML purifié.',
                     ],
                 ],
             ]],
@@ -89,7 +97,7 @@ final class AutomationReferenceDocumentTest extends TestCase
         self::assertStringContainsString('## Actions', $markdown);
         self::assertStringContainsString('core::sendMail', $markdown);
         self::assertStringContainsString('plg_core__SPACE_ADMIN', $markdown);
-        self::assertStringContainsString('Variables \\| du modèle.', $markdown);
+        self::assertStringContainsString('Objet \\| du message.', $markdown);
         self::assertStringContainsString('## Variables de contexte', $markdown);
         self::assertStringContainsString('$principal', $markdown);
         self::assertStringContainsString('## Déclencheurs', $markdown);

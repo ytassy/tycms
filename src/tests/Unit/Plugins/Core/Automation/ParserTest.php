@@ -38,7 +38,7 @@ final class ParserTest extends LanguageTestCase
                 $users = workteam::getUsersOfTeam($input->teamId);
 
                 foreach ($users as $user) {
-                    core::sendMail("meeting-invite", $user->email, [
+                    core::sendMailTemplate("meeting-invite", $user->email, [
                         "firstName" => $user->firstName
                     ]);
                 }

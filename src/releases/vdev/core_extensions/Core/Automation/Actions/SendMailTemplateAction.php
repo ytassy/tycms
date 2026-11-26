@@ -8,7 +8,8 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\ActionContext;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\BaseAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\Runtime\ValueTools;
 
-final class SendMailAction extends BaseAutomationAction
+/** Envoie un modèle d'e-mail déclaré dans le Space du run. */
+final class SendMailTemplateAction extends BaseAutomationAction
 {
     public function execute(ActionContext $context, array $params): mixed
     {
