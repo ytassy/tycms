@@ -82,10 +82,22 @@
 			<h3 class="h5 mt-4">Limites appliquées</h3>
 			<dl class="row mb-0">
 				<dt class="col-sm-4">CRON de la file</dt>
-				<dd class="col-sm-8">{{ limits.cronJobs }} jobs, {{ limits.cronSeconds }} secondes par passage</dd>
+				<dd class="col-sm-8">{{ limits.cronSeconds }} secondes par passage</dd>
 
 				<dt class="col-sm-4">Trafic du site</dt>
-				<dd class="col-sm-8">{{ limits.trafficJobs }} jobs, {{ limits.trafficSeconds }} secondes par appel</dd>
+				<dd class="col-sm-8">{{ limits.trafficSeconds }} secondes par appel</dd>
+
+				<dt class="col-sm-4">Administration</dt>
+				<dd class="col-sm-8">{{ limits.adminSeconds }} secondes par exécution manuelle</dd>
+
+				<dt class="col-sm-4">Limite PHP du serveur</dt>
+				<dd class="col-sm-8">
+					{{ limits.serverSeconds > 0 ? limits.serverSeconds + ' secondes' : 'illimitée (0)' }}
+					<span class="text-muted">, marge de {{ limits.marginSeconds }} secondes</span>
+				</dd>
+
+				<dt class="col-sm-4">Garde-fou</dt>
+				<dd class="col-sm-8">{{ limits.maxJobs }} jobs au maximum par passage</dd>
 
 				<dt class="col-sm-4">Durée déclarée d’un job</dt>
 				<dd class="col-sm-8">{{ limits.minTimeMax }} secondes au maximum</dd>
@@ -100,7 +112,9 @@
 			<h3 class="h5 mt-4">Dernier passage du worker</h3>
 			<p class="mb-0">
 				<span v-if="documentation.worker.lastRunAt">
-					{{ documentation.worker.lastRunAt }}, source <code>{{ documentation.worker.lastSource }}</code>,
+					il y a {{ ageLabel(documentation.worker.lastRunAgeSeconds) }}
+					<span class="text-muted">({{ documentation.worker.lastRunAt }} côté base)</span>,
+					source <code>{{ documentation.worker.lastSource }}</code>,
 					{{ documentation.worker.lastRan }} job(s), {{ documentation.worker.lastBudgetMs }} ms.
 				</span>
 				<span v-else>Aucun passage enregistré.</span>
@@ -140,6 +154,19 @@ export default {
 	},
 
 	methods: {
+
+		// L'âge vient de la base, donc du même fuseau que la colonne : jamais
+		// de conversion d'heure locale ici.
+		ageLabel(seconds) {
+			if (seconds === null || seconds === undefined) return 'un instant'
+			if (seconds < 60) return 'moins d’une minute'
+
+			const minutes = Math.round(seconds / 60)
+			if (minutes < 60) return `${minutes} minute${minutes > 1 ? 's' : ''}`
+
+			const hours = Math.round(minutes / 60)
+			return `${hours} heure${hours > 1 ? 's' : ''}`
+		},
 
 		loadDocumentation() {
 			if (!this.store.documentation) this.store.loadDocumentation()

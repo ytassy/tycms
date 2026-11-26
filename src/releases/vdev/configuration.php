@@ -23,6 +23,7 @@ class Configuration extends ConfigurationBase
         'plg_automation' => true
     ];
 
+
     // Le développement utilise aussi HTTP ; la base conserve cookie_secure pour la production.
     public $session_php_start_options = [
         'cookie_httponly' => true,
@@ -36,6 +37,8 @@ class Configuration extends ConfigurationBase
     // Jeton de la route CRON globale, appelée chaque minute par la crontab.
     // Laisser vide pour désactiver la route /cron.
     public string $cron_token = 'dev';
+
+    public string $job_worker_token = "dev";
 
     // Limites spécifiques à cet environnement ; les autres options sont héritées.
     public int $page_max_size = 2_000_000;

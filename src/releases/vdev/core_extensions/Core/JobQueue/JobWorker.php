@@ -573,13 +573,18 @@ final class JobWorker extends BaseHelper
 
     private function purgeIfDue(): int
     {
+        // L'âge vient de la base : comparer un `datetime` SQL à `time()` en PHP
+        // dépendrait du fuseau du serveur SQL, qui n'est pas celui de PHP.
         $state = $this->db->selectOneOrNull(
-            'SELECT last_purge_at FROM job_worker_state WHERE id = 1 LIMIT 1',
+            'SELECT TIMESTAMPDIFF(SECOND, last_purge_at, now()) AS age
+               FROM job_worker_state
+              WHERE id = 1
+              LIMIT 1',
         );
 
-        $lastPurge = $state->last_purge_at ?? null;
+        $age = $state?->age === null ? null : (int) $state->age;
 
-        if ($lastPurge !== null && strtotime((string) $lastPurge) > time() - self::PURGE_INTERVAL_SECONDS) {
+        if ($age !== null && $age < self::PURGE_INTERVAL_SECONDS) {
             return 0;
         }
 

@@ -12,6 +12,7 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobWorker;
 use YTassy\Tycms\CoreExts\Core\WF\WFJobs;
 use YTassy\Tycms\DB\Database;
 use YTassy\Tycms\Request\Request;
@@ -133,6 +134,49 @@ final class JobAdminIntegrationTest extends TestCase
         self::assertNull($this->queue->status($old));
         self::assertNotNull($this->queue->status($recent));
         self::assertNotNull($this->queue->status($pending));
+    }
+
+    public function testHeartbeatFreshnessUsesTheDatabaseClock(): void
+    {
+        // Même fuseau des deux côtés : un passage à l'instant n'est pas périmé.
+        $this->db->execute('UPDATE job_worker_state SET last_run_at = now() WHERE id = 1');
+
+        $fresh = $this->wf->list(null, null, null, 1)['worker'];
+
+        self::assertFalse($fresh['stale']);
+        self::assertLessThanOrEqual(2, $fresh['lastRunAgeSeconds']);
+
+        // Un quart d'heure côté base : périmé, quel que soit le fuseau de PHP.
+        $this->db->execute(
+            'UPDATE job_worker_state SET last_run_at = DATE_SUB(now(), INTERVAL 15 MINUTE) WHERE id = 1',
+        );
+
+        $old = $this->wf->list(null, null, null, 1)['worker'];
+
+        self::assertTrue($old['stale']);
+        self::assertGreaterThan(800, $old['lastRunAgeSeconds']);
+    }
+
+    public function testDocumentationExposesEffectiveBudgets(): void
+    {
+        // Le contrat de l'onglet : des budgets de temps, jamais des compteurs.
+        $documentation = $this->wf->documentation();
+        $limits = $documentation['limits'];
+
+        self::assertArrayHasKey('cronSeconds', $limits);
+        self::assertArrayHasKey('trafficSeconds', $limits);
+        self::assertArrayHasKey('adminSeconds', $limits);
+        self::assertArrayHasKey('serverSeconds', $limits);
+        self::assertArrayHasKey('maxJobs', $limits);
+        self::assertArrayNotHasKey('cronJobs', $limits);
+        self::assertArrayNotHasKey('trafficJobs', $limits);
+
+        // Les budgets affichés sont déjà bornés par la limite du serveur.
+        self::assertLessThanOrEqual(JobWorker::CRON_BUDGET_SECONDS, $limits['cronSeconds']);
+        self::assertLessThanOrEqual(JobWorker::TRAFFIC_BUDGET_SECONDS, $limits['trafficSeconds']);
+
+        self::assertArrayHasKey('configured', $documentation['queue']);
+        self::assertArrayHasKey('cron', $documentation);
     }
 
     public function testManualRunDrainsTheQueue(): void

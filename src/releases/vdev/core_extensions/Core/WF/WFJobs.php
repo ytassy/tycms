@@ -48,7 +48,7 @@ final class WFJobs extends BaseWF
 
         // Le battement est la seule preuve qu'un second CRON est configuré.
         $result['worker'] = $state + [
-            'stale' => $this->isStale($state['lastRunAt']),
+            'stale' => $this->isStale($state['lastRunAgeSeconds']),
         ];
 
         return $result;
@@ -162,6 +162,7 @@ final class WFJobs extends BaseWF
         $this->assertRoot();
         $conf = $this->app->getConf();
         $state = $this->coreJobAdminHelper->workerState();
+        $serverSeconds = (int) ini_get('max_execution_time');
 
         return [
             'cron' => [
@@ -175,12 +176,16 @@ final class WFJobs extends BaseWF
                 'configured' => (string) ($conf->job_worker_token ?? '') !== '',
             ],
             'trafficTrigger' => ($conf->job_traffic_trigger ?? false) === true,
-            'worker' => $state + ['stale' => $this->isStale($state['lastRunAt'])],
+            'worker' => $state + ['stale' => $this->isStale($state['lastRunAgeSeconds'])],
+            // Les budgets affichés sont les budgets effectifs, déjà bornés par
+            // la limite PHP de l'hébergement : c'est ce qui se passe vraiment.
             'limits' => [
-                'cronJobs' => JobWorker::CRON_MAX_JOBS,
-                'cronSeconds' => JobWorker::CRON_BUDGET_SECONDS,
-                'trafficJobs' => JobWorker::TRAFFIC_MAX_JOBS,
-                'trafficSeconds' => JobWorker::TRAFFIC_BUDGET_SECONDS,
+                'cronSeconds' => JobWorker::clampBudget(JobWorker::CRON_BUDGET_SECONDS, $serverSeconds),
+                'trafficSeconds' => JobWorker::clampBudget(JobWorker::TRAFFIC_BUDGET_SECONDS, $serverSeconds),
+                'adminSeconds' => JobWorker::clampBudget(JobWorker::ADMIN_BUDGET_SECONDS, $serverSeconds),
+                'serverSeconds' => $serverSeconds,
+                'marginSeconds' => JobWorker::SAFETY_MARGIN_SECONDS,
+                'maxJobs' => JobWorker::SAFETY_MAX_JOBS,
                 'retentionDays' => JobWorker::RETENTION_DAYS,
                 'minTimeMax' => JobType::MIN_TIME_MAX,
                 'payloadBytes' => JobPayload::MAX_BYTES,
@@ -195,14 +200,14 @@ final class WFJobs extends BaseWF
         }
     }
 
-    private function isStale(?string $lastRunAt): bool
+    /**
+     * Un passage est périmé au-delà du seuil, l'âge venant de la base.
+     *
+     * Aucune conversion de fuseau ici : comparer une heure SQL à `time()` en
+     * PHP ferait croire à un worker arrêté dès que les deux horloges diffèrent.
+     */
+    private function isStale(?int $ageSeconds): bool
     {
-        if ($lastRunAt === null) {
-            return true;
-        }
-
-        $timestamp = strtotime($lastRunAt);
-
-        return $timestamp === false || $timestamp < time() - self::STALE_SECONDS;
+        return $ageSeconds === null || $ageSeconds > self::STALE_SECONDS;
     }
 }

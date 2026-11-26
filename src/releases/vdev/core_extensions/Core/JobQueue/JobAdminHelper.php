@@ -127,11 +127,30 @@ final class JobAdminHelper extends BaseHelper
         );
     }
 
-    /** @return array{lastRunAt: string|null, lastSource: string, lastRan: int, lastBudgetMs: int, lastPurgeAt: string|null} */
+    /**
+     * État du dernier passage du worker.
+     *
+     * Les écarts sont calculés par la base : comparer un `datetime` SQL à
+     * `time()` en PHP suppose que les deux horloges partagent le même fuseau,
+     * ce qui n'est pas garanti (MariaDB peut être en UTC et PHP en heure
+     * locale). Ici, `now()` et la colonne viennent de la même horloge.
+     *
+     * @return array{
+     *     lastRunAt: string|null,
+     *     lastRunAgeSeconds: int|null,
+     *     lastSource: string,
+     *     lastRan: int,
+     *     lastBudgetMs: int,
+     *     lastPurgeAt: string|null,
+     *     lastPurgeAgeSeconds: int|null
+     * }
+     */
     public function workerState(): array
     {
         $row = $this->db->selectOneOrNull(
-            'SELECT last_run_at, last_source, last_ran, last_budget_ms, last_purge_at
+            'SELECT last_run_at, last_source, last_ran, last_budget_ms, last_purge_at,
+                    TIMESTAMPDIFF(SECOND, last_run_at, now()) AS run_age,
+                    TIMESTAMPDIFF(SECOND, last_purge_at, now()) AS purge_age
                FROM job_worker_state
               WHERE id = 1
               LIMIT 1',
@@ -139,10 +158,12 @@ final class JobAdminHelper extends BaseHelper
 
         return [
             'lastRunAt' => $row?->last_run_at,
+            'lastRunAgeSeconds' => $row?->run_age === null ? null : (int) $row->run_age,
             'lastSource' => (string) ($row->last_source ?? ''),
             'lastRan' => (int) ($row->last_ran ?? 0),
             'lastBudgetMs' => (int) ($row->last_budget_ms ?? 0),
             'lastPurgeAt' => $row?->last_purge_at,
+            'lastPurgeAgeSeconds' => $row?->purge_age === null ? null : (int) $row->purge_age,
         ];
     }
 
