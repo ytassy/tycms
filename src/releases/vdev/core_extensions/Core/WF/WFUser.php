@@ -3,6 +3,8 @@
 namespace YTassy\Tycms\CoreExts\Core\WF;
 
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
+use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
 use YTassy\Tycms\CoreExts\Core\Security\LocalPasswordPolicy;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
 use YTassy\Tycms\Response\ExceptionResponse;
@@ -64,9 +66,15 @@ class WFUser extends BaseWF
         $this->session->setUser($userId);
         $this->logger->setContext(['auth_method' => 'local', 'first_name' => $firstName]);
 
-        // L'envoi est facultatif pour la création : un échec SMTP laisse le compte utilisable.
-        $this->coreUserWelcomeMailHelper->sendLocalRegistration(
-            $space, $email, $firstName, $this->corePublicLocaleHelper->locale(),
+        // Le message part après le commit, par la file : un échec SMTP ne peut
+        // plus interrompre l'inscription, et un rollback n'envoie rien.
+        $this->coreJobQueue->enqueue(
+            SendMailJobHandler::create(
+                UserWelcomeMailHelper::TEMPLATE_LOCAL,
+                $userId,
+                (int) $space->id,
+                $this->corePublicLocaleHelper->locale(),
+            ),
         );
 
         return $userId;

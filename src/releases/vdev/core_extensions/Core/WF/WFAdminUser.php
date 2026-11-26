@@ -272,6 +272,9 @@ class WFAdminUser extends BaseWF
 
         // La case de la modale est indépendante du réglage général send_email du compte.
         if ($sendWelcome) {
+            // Volontairement synchrone : ce message porte le mot de passe
+            // initial, qui n'a rien à faire dans une ligne de file lisible en
+            // base. Voir le contrat des handlers de la file.
             $result['welcome_email_sent'] = $this->coreUserWelcomeMailHelper->sendAdminCreatedAccount(
                 $space, $email, $firstName, $data->password,
             );

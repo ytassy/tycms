@@ -3,6 +3,9 @@
 `plg_core` expose une route CRON unique pour les traitements récurrents des
 extensions. Elle n'est pas réservée à l'automatisation.
 
+La file de jobs différés a sa propre route et son propre jeton : elle ne passe
+pas par ce dispatcher. Voir [File de jobs](JOBS.md).
+
 ## Route et authentification
 
 La route accepte **GET et POST**, car certains hébergeurs comme Infomaniak

@@ -14,6 +14,7 @@ documentée ou une piste de travail ne constitue pas une fonctionnalité livrée
 | Développer une extension PHP/Vue, son build ESM et son Vite Docker | [Extensions](EXTENSIONS.md) |
 | Ajouter une route, des paramètres, une vue ou une réponse | [Contrôleurs](CONTROLLERS.md) |
 | Planifier un traitement récurrent avec la route CRON et ses hooks | [CRON](CRON.md) |
+| Enfiler, déclarer et exécuter des traitements différés | [File de jobs](JOBS.md) |
 | Configurer les sources externes, les domaines d’iframe et le WAF par Space (ROOT) | [Sécurité HTTP](PLUGIN_SECURITE.md) |
 | Mener l'audit de sécurité par sujets et suivre les constats et décisions | [Audit de sécurité](IA/Security/README.md) |
 | Définir et valider un formulaire PHP, choisir un type de champ | [Formulaires](FORMS.md) |

@@ -61,8 +61,10 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_4;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_5;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_10;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Mail\IEmailTemplateProvider;
@@ -83,7 +85,7 @@ use YTassy\Tycms\Routing\Controller\BaseController;
 use YTassy\Tycms\Routing\Route;
 use YTassy\Tycms\Routing\Router;
 
-class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider
+class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider, IJobProvider
 {
     use TraitAllHelpers;
 
@@ -121,6 +123,14 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
         foreach (CoreAutomationTriggers::definitions() as $definition) {
             $registry->register($definition);
         }
+    }
+
+    public function coreOnRegisterJobTypes(JobTypeRegistry $registry): void
+    {
+        // Un seul type pour l'instant : les bienvenues qui ne portent aucun
+        // secret. L'accueil d'un compte créé par un administrateur contient le
+        // mot de passe initial et reste envoyé de façon synchrone.
+        $registry->register(JobType::for(SendMailJobHandler::class));
     }
 
     #[Override]

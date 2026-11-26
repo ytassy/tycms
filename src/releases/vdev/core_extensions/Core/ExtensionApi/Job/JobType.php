@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace YTassy\Tycms\CoreExts\Core\ExtensionApi\Job;
 
 use InvalidArgumentException;
-use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 
 /**
  * Déclaration d'un type de job fourni par une extension.
@@ -33,6 +32,9 @@ final class JobType
 
     /** Longueur maximale de la colonne `type`. */
     public const ID_MAX_LENGTH = 100;
+
+    /** Constantes que le handler doit déclarer pour `for()`. */
+    private const HANDLER_METADATA = ['JOB_TYPE', 'JOB_LABEL', 'JOB_MIN_TIME', 'JOB_MAX_ATTEMPTS'];
 
     public readonly string $id;
 
@@ -68,17 +70,14 @@ final class JobType
         }
 
         // Refuser tôt une classe absente évite un job qui échoue à chaque tick.
-        // Le handler hérite de BaseHelper : le worker l'instancie avec
-        // l'Application isolée du principal, ce qui lui donne la base et les
-        // helpers partagés comme à un helper ordinaire.
+        // Le handler étend `BaseJobHandler`, qui porte le contrat et fournit
+        // l'Application isolée du principal au moment de l'exécution.
         if (!class_exists($handlerClass)
-            || !is_subclass_of($handlerClass, IJobHandler::class)
-            || !is_subclass_of($handlerClass, BaseHelper::class)) {
+            || !is_subclass_of($handlerClass, BaseJobHandler::class)) {
             throw new InvalidArgumentException(sprintf(
-                'Le handler du job "%s" doit implémenter %s et étendre %s.',
+                'Le handler du job "%s" doit étendre %s.',
                 $id,
-                IJobHandler::class,
-                BaseHelper::class,
+                BaseJobHandler::class,
             ));
         }
 
@@ -104,6 +103,40 @@ final class JobType
         $this->handlerClass = $handlerClass;
         $this->minTime = $minTime;
         $this->maxAttempts = $maxAttempts;
+    }
+
+    /**
+     * Construit le type depuis les constantes déclarées par le handler.
+     *
+     * Les métadonnées vivent à côté du code qu'elles décrivent et
+     * l'enregistrement tient en une ligne. Chaque constante manquante produit
+     * un message explicite plutôt qu'une erreur fatale à l'exécution.
+     *
+     * @param class-string<BaseJobHandler> $handlerClass
+     */
+    public static function for(string $handlerClass): self
+    {
+        if (!class_exists($handlerClass)) {
+            throw new InvalidArgumentException(sprintf('Handler de job introuvable : "%s".', $handlerClass));
+        }
+
+        foreach (self::HANDLER_METADATA as $constant) {
+            if (!defined($handlerClass . '::' . $constant)) {
+                throw new InvalidArgumentException(sprintf(
+                    'Le handler "%s" doit déclarer la constante %s.',
+                    $handlerClass,
+                    $constant,
+                ));
+            }
+        }
+
+        return new self(
+            (string) constant($handlerClass . '::JOB_TYPE'),
+            (string) constant($handlerClass . '::JOB_LABEL'),
+            $handlerClass,
+            (int) constant($handlerClass . '::JOB_MIN_TIME'),
+            (int) constant($handlerClass . '::JOB_MAX_ATTEMPTS'),
+        );
     }
 
     /** Extension propriétaire du type, déduite du préfixe. */

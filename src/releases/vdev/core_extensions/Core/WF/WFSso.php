@@ -5,6 +5,8 @@ namespace YTassy\Tycms\CoreExts\Core\WF;
 use YTassy\Tycms\Logging\LogEventException;
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
 use YTassy\Tycms\CoreExts\Core\Helper\AccountReturnPath;
+use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
 use YTassy\Tycms\CoreExts\Core\Models\SsoProvider;
 use YTassy\Tycms\CoreExts\Core\Models\Space;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
@@ -167,10 +169,16 @@ final class WFSso extends BaseWF
         $this->session->setUser($userId);
         $this->logger->setContext(['auth_method' => 'sso']);
 
-        // Seule une première création reçoit le bienvenue SSO, jamais une simple adhésion.
+        // Seule une première création reçoit le bienvenue SSO, jamais une simple
+        // adhésion. L'envoi passe par la file, après le commit.
         if ($this->newRegistrationEmail !== null) {
-            $this->coreUserWelcomeMailHelper->sendSsoRegistration(
-                $space, $this->newRegistrationEmail, $this->corePublicLocaleHelper->locale(),
+            $this->coreJobQueue->enqueue(
+                SendMailJobHandler::create(
+                    UserWelcomeMailHelper::TEMPLATE_SSO,
+                    $userId,
+                    (int) $space->id,
+                    $this->corePublicLocaleHelper->locale(),
+                ),
             );
         }
 

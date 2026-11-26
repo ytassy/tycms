@@ -7,6 +7,7 @@ namespace YTassy\Tycms\CoreExts\Core\JobQueue;
 use DateTimeImmutable;
 use DateTimeInterface;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\Exceptions\TechException;
 
@@ -37,29 +38,17 @@ final class JobQueue extends BaseHelper
     /**
      * Enfile un job et retourne son identifiant.
      *
-     * Avec `dedup_key`, un job déjà présent pour le même type et la même clé est
-     * retourné au lieu d'en créer un second.
-     *
-     * @param array<string, mixed> $payload
-     * @param array{
-     *     space_id?: int|null,
-     *     priority?: int,
-     *     available_at?: DateTimeInterface|string|null,
-     *     dedup_key?: string|null,
-     *     principal?: string,
-     *     exec_user_id?: int|null,
-     *     producer?: string|null,
-     *     max_attempts?: int,
-     *     created_by?: int|null
-     * } $options
+     * Le `JobRequest` vient d'une fabrique typée du handler, jamais d'un tableau
+     * composé à la main par le producteur. Avec `dedup_key`, un job déjà présent
+     * pour le même type et la même clé est retourné au lieu d'en créer un second.
      *
      * @throws TechException Type inconnu, payload invalide ou option refusée.
      */
-    public function enqueue(string $type, array $payload, array $options = []): int
+    public function enqueue(JobRequest $request): int
     {
-        $jobType = $this->jobType($type);
-        $normalised = $this->normaliseOptions($jobType, $options);
-        $encoded = JobPayload::encode($payload);
+        $jobType = $this->jobType($request->type);
+        $normalised = $this->normaliseOptions($jobType, $request->options);
+        $encoded = JobPayload::encode($request->payload);
 
         // L'upsert rend l'enfilement idempotent sans lecture préalable : la clé
         // unique (type, dedup_key) tranche, et LAST_INSERT_ID(id) rend

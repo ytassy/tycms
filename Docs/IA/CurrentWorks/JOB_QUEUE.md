@@ -1,8 +1,9 @@
 # Chantier Job Queue
 
-Conception du système générique de tâches différées de TyCMS. Ce document fixe
-les décisions arrêtées avec Yann avant réalisation ; il ne décrit pas encore du
-code livré.
+Conception du système générique de tâches différées de TyCMS. Ce document
+conserve les décisions arrêtées, les raisons des choix et les lots restants. Le
+contrat d'usage destiné aux extensions et à l'exploitation est dans
+[File de jobs](../../JOBS.md) ; il décrit le code livré.
 
 ## Objectif
 
@@ -185,7 +186,11 @@ propre boîte d'envoi, sans second outbox.
 Une extension implémente `IJobProvider` et enregistre ses types sur
 `onPrepareExtensions`, comme les registres d'actions et de composants existants.
 Chaque type déclare un identifiant stable `extension.job`, un libellé, un
-`min_time`, un nombre de tentatives par défaut et une classe de handler.
+`min_time`, un nombre de tentatives par défaut et une classe de handler. Ces
+métadonnées vivent en constantes `JOB_*` sur le handler et l'enregistrement
+tient en une ligne : `$registry->register(JobType::for(MonHandler::class));`.
+Le handler expose aussi une fabrique qui retourne un `JobRequest` : c'est elle
+que les producteurs appellent, jamais un tableau de payload composé à la main.
 
 ## Modèle de données
 
@@ -227,7 +232,7 @@ seconde ligne CRON, puisque rien d'autre ne s'en plaindrait.
 ## API publique
 
 ```php
-JobQueue::enqueue(string $type, array $payload, array $options = []): int
+JobQueue::enqueue(JobRequest $request): int
 JobQueue::status(int $id): ?array
 JobQueue::cancel(int $id): bool
 JobQueue::hasDueWork(): bool
@@ -237,11 +242,28 @@ Options d'enfilement : `space_id`, `priority`, `available_at`, `dedup_key`,
 `principal` (`none` par défaut, `system` ou `user`), `exec_user_id` (requis avec
 `user`, interdit sinon), `producer` (défaut : préfixe du type), `max_attempts`.
 
+Le `JobRequest` vient d'une fabrique statique du handler, jamais d'un tableau
+composé à la main : le producteur ne connaît ni les clés du payload ni celles
+des options.
+
+```php
+$this->coreJobQueue->enqueue(
+    SendMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, $userId, $spaceId, $locale),
+);
+```
+
 L'accès passe par `getSharedExtensionsClass(JobQueue::class)`, comme les autres
 services partagés. `dedup_key` renvoie l'identifiant du job existant au lieu
 d'en créer un second.
 
 ## Contrat des handlers
+
+Un handler étend `BaseJobHandler` (`Core/ExtensionApi/Job`), qui implémente
+`IJobHandler` et compose `TraitCoreSharedHelpers` au-dessus de
+`BaseApplicationItem` : il dispose de la base, du journal et des accès partagés
+sans revendiquer le rôle d'un helper de couche. `JobType` refuse toute autre
+classe. Les actions d'automation, elles, étendent `BaseHelper` ; l'écart est
+assumé, un handler n'est pas un helper technique.
 
 Un handler de job est du code exécuté hors de la requête qui l'a enfilé. Il est
 donc tenu à quatre règles, à documenter dans le guide :

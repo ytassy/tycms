@@ -10,10 +10,19 @@ use YTassy\Tycms\CoreExts\Core\Models\Space;
 /** Envoie les messages de bienvenue sans rendre l'inscription dépendante du SMTP. */
 final class UserWelcomeMailHelper extends BaseHelper
 {
+    /** Inscription locale : aucun secret, donc diffusable par la file. */
+    public const TEMPLATE_LOCAL = 'plg_core__registration_welcome';
+
+    /** Première inscription SSO : aucun secret, donc diffusable par la file. */
+    public const TEMPLATE_SSO = 'plg_core__registration_sso_welcome';
+
+    /** Compte créé par un administrateur : porte un mot de passe, jamais mis en file. */
+    public const TEMPLATE_ADMIN = 'plg_core__admin_account_welcome';
+
     public function sendLocalRegistration(Space $space, string $email, string $firstName, ?string $locale): bool
     {
         return $this->send(
-            'plg_core__registration_welcome', $space, $email, $locale,
+            self::TEMPLATE_LOCAL, $space, $email, $locale,
             ['space_title' => $space->title, 'first_name' => $firstName],
         );
     }
@@ -21,7 +30,7 @@ final class UserWelcomeMailHelper extends BaseHelper
     public function sendSsoRegistration(Space $space, string $email, ?string $locale): bool
     {
         return $this->send(
-            'plg_core__registration_sso_welcome', $space, $email, $locale,
+            self::TEMPLATE_SSO, $space, $email, $locale,
             ['space_title' => $space->title],
         );
     }
@@ -30,7 +39,7 @@ final class UserWelcomeMailHelper extends BaseHelper
         Space $space, string $email, string $firstName, string $password, ?string $locale = null,
     ): bool {
         return $this->send(
-            'plg_core__admin_account_welcome', $space, $email, $locale,
+            self::TEMPLATE_ADMIN, $space, $email, $locale,
             ['space_title' => $space->title, 'first_name' => $firstName, 'initial_password' => $password],
         );
     }
