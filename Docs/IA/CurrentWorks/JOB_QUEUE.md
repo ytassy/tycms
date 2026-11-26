@@ -379,12 +379,15 @@ compromis doit être écrit dans le guide plutôt que découvert en production.
 
 ## Lots
 
+Les cinq lots ci-dessous sont **livrés** ; les contrats d'usage sont dans
+[File de jobs](../../JOBS.md).
+
 | Lot | Contenu |
 | --- | --- |
 | 1 | Migration `jobs`, `JobTypeRegistry` et `IJobProvider`, `JobQueue` (enfilement, dédup, statut, annulation), provisionnement du compte système, tests unitaires |
 | 2 | `JobWorker` (verrou non bloquant, candidats, `min_time`, réservation, bail, reprise, backoff), route `queue-worker` et son jeton, écriture du battement `job_worker_state`, tests d'intégration sur la réservation concurrente |
 | 3 | Déclenchement par le trafic : `hasDueWork()` au rendu, tag JS limité, route `api/jobs/ping` |
-| 4 | Type `core.mail.send` et bascule de l'e-mail de bienvenue, sans régression sur les autres envois |
+| 4 | Type `core.mail_send` et bascule de l'e-mail de bienvenue, sans régression sur les autres envois |
 | 5 | Écran Jobs, onglet Documentation, guide `Docs/JOBS.md`, index, état du projet, `version.md` |
 
 ## Limites et hors périmètre
