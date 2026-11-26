@@ -94,6 +94,8 @@ if ($vueMode == VueMode::HEADER_ONLY) {
     <script src="<?= ASSETS_CORE_PATH ?>/plg_core/videojs/video-8.23.4.min.js"></script>
 
     <?= $this->coreFrontendAssets->renderTags() ?>
+    <!-- Le nonce CSP naît dans renderTags() : cet appel doit le précéder. -->
+    <?= $this->coreJobTrafficTrigger->tag() ?>
     <?php if (!$global_conf->dev) { ?>
         <link rel="stylesheet" href="/templates/main/css">
     <?php } ?>

@@ -64,6 +64,11 @@ class ConfigurationBase
     // Laisser vide pour désactiver la route /queue-worker.
     public string $job_worker_token = '';
 
+    // Déclenchement du worker par le trafic : une page publique porte un appel
+    // asynchrone quand des jobs sont dus. Mettre false pour s'en remettre au
+    // seul CRON de la file.
+    public bool $job_traffic_trigger = true;
+
     // Serveurs de distribution HTTPS, consultés dans cet ordre en cas de panne.
     // Le client arrête la vérification sur signature invalide ou paquet altéré.
     public array $update_servers = [

@@ -4,6 +4,7 @@ namespace YTassy\Tycms\CoreExts\Core\ExtensionApi\Traits;
 
 use YTassy\Tycms\TraitFrameworkSharedExtensions;
 use YTassy\Tycms\CoreExts\Core\Helper\Frontend\FrontendAssets;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobTrafficTrigger;
 use YTassy\Tycms\CoreExts\Core\Helper\Video\SecureVideoHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\ShortCode\ShortCodeHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Fonts\FontHelper;
@@ -39,6 +40,10 @@ trait TraitCoreSharedHelpers
 
     protected FrontendAssets $coreFrontendAssets {
         get { return $this->getSharedExtensionsClass(FrontendAssets::class); }
+    }
+
+    protected JobTrafficTrigger $coreJobTrafficTrigger {
+        get { return $this->getSharedExtensionsClass(JobTrafficTrigger::class); }
     }
 
     protected SecureVideoHelper $coreSecureVideoHelper {

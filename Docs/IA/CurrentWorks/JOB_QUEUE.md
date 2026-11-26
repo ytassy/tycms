@@ -277,6 +277,9 @@ porte l'échéance.
   job dû, aucun tag n'est émis. Un site au repos ne paie rien.
 - Le tag émet un appel `POST` asynchrone, sans cookies, avec `keepalive`, et
   avale les erreurs. Il n'apparaît que dans la template publique.
+- Réglage `job_traffic_trigger`, actif par défaut : `false` s'en remet au seul
+  CRON de la file. Le tag est également omis quand la page ne rend pas l'Import
+  Map : sans nonce CSP, le script en ligne serait bloqué, donc inutile.
 - Le navigateur applique un délai local (environ 5 minutes par onglet) pour
   éviter un boot PHP à chaque page vue.
 - La route ne retourne que des compteurs, jamais une sortie de job, et ne
@@ -310,8 +313,13 @@ porte l'échéance.
 - Le compte système donne ROOT : le producteur est du code de confiance, et
   chaque job journalise son type, son principal et son identifiant.
 - Aucun payload, aucun secret ni contenu utilisateur dans les journaux.
-  Codes stables : `JOB_FAILED`, `JOB_LEASE_EXPIRED`, `JOB_TYPE_UNAVAILABLE`,
-  `JOB_PAYLOAD_INVALID`, `JOB_WORKER_BUSY`, `JOB_WORKER_SUMMARY`.
+  Codes stables : `JOB_FAILED`, `JOB_FAILED_FINAL`, `JOB_CLAIM_FAILED`,
+  `JOB_LEASE_EXPIRED`, `JOB_TYPE_UNAVAILABLE`, `JOB_PAYLOAD_INVALID`,
+  `JOB_PRINCIPAL_UNAVAILABLE`, `JOB_CANCELLED`, `JOB_WORKER_SUMMARY`,
+  `JOB_WORKER_BUDGET`, `JOB_WORKER_TOKEN_*`, `JOB_SYSTEM_ACCOUNT_RECREATED`.
+- Le bilan de sécurité signale l'absence de `job_worker_token` et un worker sans
+  passage récent : ce sont les deux pannes silencieuses d'une installation
+  mutualisée.
 
 ## Interface
 
@@ -325,13 +333,18 @@ porte l'échéance.
 
 ## Premier consommateur
 
-`core.mail.send` : envoi différé d'un e-mail à partir d'un modèle, d'une langue
-et de variables simples. L'habillage et l'envoi passent par les mécanismes
-existants au moment de l'exécution.
+`core.mail_send` : envoi différé d'un e-mail à partir d'un modèle, d'une langue
+et de variables d'affichage. L'habillage et l'envoi passent par les mécanismes
+existants au moment de l'exécution. Le payload ne porte que des références et
+des valeurs d'affichage : jamais de mot de passe, de jeton ni de contenu
+sensible, la ligne de file étant lisible en base.
 
-Un seul point de branchement est basculé en v1 : l'e-mail de bienvenue après
-inscription. Les messages porteurs d'un jeton (récupération de mot de passe) et
-les notifications d'automatisation restent synchrones.
+Sont basculés en v1 les deux messages de bienvenue qui ne contiennent aucun
+secret : inscription locale et inscription SSO. L'accueil d'un compte créé par
+un administrateur (`sendAdminCreatedAccount`) porte le mot de passe initial et
+reste donc synchrone : c'est précisément ce que la règle ci-dessus interdit de
+mettre en file. La récupération de mot de passe et les notifications
+d'automatisation restent synchrones aussi.
 
 Le type déclare `max_attempts = 2` : un échec SMTP transitoire mérite une
 seconde chance, au prix d'un doublon possible si le serveur a accepté le message
