@@ -15,6 +15,7 @@ use YTassy\Tycms\CoreExts\Core\Security\Checks\ApiTokensCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\CronTokenCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\DebugModeCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\FirewallCheck;
+use YTassy\Tycms\CoreExts\Core\Security\Checks\JobWorkerCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\MediaRootOnlyCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\PhpErrorSettingsCheck;
 use YTassy\Tycms\CoreExts\Core\Security\Checks\RootAccountsCheck;
@@ -32,6 +33,7 @@ use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminSpaceController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminRoleController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserGroupController;
+use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminJobsController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLanguageController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminSsoProviderController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminServiceAccountController;
@@ -187,6 +189,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             new \YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserAssignmentsController($this),
             new AdminUserGroupController($this),
             new AdminLanguageController($this),
+            new AdminJobsController($this),
             new AdminSsoProviderController($this),
             new AdminServiceAccountController($this),
             new AdminAiController($this),
@@ -311,6 +314,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             'plg_core.root-accounts' => RootAccountsCheck::class,
             'plg_core.root-space-segregation' => RootSpaceSegregationCheck::class,
             'plg_core.cron-token' => CronTokenCheck::class,
+            'plg_core.job-worker' => JobWorkerCheck::class,
             'plg_core.api-tokens' => ApiTokensCheck::class,
             'plg_core.firewall' => FirewallCheck::class,
         ] as $id => $checkClass) {

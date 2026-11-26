@@ -19,12 +19,20 @@
 			<tab label="Sécurité" icon="fa-solid fa-shield-halved">
 				<security />
 			</tab>
+			<tab label="Jobs" icon="fa-solid fa-list-check">
+				<jobs />
+			</tab>
+			<tab label="Documentation" icon="fa-solid fa-book">
+				<documentation />
+			</tab>
 		</tabs>
 	</section>
 </template>
 
 <script>
 
+import documentation from './documentation.vue'
+import jobs from './jobs.vue'
 import php from './php.vue'
 import routes from './routes.vue'
 import security from './security.vue'
@@ -32,7 +40,7 @@ import system_updates from '../system_updates/index.vue'
 
 export default {
 
-	components: { php, routes, security, system_updates },
+	components: { documentation, jobs, php, routes, security, system_updates },
 
 	data() {
 		return {

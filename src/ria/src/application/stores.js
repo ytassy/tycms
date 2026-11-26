@@ -3,6 +3,7 @@ import { createExtensionStores } from './extensionRegistry.js'
 import { useAuthenticationStore } from '../stores/authentication'
 import { useMyAccountStore } from '../stores/my_account'
 import { useSpaceSwitchStore } from '../stores/space_switch'
+import { useAdminJobsStore } from '../stores/admin_jobs'
 import { useAdminLogsStore } from '../stores/admin_logs'
 import { useAdminSystemUpdatesStore } from '../stores/admin_system_updates'
 import { useAdminFontsStore } from '../stores/admin_fonts'
@@ -30,6 +31,7 @@ export function registerStores(vueApp, application, extraStores = {}) {
         useMyAccountStore: useMyAccountStore.get(vueApp, application),
 		useSpaceSwitchStore: useSpaceSwitchStore.get(vueApp, application),
 		useAdminSystemUpdatesStore: useAdminSystemUpdatesStore.get(vueApp, application),
+		useAdminJobsStore: useAdminJobsStore.get(vueApp, application),
 		useAdminLogsStore: useAdminLogsStore.get(vueApp, application),
 		useAdminFontsStore: useAdminFontsStore.get(vueApp, application),
 		useAdminUserAssignmentsStore: useAdminUserAssignmentsStore.get(vueApp, application),

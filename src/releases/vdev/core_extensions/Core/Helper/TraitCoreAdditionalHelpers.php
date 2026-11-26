@@ -16,6 +16,7 @@ use YTassy\Tycms\CoreExts\Core\Helper\Menu\MenuAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Menu\MenuRouteHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Menu\MenuLanguageHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Media\MediaHelper;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageButtonHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageButtonToken;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailAdminHelper;
@@ -143,5 +144,9 @@ trait TraitCoreAdditionalHelpers
 
     protected PageButtonHelper $corePageButtonHelper {
         get { return $this->getSharedExtensionsClass(PageButtonHelper::class); }
+    }
+
+    protected JobAdminHelper $coreJobAdminHelper {
+        get { return $this->getSharedExtensionsClass(JobAdminHelper::class); }
     }
 }

@@ -218,6 +218,12 @@ Codes de journal, canal `jobs` et `system` : `JOB_FAILED`, `JOB_FAILED_FINAL`,
 `JOB_SYSTEM_ACCOUNT_RECREATED`. Aucun payload, aucun secret et aucun contenu
 utilisateur n'y figure.
 
+## Administration
+
+L'onglet **Jobs** de l'écran **Système**, réservé à ROOT, liste la file et filtre par statut, par type et par Space. Il affiche le détail d'un job — payload compris, en lecture seule — relance un job en échec avec un compteur neuf, annule un job en attente ou en cours, et purge les jobs terminés. Un avertissement apparaît quand le worker n'a pas tourné depuis cinq minutes.
+
+L'onglet **Documentation** du même écran rappelle les deux lignes de CRON à installer, l'état des jetons (jamais leur valeur) et les plafonds appliqués. Le bilan de sécurité signale un jeton de worker absent ou un worker inactif alors que des jobs attendent.
+
 ## Vérification
 
 ```bash

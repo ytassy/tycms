@@ -45,7 +45,7 @@ final class JobWorker extends BaseHelper
     private const LEASE_MARGIN_SECONDS = 15;
 
     /** Rétention des jobs terminés. */
-    private const RETENTION_DAYS = 14;
+    public const RETENTION_DAYS = 14;
 
     /** Intervalle minimal entre deux purges. */
     private const PURGE_INTERVAL_SECONDS = 3600;
