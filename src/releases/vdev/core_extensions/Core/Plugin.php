@@ -59,6 +59,10 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_4;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_5;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_10;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Mail\IEmailTemplateProvider;
 use YTassy\Tycms\CoreExts\Core\Mail\CoreEmailTemplates;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\BasePermissions;
@@ -133,6 +137,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.5' => [Mig_1_1_5::class],
             '1.1.9' => [Mig_1_1_9::class],
             '1.1.10' => [Mig_1_1_10::class],
+            '1.1.11' => [Mig_1_1_11::class],
         ];
 	}
 
@@ -254,6 +259,19 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
         foreach ($this->app->getExtensions() as $owner => $extension) {
             if ($extension instanceof IPageComponentProvider) {
                 $registry->withOwner($owner, fn () => $extension->coreOnRegisterPageComponents($registry));
+            }
+        }
+
+        // Types de jobs : la file et son registre sont des services partagés
+        // dès la préparation, pour qu'un producteur puisse enfiler avant même
+        // l'enregistrement des routes. Un identifiant dupliqué est refusé.
+        $this->app->getOrAddSharedExtensionsClass(JobQueue::class);
+        /** @var JobTypeRegistry $jobTypes */
+        $jobTypes = $this->app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+
+        foreach ($this->app->getExtensions() as $owner => $extension) {
+            if ($extension instanceof IJobProvider) {
+                $jobTypes->withOwner((string) $owner, fn () => $extension->coreOnRegisterJobTypes($jobTypes));
             }
         }
 

@@ -157,6 +157,13 @@ final class WFServiceAccount extends BaseWF
         $this->assertRoot();
         $this->assertServiceAccount($userId, true);
 
+        // La plage d'identifiants réservée porte les comptes système, dont
+        // celui de la file. Aucune suppression n'est permise, même à ROOT ;
+        // leurs droits et leurs jetons restent modifiables séparément.
+        if ($this->coreUserAdminHelper->isReservedId($userId)) {
+            ExceptionResponse::throwWarning('Les comptes d’identifiant réservé ne peuvent pas être supprimés.');
+        }
+
         // Le groupe personnel porte les rôles du compte : le supprimer avec lui.
         $groupId = $this->coreUserAdminHelper->getPersonalGroupId($userId, true);
         $this->coreUserAdminHelper->deleteUser($userId, $groupId);

@@ -3,6 +3,7 @@
 namespace YTassy\Tycms\CoreExts\Core\Helper;
 
 use YTassy\Tycms\DB\FormatIn;
+use YTassy\Tycms\Exceptions\TechException;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\UserGroups;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Roles;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
@@ -10,6 +11,23 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 final class UserAdminHelper extends BaseHelper
 {
     use TraitCoreAdditionalHelpers;
+
+    /**
+     * Dernier identifiant réservé aux comptes système.
+     *
+     * L'installation fixe `users.AUTO_INCREMENT = 1000` : aucun compte créé par
+     * l'application ne peut donc recevoir un identifiant dans cette plage. Elle
+     * contient l'administrateur initial (1) et le compte de service de la file
+     * (2). Cette constante suit la migration initiale ; la modifier sans elle
+     * rendrait la garde fausse.
+     */
+    public const RESERVED_USER_ID_MAX = 999;
+
+    /** Un identifiant dans la plage réservée ne doit jamais être supprimé. */
+    public function isReservedId(int $userId): bool
+    {
+        return $userId >= 1 && $userId <= self::RESERVED_USER_ID_MAX;
+    }
 
     /** @param list<int> $userIds @return list<int> */
     public function getRootUserIds(array $userIds, bool $lock = false): array
@@ -364,6 +382,13 @@ final class UserAdminHelper extends BaseHelper
 
     public function deleteUser(int $userId, ?int $personalGroupId): void
     {
+        // Invariant technique : la plage d'identifiants réservée est interdite à
+        // la suppression. Les workflows refusent déjà l'action avec un message ;
+        // cette garde couvre tout appelant futur et empêche un effort inutile.
+        if ($this->isReservedId($userId)) {
+            throw new TechException('Les comptes d’identifiant réservé ne peuvent pas être supprimés.');
+        }
+
         // Les autres tables référencent users avec suppression en cascade.
         $this->db->execute('DELETE FROM users WHERE id = %', [$userId]);
         if ($personalGroupId === null) return;

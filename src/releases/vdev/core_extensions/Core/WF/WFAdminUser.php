@@ -561,6 +561,14 @@ class WFAdminUser extends BaseWF
         if ($userId === $this->session->getUserId()) {
             ExceptionResponse::throwWarning('Vous ne pouvez pas supprimer votre propre compte.');
         }
+
+        // Les identifiants de la plage réservée portent des comptes système :
+        // leur suppression n'est jamais permise, même à ROOT. Leurs droits
+        // restent modifiables.
+        if ($this->coreUserAdminHelper->isReservedId($userId)) {
+            ExceptionResponse::throwWarning('Les comptes d’identifiant réservé ne peuvent pas être supprimés.');
+        }
+
         $groupId = $this->coreUserAdminHelper->getPersonalGroupId($userId, true);
         $this->coreUserAdminHelper->deleteUser($userId, $groupId);
 
