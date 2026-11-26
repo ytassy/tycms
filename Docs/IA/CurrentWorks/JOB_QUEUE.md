@@ -41,18 +41,20 @@ scénarios planifiés, et deux secrets se rotent séparément. Conséquence assu
 une installation qui oublie la seconde ligne CRON ne draine sa file que par le
 trafic.
 
-La vérification du jeton est aujourd'hui privée dans `CronDispatcher`. Elle est
-extraite dans un petit helper partagé, réutilisé par les deux routes sans
-changer le comportement de `/cron`.
+La vérification du jeton est partagée par `Core/Cron/TokenGuard.php`, réutilisé
+par les deux routes : chaque route garde son propre secret, sa propre rotation
+et ses propres codes de journal (`CRON_*`, `JOB_WORKER_*`).
 
 ### Un seul moteur, trois portes
 
 | Porte | Route | Budget | Authentification |
 | --- | --- | --- | --- |
-| CRON système | — | — | — |
+| CRON système | `GET/POST /cron` | — | `cron_token` |
 | CRON de la file | `GET/POST /queue-worker` | 20 jobs / 30 s | `job_worker_token` |
 | Trafic du site | `POST api/jobs/ping` | 3 jobs / 5 s | aucune, plafonné |
 | Administration | `administrator/api/jobs` | aucune exécution | ROOT |
+
+Le CRON système ne déclenche pas la file : les deux routes sont indépendantes.
 
 Les deux portes de la file appellent exactement le même `JobWorker`. Seul le
 budget diffère.

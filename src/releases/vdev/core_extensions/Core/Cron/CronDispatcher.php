@@ -7,8 +7,6 @@ namespace YTassy\Tycms\CoreExts\Core\Cron;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\ICronProvider;
 use YTassy\Tycms\Request\Request;
-use YTassy\Tycms\Response\ApiResponse;
-use YTassy\Tycms\Response\ExceptionResponse;
 
 /**
  * Dispatching des hooks CRON fournis par les extensions.
@@ -17,6 +15,9 @@ use YTassy\Tycms\Response\ExceptionResponse;
  * les hooks dus à partir de l'heure du serveur, isole les erreurs par extension
  * et ne journalise jamais le jeton. Aucune transaction globale n'est ouverte :
  * chaque extension gère ses écritures et son idempotence.
+ *
+ * L'authentification par jeton est partagée avec le worker de la file de jobs
+ * (`TokenGuard`), qui a son propre secret et sa propre route.
  */
 final class CronDispatcher extends BaseHelper
 {
@@ -41,7 +42,17 @@ final class CronDispatcher extends BaseHelper
      */
     public function run(Request $request, ?CronTick $tick = null): array
     {
-        $this->assertToken($request);
+        /** @var TokenGuard $guard */
+        $guard = $this->getSharedExtensionsClass(TokenGuard::class);
+        $guard->assert(
+            $request,
+            (string) ($this->app->getConf()->cron_token ?? ''),
+            self::TOKEN_FIELD,
+            'cron',
+            'CRON',
+            'system',
+        );
+
         $tick ??= CronTick::now();
         $hooks = ['minute'];
 
@@ -93,153 +104,5 @@ final class CronDispatcher extends BaseHelper
             'results' => $results,
             'errors' => $errors,
         ];
-    }
-
-    private function assertToken(Request $request): void
-    {
-        $expected = (string) ($this->app->getConf()->cron_token ?? '');
-
-        if ($expected === '') {
-            $this->logError(
-                'La route CRON est appelée sans jeton configuré.',
-                [],
-                'CRON_TOKEN_MISSING',
-                'system',
-            );
-
-            throw new ExceptionResponse(new ApiResponse([
-                'error' => true,
-                'message' => 'CRON non configuré.',
-            ], 503));
-        }
-
-        $header = $request->header('Authorization', '');
-        $header = is_string($header) ? trim($header) : '';
-        $digest = str_starts_with(strtolower($header), 'digest ');
-        $headerToken = '';
-
-        if (preg_match('/\ABearer\s+(.+)\z/i', $header, $matches) === 1) {
-            $headerToken = trim($matches[1]);
-        }
-
-        // Infomaniak appelle les CRON en GET : le jeton peut donc venir de la
-        // query. Un POST peut aussi le porter dans son corps. Une seule source
-        // de jeton non vide est acceptée pour éviter les ambiguïtés.
-        $queryToken = $request->query(self::TOKEN_FIELD);
-        $bodyToken = $request->body[self::TOKEN_FIELD] ?? null;
-        $queryToken = is_string($queryToken) ? trim($queryToken) : '';
-        $bodyToken = is_string($bodyToken) ? trim($bodyToken) : '';
-        $sources = array_values(array_filter(
-            [$headerToken, $queryToken, $bodyToken],
-            static fn (string $value): bool => $value !== '',
-        ));
-
-        if (count($sources) > 1) {
-            $this->logWarning(
-                'Jeton CRON fourni par plusieurs sources.',
-                ['method' => $request->method->value],
-                'CRON_TOKEN_AMBIGUOUS',
-                'system',
-            );
-
-            throw new ExceptionResponse(new ApiResponse([
-                'error' => true,
-                'message' => 'Jeton CRON ambigu.',
-            ], 400));
-        }
-
-        // Le jeton applicatif est prioritaire : il permet de garder une
-        // protection même si Infomaniak ajoute aussi Basic ou Digest.
-        if ($sources !== []) {
-            if (!hash_equals($expected, $sources[0])) {
-                $this->refuseToken($request);
-            }
-
-            return;
-        }
-
-        // Sans jeton applicatif, le mot de passe HTTP Basic peut être le même
-        // que cron_token. Cela couvre l'option login/mot de passe d'Infomaniak
-        // sans ajouter un second secret.
-        $basic = $this->basicCredentials($request, $header);
-
-        if ($basic !== null) {
-            if ($basic['user'] === '' || !hash_equals($expected, $basic['password'])) {
-                $this->logWarning(
-                    'Authentification HTTP Basic du CRON refusée.',
-                    ['method' => $request->method->value],
-                    'CRON_BASIC_INVALID',
-                    'system',
-                );
-
-                throw new ExceptionResponse(new ApiResponse([
-                    'error' => true,
-                    'message' => 'Authentification CRON refusée.',
-                ], 401));
-            }
-
-            return;
-        }
-
-        // Le Digest doit être validé par le serveur web : l'application ne
-        // connaît pas le mot de passe en clair et ne gère pas les nonces.
-        if ($digest) {
-            $this->logWarning(
-                'Authentification Digest reçue sans jeton applicatif.',
-                ['method' => $request->method->value],
-                'CRON_DIGEST_UNSUPPORTED',
-                'system',
-            );
-        }
-
-        $this->refuseToken($request);
-    }
-
-    private function refuseToken(Request $request): never
-    {
-        $this->logWarning(
-            'Jeton CRON refusé.',
-            ['method' => $request->method->value],
-            'CRON_TOKEN_INVALID',
-            'system',
-        );
-
-        throw new ExceptionResponse(new ApiResponse([
-            'error' => true,
-            'message' => 'Authentification CRON refusée.',
-        ], 401));
-    }
-
-    /**
-     * Lit les identifiants HTTP Basic, y compris les variables fournies par
-     * Apache quand l'en-tête Authorization n'est pas transmis à PHP.
-     *
-     * @return array{user: string, password: string}|null
-     */
-    private function basicCredentials(Request $request, string $header): ?array
-    {
-        $serverUser = $request->server['PHP_AUTH_USER'] ?? null;
-        $serverPassword = $request->server['PHP_AUTH_PW'] ?? null;
-
-        if (is_string($serverUser) || is_string($serverPassword)) {
-            return [
-                'user' => is_string($serverUser) ? $serverUser : '',
-                'password' => is_string($serverPassword) ? $serverPassword : '',
-            ];
-        }
-
-        if (preg_match('/\ABasic\s+(.+)\z/i', $header, $matches) !== 1) {
-            return null;
-        }
-
-        $decoded = base64_decode(trim($matches[1]), true);
-
-        if ($decoded === false || !str_contains($decoded, ':')) {
-            return ['user' => '', 'password' => ''];
-        }
-
-        [$user, $password] = explode(':', $decoded, 2);
-
-        return ['user' => $user, 'password' => $password];
     }
 }

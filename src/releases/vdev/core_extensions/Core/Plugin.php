@@ -42,6 +42,7 @@ use YTassy\Tycms\CoreExts\Core\Controllers\PageButtonApiController;
 use YTassy\Tycms\CoreExts\Core\Controllers\PageController;
 use YTassy\Tycms\CoreExts\Core\Controllers\PageCssController;
 use YTassy\Tycms\CoreExts\Core\Controllers\CronController;
+use YTassy\Tycms\CoreExts\Core\Controllers\QueueWorkerController;
 use YTassy\Tycms\CoreExts\Core\Controllers\SecureVideoController;
 use YTassy\Tycms\CoreExts\Core\Controllers\SpaceController;
 use YTassy\Tycms\CoreExts\Core\Controllers\UserController;
@@ -157,6 +158,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             new PageButtonApiController($this),
             new SecureVideoController($this),
             new CronController($this),
+            new QueueWorkerController($this),
 
             // Admin
             new AdminController($this),

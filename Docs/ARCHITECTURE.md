@@ -15,7 +15,8 @@ conserver la séparation des responsabilités décrite ci-dessous.
 | `src/releases/vdev/core_extensions/<Extension>` | Extensions livrées avec le système, sous le namespace `YTassy\Tycms\CoreExts`. `Core` contient notamment l'administration, les ACL et les menus ; `MainTemplate` fournit la template principale. |
 | `src/releases/vdev/core_extensions/Core/Controllers` | Points d'entrée HTTP et API de Core. |
 | `src/releases/vdev/core_extensions/Core/WF` | Workflows métier : règles, validation métier et autorisation. |
-| `src/releases/vdev/core_extensions/Core/Helper` | Accès technique, SQL, ORM, transformations et opérations de bas niveau. |
+| `src/releases/vdev/core_extensions/Core/Helper` | Helpers génériques réutilisés par plusieurs domaines : SQL, ORM, transformations et opérations de bas niveau. |
+| `src/releases/vdev/core_extensions/Core/<Module>` | Module fonctionnel : classes techniques propres au domaine, par exemple `Cron`, `JobQueue` ou `Security`. |
 | `src/releases/vdev/core_extensions/Core/Models` | Modèles ORM correspondant aux tables. |
 | `src/releases/vdev/core_extensions/Core/ExtensionApi` | Classes de base, interfaces, traits, attributs et définitions exposés aux extensions. |
 | `src/extensions/plugins/<Plugin>` | Plugins installés, sous le namespace `YTassy\Tycms\Plugins`. |
@@ -175,8 +176,15 @@ l'environnement PHP. Utiliser les namespaces actuels ; aucun alias des anciens
 et définitions exposés aux autres extensions. C'est le point d'entrée pour
 étendre Core. Certaines signatures publiques utilisent aussi des types situés
 dans `Core/Helper`, comme `PageComponentRegistry` ; ce dossier ne constitue donc
-pas une frontière technique étanche. Les helpers internes restent dans
-`Core/Helper`.
+pas une frontière technique étanche.
+
+Les helpers génériques, réutilisés par plusieurs domaines, restent dans
+`Core/Helper`. Un module fonctionnel regroupe en revanche ses propres classes
+techniques à sa racine — `Core/Cron`, `Core/JobQueue`, `Core/Security`,
+`Automation` — quand elles forment un ensemble cohérent. Le module se lit d'un
+bloc, et son contrat public reste dans `Core/ExtensionApi`. Appartenir à un
+module n'expose rien : seuls les types cités par un contrat public sont
+utilisables par les extensions.
 
 L'API exposée est organisée ainsi (namespaces relatifs à
 `YTassy\Tycms\CoreExts\Core\ExtensionApi`) :

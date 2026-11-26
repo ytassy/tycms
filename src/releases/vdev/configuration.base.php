@@ -59,6 +59,11 @@ class ConfigurationBase
     // Laisser vide pour désactiver la route /cron.
     public string $cron_token = '';
 
+    // Jeton du worker de la file de jobs, appelé par un second CRON.
+    // Distinct de cron_token : chaque route a son secret et sa rotation.
+    // Laisser vide pour désactiver la route /queue-worker.
+    public string $job_worker_token = '';
+
     // Serveurs de distribution HTTPS, consultés dans cet ordre en cas de panne.
     // Le client arrête la vérification sur signature invalide ou paquet altéré.
     public array $update_servers = [

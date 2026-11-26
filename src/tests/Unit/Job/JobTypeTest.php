@@ -7,6 +7,7 @@ namespace YTassy\Tycms\Tests\Unit\Job;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobHandler;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobContext;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
@@ -58,6 +59,13 @@ final class JobTypeTest extends TestCase
         new JobType('core.invalid', 'Libellé', 'YTassy\\Tycms\\Absent\\Handler');
     }
 
+    public function testHandlerMustExtendTheCoreHelper(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new JobType('core.invalid', 'Libellé', PlainJobHandler::class);
+    }
+
     public function testLabelIsRequired(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -101,7 +109,19 @@ final class JobTypeTest extends TestCase
  * Handler minimal : le type vérifie seulement que la classe respecte le
  * contrat, il n'exécute rien.
  */
-final class TestJobHandler implements IJobHandler
+final class TestJobHandler extends BaseHelper implements IJobHandler
+{
+    public function handle(JobContext $context, array $payload): JobResult
+    {
+        return JobResult::success();
+    }
+}
+
+/**
+ * Contrat incomplet : un handler doit aussi étendre BaseHelper pour recevoir
+ * l'Application isolée du principal.
+ */
+final class PlainJobHandler implements IJobHandler
 {
     public function handle(JobContext $context, array $payload): JobResult
     {

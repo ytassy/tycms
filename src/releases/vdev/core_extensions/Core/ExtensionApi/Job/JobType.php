@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace YTassy\Tycms\CoreExts\Core\ExtensionApi\Job;
 
 use InvalidArgumentException;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 
 /**
  * Déclaration d'un type de job fourni par une extension.
@@ -67,11 +68,17 @@ final class JobType
         }
 
         // Refuser tôt une classe absente évite un job qui échoue à chaque tick.
-        if (!class_exists($handlerClass) || !is_subclass_of($handlerClass, IJobHandler::class)) {
+        // Le handler hérite de BaseHelper : le worker l'instancie avec
+        // l'Application isolée du principal, ce qui lui donne la base et les
+        // helpers partagés comme à un helper ordinaire.
+        if (!class_exists($handlerClass)
+            || !is_subclass_of($handlerClass, IJobHandler::class)
+            || !is_subclass_of($handlerClass, BaseHelper::class)) {
             throw new InvalidArgumentException(sprintf(
-                'Le handler du job "%s" doit implémenter %s.',
+                'Le handler du job "%s" doit implémenter %s et étendre %s.',
                 $id,
                 IJobHandler::class,
+                BaseHelper::class,
             ));
         }
 
