@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace YTassy\Tycms\CoreExts\TyCatalog\Helper;
 
 use DateTimeImmutable;
-use DateTimeZone;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 use YTassy\Tycms\CoreExts\TyCatalog\Exception\PublicationException;
 use YTassy\Tycms\CoreExts\TyCatalog\Models\Catalog;
 use YTassy\Tycms\CoreExts\TyCatalog\Models\CatalogToken;
 use YTassy\Tycms\CoreExts\TyCatalog\Traits\TraitTyCatalogHelpers;
 use YTassy\Tycms\Exceptions\AccessDeniedException;
+use YTassy\Tycms\Tools\DateTools;
 
 /**
  * Jetons de publication distante.
@@ -51,9 +51,9 @@ final class TyCatalogTokenHelper extends BaseHelper
         $hash = hash('sha256', $token);
         $expiresAt = null;
         if ($expiresInDays !== null && $expiresInDays > 0) {
-            $expiresAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
-                ->modify('+' . $expiresInDays . ' days')
-                ->format('Y-m-d H:i:s');
+            $expiresAt = DateTools::toSql(
+                (new DateTimeImmutable('now'))->modify('+' . $expiresInDays . ' days'),
+            );
         }
 
         $this->db->execute(

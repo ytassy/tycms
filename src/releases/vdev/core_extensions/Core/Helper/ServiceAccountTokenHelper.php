@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace YTassy\Tycms\CoreExts\Core\Helper;
 
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
+use YTassy\Tycms\Tools\DateTools;
 
 /**
  * Génération, hachage, révocation et résolution des jetons d'API.
@@ -52,7 +53,7 @@ final class ServiceAccountTokenHelper extends BaseHelper
                 $name,
                 self::hashSecret($secret),
                 $spaceId,
-                $expiresAt?->format('Y-m-d H:i:s'),
+                $expiresAt === null ? null : DateTools::toSql($expiresAt),
             ],
         );
 

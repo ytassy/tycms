@@ -624,6 +624,16 @@ helpers partagés fournis par les traits (`TraitAllHelpers` et
 et les valeurs passées séparément à la base de données; ne jamais concaténer
 une valeur issue d'une requête HTTP dans le SQL.
 
+Les dates stockées sont en **UTC**. La connexion force `SET time_zone =
+'+00:00'` : `now()`, `current_timestamp()` et toutes les comparaisons SQL sont
+donc en UTC, quel que soit le fuseau du serveur. Une date écrite depuis PHP
+passe par `DateTools::toSql()` ; `format('Y-m-d H:i:s')` écrirait l'heure
+locale, et un `DateTime` passé en paramètre SQL est converti automatiquement.
+Exception : une colonne `date` porte un jour calendaire et conserve le jour de
+l'objet (`DateTools::toSqlDate()`), sans conversion de fuseau. Ne jamais
+comparer une heure SQL à `time()` en PHP : comparer en SQL (`TIMESTAMPDIFF`,
+`now()`) ou convertir explicitement.
+
 Pour lire une entité, utiliser son modèle ORM lorsque le typage et l'hydratation
 simplifient le code. Une lecture spécifique peut rester une requête `SELECT`
 dans le helper, notamment si elle est plus simple ou plus efficace en SQL

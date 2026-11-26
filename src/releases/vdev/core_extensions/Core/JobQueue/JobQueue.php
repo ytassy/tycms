@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace YTassy\Tycms\CoreExts\Core\JobQueue;
 
-use DateTimeImmutable;
 use DateTimeInterface;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\Exceptions\TechException;
+use YTassy\Tycms\Tools\DateTools;
 
 /**
  * Façade de la file de jobs.
@@ -262,17 +262,19 @@ final class JobQueue extends BaseHelper
         }
 
         if ($value instanceof DateTimeInterface) {
-            return $value->format('Y-m-d H:i:s');
+            return DateTools::toSql($value);
         }
 
         if (!is_string($value) || trim($value) === '') {
             throw new TechException('available_at doit être une date ou une chaîne de date.');
         }
 
-        try {
-            return (new DateTimeImmutable($value))->format('Y-m-d H:i:s');
-        } catch (\Throwable) {
+        $sql = DateTools::parseToSql($value);
+
+        if ($sql === null) {
             throw new TechException('available_at n’est pas une date valide.');
         }
+
+        return $sql;
     }
 }

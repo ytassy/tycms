@@ -7,6 +7,7 @@ use YTassy\Tycms\DB\ORM\BaseOrmObject;
 use YTassy\Tycms\DB\ORM\DatabaseOrm;
 use YTassy\Tycms\Exceptions\ApplicationException;
 use YTassy\Tycms\Exceptions\TechException;
+use YTassy\Tycms\Tools\DateTools;
 
 /**
  * Gère la connexion MySQL et l'exécution des requêtes SQL.
@@ -191,6 +192,7 @@ SET FOREIGN_KEY_CHECKS = 1;");
 			else if (is_bool($value)) $sql .= ($value ? 'true' : 'false');
 			else if (is_string($value)) $sql .= $this->quote($value);
 			else if (is_array($value)) $sql .= $this->quote(json_encode($value, JSON_THROW_ON_ERROR));
+			else if ($value instanceof \DateTimeInterface) $sql .= $this->quote(DateTools::toSql($value));
 			else if ($value instanceof FormatIn) $sql .= $value->toSql($this);
 			else if (is_object($value)) $sql .= $this->quote(json_encode($value, JSON_THROW_ON_ERROR));
 			else throw new TechException('invalid value given at setQuery');

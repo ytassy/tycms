@@ -2,6 +2,8 @@
 
 namespace YTassy\Tycms\DB\ORM;
 
+use YTassy\Tycms\Tools\DateTools;
+
 use Configuration;
 use YTassy\Tycms\Application;
 use YTassy\Tycms\DB\Database;
@@ -98,7 +100,7 @@ class DatabaseOrm
                         FieldType::JSON, FieldType::JSON_TEXT => json_decode($value),
                         FieldType::JSON_ARRAY, FieldType::JSON_ARRAY_TEXT => json_decode($value, true),
                         FieldType::DATETIME => new \DateTimeImmutable($value, new \DateTimeZone('UTC')),
-                        FieldType::DATE => \DateTimeImmutable::createFromFormat('!Y-m-d',$value),
+                        FieldType::DATE => \DateTimeImmutable::createFromFormat('!Y-m-d', $value, new \DateTimeZone('UTC')),
                         default => $value,
                     };
                 }
@@ -228,8 +230,8 @@ class DatabaseOrm
     {
         if ($value instanceof \DateTimeInterface) {
             return match ($type) {
-                FieldType::DATE => $value->format('Y-m-d'),
-                default => $value->format('Y-m-d H:i:s'),
+                FieldType::DATE => DateTools::toSqlDate($value),
+                default => DateTools::toSql($value),
             };
         }
 
