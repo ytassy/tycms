@@ -120,7 +120,8 @@ class SafeDownload extends BaseApplicationItem
                 throw new RuntimeException('Le téléchargement distant a échoué dans les limites autorisées.');
             }
         } finally {
-            curl_close($curl);
+            // Pas de curl_close() : sans effet depuis PHP 8.0 et déprécié en 8.5.
+            unset($curl);
         }
     }
 

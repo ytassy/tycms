@@ -13,6 +13,7 @@ use YTassy\Tycms\CoreExts\TyCatalog\Migration\Mig_1_0_1;
 use YTassy\Tycms\CoreExts\TyCatalog\Migration\Mig_1_0_2;
 use YTassy\Tycms\CoreExts\TyCatalog\Migration\Mig_1_0_3;
 use YTassy\Tycms\CoreExts\TyCatalog\Migration\Mig_1_0_4;
+use YTassy\Tycms\CoreExts\TyCatalog\Migration\Mig_1_0_5;
 use YTassy\Tycms\Extensions\BasePlugin;
 
 /** Serveur de catalogues d'extensions ; le client d'installation reste dans Core. */
@@ -47,6 +48,7 @@ final class Plugin extends BasePlugin
             '1.0.2' => [Mig_1_0_2::class],
             '1.0.3' => [Mig_1_0_3::class],
             '1.0.4' => [Mig_1_0_4::class],
+            '1.0.5' => [Mig_1_0_5::class],
         ];
     }
 

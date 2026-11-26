@@ -295,6 +295,9 @@
 									<div class="d-flex flex-wrap align-items-center gap-2">
 										<strong>{{ version.version }}</strong>
 										<span :class="['badge', statusClass(version.status)]">{{ statusLabel(version.status) }}</span>
+										<span v-if="version.status === 'published'" :class="['badge', channelClass(version.channel)]">
+											{{ channelLabel(version.channel) }}
+										</span>
 										<span class="badge text-bg-light text-dark">
 											{{ version.storage_type === 'local' ? 'Stockage local' : 'Référence externe' }}
 										</span>
@@ -311,10 +314,20 @@
 									</p>
 								</div>
 								<div v-if="store.versionsCanPublish" class="d-flex gap-2">
-									<button v-if="version.status === 'draft'" type="button" class="btn btn-primary btn-sm"
-										:disabled="store.depositSaving || !!version.archive_removed_at" @click="versionAction('publish', version)">Publier</button>
-									<button v-else-if="version.status === 'published'" type="button" class="btn btn-outline-danger btn-sm"
-										:disabled="store.depositSaving" @click="versionAction('withdraw', version)">Retirer</button>
+									<template v-if="version.status === 'draft'">
+										<button type="button" class="btn btn-primary btn-sm"
+											:disabled="store.depositSaving || !!version.archive_removed_at"
+											@click="versionAction('publish', version, 'beta')">Publier en bêta</button>
+										<button type="button" class="btn btn-outline-primary btn-sm"
+											:disabled="store.depositSaving || !!version.archive_removed_at"
+											@click="versionAction('publish', version, 'release')">Publier en release</button>
+									</template>
+									<template v-else-if="version.status === 'published'">
+										<button v-if="version.channel === 'beta'" type="button" class="btn btn-success btn-sm"
+											:disabled="store.depositSaving" @click="versionAction('promote', version)">Promouvoir en release</button>
+										<button type="button" class="btn btn-outline-danger btn-sm"
+											:disabled="store.depositSaving" @click="versionAction('withdraw', version)">Retirer</button>
+									</template>
 									<button v-else-if="version.status === 'withdrawn'" type="button" class="btn btn-outline-primary btn-sm"
 										:disabled="store.depositSaving || !!version.archive_removed_at" @click="versionAction('reactivate', version)">Réactiver</button>
 								</div>
@@ -802,9 +815,14 @@ export default {
 			}
 		},
 
-		async versionAction(action, version) {
+		async versionAction(action, version, channel = null) {
 			if (this.store.depositSaving || !this.versionsCatalog) return
-			const labels = { publish: 'Publier', withdraw: 'Retirer', reactivate: 'Réactiver' }
+			const labels = {
+				publish: channel === 'beta' ? 'Publier en bêta' : 'Publier en release',
+				promote: 'Promouvoir en release',
+				withdraw: 'Retirer',
+				reactivate: 'Réactiver',
+			}
 			const label = labels[action] || action
 			const confirmed = await this.askYesNoAsync(
 				`${label} la version ${version.extension_identifier} ${version.version} ?`,
@@ -812,8 +830,13 @@ export default {
 			if (!confirmed) return
 
 			try {
-				const result = await this.store.versionAction(action, this.versionsCatalog.id, version.id)
-				const done = { publish: 'publiée', withdraw: 'retirée', reactivate: 'réactivée' }
+				const result = await this.store.versionAction(action, this.versionsCatalog.id, version.id, channel)
+				const done = {
+					publish: channel === 'beta' ? 'publiée en bêta' : 'publiée en release',
+					promote: 'promue en release',
+					withdraw: 'retirée',
+					reactivate: 'réactivée',
+				}
 				const cleanup = result?.cleanup
 				let summary = `Version ${done[action] || action}.`
 				if (cleanup) {
@@ -887,6 +910,15 @@ export default {
 
 		statusClass(status) {
 			return { draft: 'text-bg-warning', published: 'text-bg-success', withdrawn: 'text-bg-secondary' }[status] || 'text-bg-secondary'
+		},
+
+		channelLabel(channel) {
+			return { beta: 'Bêta', release: 'Release' }[channel] || channel
+		},
+
+		channelClass(channel) {
+			// La bêta se distingue du release sans reprendre le vert du statut publié.
+			return channel === 'beta' ? 'text-bg-info' : 'text-bg-light text-dark'
 		},
 
 		formatBytes(bytes) {

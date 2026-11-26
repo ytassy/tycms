@@ -180,7 +180,9 @@ final class Notifier
                 throw new RuntimeException('Envoi refusé.');
             }
         } finally {
-            curl_close($handle);
+            // Pas de curl_close() : sans effet depuis PHP 8.0 et déprécié en 8.5.
+            // La ressource libérée à la sortie de portée suffit.
+            unset($handle);
         }
     }
 }

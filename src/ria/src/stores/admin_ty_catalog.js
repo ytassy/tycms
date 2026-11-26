@@ -110,14 +110,17 @@ export const useAdminTyCatalogStore = {
 					}
 				},
 
-				async versionAction(action, catalogId, versionId) {
+				// `channel` n'est utilisé que par la publication ; les autres actions l'ignorent.
+				async versionAction(action, catalogId, versionId, channel = null) {
 					this.depositSaving = true
 					this.versionsError = null
 
 					try {
+						const data = { catalogId, versionId }
+						if (channel) data.channel = channel
 						const result = await application.api.post(
 							`/administrator/api/ty-catalog/versions/${action}`,
-							{ data: { catalogId, versionId } },
+							{ data },
 						)
 						await this.loadVersions(catalogId, true)
 						return result

@@ -17,8 +17,8 @@ décisions, l'ordre des lots et les limites ouvertes.
 | `dev_X_Y` | Développement. C'est ici qu'on incrémente `version.json` et qu'on rédige `version.md` avant une publication. |
 | `prod_X_Y` | Production. Ne reçoit que des merges de release ; le suivi chaîne `dev_1_1` → `prod_1_1` puis `dev_1_2`. |
 | `security_X` | Analyse de sécurité d'une version majeure. Ses commits ne reviennent **pas** dans `dev_X_Y` : elle porte des constats, pas du code. |
-| `dev_ext_<id>_A_B` | Extension : **source de vérité** de l'extension. |
-| `prod_ext_<id>_A_B` | Extension : instantané de publication, sans développement propre. |
+| `dev_ext_<id>_A_B` | Extension : **source de vérité** de l'extension. *Reporté — voir ci-dessous.* |
+| `prod_ext_<id>_A_B` | Extension : instantané de publication, sans développement propre. *Reporté.* |
 
 **Chaque merge de `dev_X_Y` vers `prod_X_Y` incrémente `version.json`** d'un
 correctif (`X_Y_Z+1`) et reprend `version.md`. Un merge qui ne change pas la
@@ -27,6 +27,23 @@ version est refusé par la lecture de la version dans le workflow.
 Quand un cœur sort, `prod_X_Y` → `dev_ext_*` relève aussi `cms_min` /
 `cms_max_exclusive` : la compatibilité descendante attendue d'une extension
 se déclare dans son `version.json`, pas dans le cœur.
+
+### Extensions : développement reporté sur `dev_X_Y`
+
+Le Core est encore en maturation. Développer une extension fait régulièrement
+apparaître un besoin d'adaptation ou d'amélioration du Core, qui doit alors être
+fait dans la même foulée. Séparer les branches maintenant obligerait à maintenir
+deux flux et à répercuter chaque changement de contrat à la main.
+
+**Décision retenue** : le développement des extensions se fait pour l'instant
+**dans les branches `dev_X_Y`**, aux côtés du Core. Les branches `dev_ext_*` et
+`prod_ext_*`, la CI des extensions (lot D) et le dépôt automatique sur un
+catalogue sont **reportés** jusqu'à stabilisation du Core.
+
+À ce moment-là, le découpage reprendra : `dev_ext_*` source de vérité,
+`prod_ext_*` instantané, et la compatibilité déclarée dans le `version.json` de
+chaque extension. Le lot E (validation par canal dans TyCatalog) reste en
+revanche valable tel quel : il porte sur le catalogue, pas sur les branches.
 
 ## Règles de sécurité de la publication
 
@@ -71,8 +88,8 @@ profondeur). Le réglage est local, jamais activable par une URL.
 | F | Notifications Telegram / Slack / Discord (webhooks) | Livré |
 | G | Tickets GitHub : analyse read-only, correction après étiquette | Livré (analyse validée en réel) |
 | H | `security_X` : analyse différentielle avec SHA analysé | Livré |
-| D | CI extensions : build puis dépôt catalogue | À faire |
-| E | TyCatalog : validation par canal | À faire |
+| D | CI extensions : build puis dépôt catalogue | **Reporté** — Core en maturation |
+| E | TyCatalog : validation par canal | Livré |
 | I | Guides et index à jour | En cours |
 | J | Scripts partagés dans `cicd/` | Livré |
 

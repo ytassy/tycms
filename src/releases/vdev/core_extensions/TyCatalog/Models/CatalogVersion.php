@@ -22,6 +22,18 @@ final class CatalogVersion extends BaseOrmObject
     public const STATUS_PUBLISHED = 'published';
     public const STATUS_WITHDRAWN = 'withdrawn';
 
+    /**
+     * Canal de diffusion d'une version publiée.
+     *
+     * Une version bêta est servie seulement aux clients qui la demandent
+     * explicitement ; une version release est servie par défaut. Le retour
+     * release → bêta est refusé : l'identité servie à un client ne doit jamais
+     * changer en arrière.
+     */
+    public const CHANNEL_RELEASE = 'release';
+    public const CHANNEL_BETA = 'beta';
+    public const CHANNELS = [self::CHANNEL_RELEASE, self::CHANNEL_BETA];
+
     public const STORAGE_LOCAL = 'local';
     public const STORAGE_EXTERNAL = 'external';
 
@@ -36,6 +48,10 @@ final class CatalogVersion extends BaseOrmObject
 
     #[Field('status')]
     public string $status = self::STATUS_DRAFT;
+
+    /** Canal de diffusion ; sans objet tant que la version est en brouillon ou retirée. */
+    #[Field('channel')]
+    public string $channel = self::CHANNEL_RELEASE;
 
     #[Field('signature_envelope')]
     public string $signature_envelope;

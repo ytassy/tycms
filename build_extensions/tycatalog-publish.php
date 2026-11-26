@@ -252,7 +252,8 @@ function finish(mixed $curl): array
         $body = curl_exec($curl);
         $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     } finally {
-        curl_close($curl);
+            // Pas de curl_close() : sans effet depuis PHP 8.0 et déprécié en 8.5.
+        unset($curl);
     }
 
     $decoded = is_string($body) ? json_decode($body, true) : null;

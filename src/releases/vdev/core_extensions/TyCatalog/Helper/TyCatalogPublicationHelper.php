@@ -111,8 +111,19 @@ final class TyCatalogPublicationHelper extends BaseHelper
         }
     }
 
-    public function publish(Catalog $catalog, int $versionId, ?int $userId): void
+    /**
+     * Publier un brouillon dans un canal de diffusion.
+     *
+     * Le canal est choisi ici et ne change plus : une version release ne
+     * redevient jamais bêta. `promote()` est le seul passage autorisé, de la
+     * bêta vers la release.
+     */
+    public function publish(Catalog $catalog, int $versionId, ?int $userId,
+        string $channel = CatalogVersion::CHANNEL_RELEASE): void
     {
+        if (!in_array($channel, CatalogVersion::CHANNELS, true)) {
+            throw new PublicationException('Canal de diffusion invalide.');
+        }
         $version = $this->versionForCatalog($catalog, $versionId);
         if ($version->status !== CatalogVersion::STATUS_DRAFT) {
             throw new PublicationException('Seule une version en brouillon peut être publiée.');
@@ -142,15 +153,42 @@ final class TyCatalogPublicationHelper extends BaseHelper
 
         $this->db->execute(
             'UPDATE ty_catalog_versions
-             SET status = %, published_by = %, published_at = CURRENT_TIMESTAMP,
+             SET status = %, channel = %, published_by = %, published_at = CURRENT_TIMESTAMP,
                  withdrawn_by = NULL, withdrawn_at = NULL, updated = CURRENT_TIMESTAMP
              WHERE id = %',
-            [CatalogVersion::STATUS_PUBLISHED, $userId, $versionId],
+            [CatalogVersion::STATUS_PUBLISHED, $channel, $userId, $versionId],
         );
 
         $this->logInfo('Version d’extension publiée.',
-            ['catalog_id' => $catalog->id, 'version_id' => $versionId],
+            ['catalog_id' => $catalog->id, 'version_id' => $versionId, 'channel' => $channel],
             'TY_CATALOG_VERSION_PUBLISHED', 'extensions');
+    }
+
+    /**
+     * Promouvoir une version bêta en release. Sens unique : le retour en bêta
+     * est refusé, pour qu'un client ayant reçu la version ne la voie pas
+     * changer de canal en arrière.
+     */
+    public function promote(Catalog $catalog, int $versionId, ?int $userId): void
+    {
+        $version = $this->versionForCatalog($catalog, $versionId);
+        if ($version->status !== CatalogVersion::STATUS_PUBLISHED) {
+            throw new PublicationException('Seule une version publiée peut être promue.');
+        }
+        if ($version->channel !== CatalogVersion::CHANNEL_BETA) {
+            throw new PublicationException('Seule une version en bêta peut être promue en release.');
+        }
+
+        $this->db->execute(
+            'UPDATE ty_catalog_versions
+             SET channel = %, updated = CURRENT_TIMESTAMP
+             WHERE id = %',
+            [CatalogVersion::CHANNEL_RELEASE, $versionId],
+        );
+
+        $this->logInfo('Version d’extension promue en release.',
+            ['catalog_id' => $catalog->id, 'version_id' => $versionId],
+            'TY_CATALOG_VERSION_PROMOTED', 'extensions');
     }
 
     public function withdraw(Catalog $catalog, int $versionId, ?int $userId): void
@@ -200,6 +238,8 @@ final class TyCatalogPublicationHelper extends BaseHelper
             throw new PublicationException('La version ne peut pas être réactivée : ses octets ne correspondent plus au manifeste signé.');
         }
 
+        // Le canal enregistré est conservé : réactiver une version retirée depuis
+        // la bêta ne doit pas la publier pour tous sans décision.
         $this->db->execute(
             'UPDATE ty_catalog_versions
              SET status = %, published_by = %, published_at = CURRENT_TIMESTAMP,
@@ -209,7 +249,8 @@ final class TyCatalogPublicationHelper extends BaseHelper
         );
 
         $this->logInfo('Version d’extension réactivée.',
-            ['catalog_id' => $catalog->id, 'version_id' => $versionId, 'bytes' => $manifest['archive']['bytes']],
+            ['catalog_id' => $catalog->id, 'version_id' => $versionId,
+                'channel' => $version->channel, 'bytes' => $manifest['archive']['bytes']],
             'TY_CATALOG_VERSION_REACTIVATED', 'extensions');
     }
 
@@ -675,6 +716,7 @@ final class TyCatalogPublicationHelper extends BaseHelper
             'folder' => (string) $row->folder,
             'version' => (string) $row->version,
             'status' => (string) $row->status,
+            'channel' => (string) $row->channel,
             'archive_bytes' => (int) $row->archive_bytes,
             'archive_sha256' => (string) $row->archive_sha256,
             'storage_type' => (string) $row->storage_type,

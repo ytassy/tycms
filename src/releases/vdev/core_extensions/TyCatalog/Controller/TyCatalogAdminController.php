@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace YTassy\Tycms\CoreExts\TyCatalog\Controller;
 
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseController;
+use YTassy\Tycms\CoreExts\TyCatalog\Models\CatalogVersion;
 use YTassy\Tycms\CoreExts\TyCatalog\Traits\TraitTyCatalogWF;
 use YTassy\Tycms\Request\RequestMethod;
 use YTassy\Tycms\Request\WebRequest;
@@ -103,8 +104,23 @@ final class TyCatalogAdminController extends BaseController
     #[ControllerParam1(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/VersionAction.php')]
     public function publishVersion(object $data): ApiResponse
     {
-        $cleanup = $this->wfTyCatalogPublication->publish((int) $data->catalogId, (int) $data->versionId);
-        return new ApiResponse(['published' => true, 'cleanup' => $cleanup]);
+        // Canal facultatif : sans précision, la version part en release comme avant.
+        $channel = isset($data->channel) && is_string($data->channel) && $data->channel !== ''
+            ? $data->channel : CatalogVersion::CHANNEL_RELEASE;
+        $cleanup = $this->wfTyCatalogPublication->publish(
+            (int) $data->catalogId,
+            (int) $data->versionId,
+            $channel,
+        );
+        return new ApiResponse(['published' => true, 'channel' => $channel, 'cleanup' => $cleanup]);
+    }
+
+    #[ControllerMethod(name: 'promote_version', path: 'versions/promote', methods: [RequestMethod::POST])]
+    #[ControllerParam1(name: 'data', required: true, schemaFile: __DIR__ . '/Schemas/VersionAction.php')]
+    public function promoteVersion(object $data): ApiResponse
+    {
+        $this->wfTyCatalogPublication->promote((int) $data->catalogId, (int) $data->versionId);
+        return new ApiResponse(['promoted' => true]);
     }
 
     #[ControllerMethod(name: 'withdraw_version', path: 'versions/withdraw', methods: [RequestMethod::POST])]

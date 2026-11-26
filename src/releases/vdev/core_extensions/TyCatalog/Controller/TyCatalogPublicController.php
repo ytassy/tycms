@@ -138,11 +138,16 @@ final class TyCatalogPublicController extends BaseController
             return $pagination;
         }
         [$page, $limit] = $pagination;
+        $channel = $this->channel();
+        if ($channel instanceof JsonResponse) {
+            return $channel;
+        }
 
-        $result = $this->tyCatalogPublicHelper->versions($extension, $page, $limit);
+        $result = $this->tyCatalogPublicHelper->versions($extension, $page, $limit, $channel);
 
         return new JsonResponse([
             'schema_version' => 1,
+            'channel' => $channel,
             'items' => array_map($this->versionItem(...), $result['items']),
             'page' => $page,
             'limit' => $limit,
@@ -165,7 +170,11 @@ final class TyCatalogPublicController extends BaseController
         if ($catalog === null) {
             return $this->error(404, 'not_found', 'Catalogue introuvable.');
         }
-        $found = $this->tyCatalogPublicHelper->version($catalog, $extensionId, $version);
+        $channel = $this->channel();
+        if ($channel instanceof JsonResponse) {
+            return $channel;
+        }
+        $found = $this->tyCatalogPublicHelper->version($catalog, $extensionId, $version, $channel);
         if ($found === null) {
             return $this->error(404, 'not_found', 'Version introuvable.');
         }
@@ -273,12 +282,33 @@ final class TyCatalogPublicController extends BaseController
         if ($catalog === null) {
             return $this->error(404, 'not_found', 'Catalogue introuvable.');
         }
-        $found = $this->tyCatalogPublicHelper->version($catalog, $extensionId, $version);
+        $channel = $this->channel();
+        if ($channel instanceof JsonResponse) {
+            return $channel;
+        }
+        $found = $this->tyCatalogPublicHelper->version($catalog, $extensionId, $version, $channel);
 
         return $found ?? $this->error(404, 'not_found', 'Version introuvable.');
     }
 
     /** @return array{0:int,1:int}|JsonResponse */
+    /**
+     * Canal demandé par le client, `release` par défaut.
+     *
+     * La bêta n'est servie qu'à une demande explicite : un client qui n'en
+     * parle pas ne doit jamais la recevoir. Une valeur inconnue est refusée
+     * plutôt que ramenée silencieusement au canal par défaut.
+     */
+    private function channel(): string|JsonResponse
+    {
+        $channel = $this->request->query('channel', CatalogVersion::CHANNEL_RELEASE);
+        if (!is_string($channel) || !in_array($channel, CatalogVersion::CHANNELS, true)) {
+            return $this->error(400, 'invalid_request', 'channel doit valoir release ou beta.');
+        }
+
+        return $channel;
+    }
+
     private function pagination(): array|JsonResponse
     {
         $page = $this->request->query('page', '1');
@@ -316,7 +346,10 @@ final class TyCatalogPublicController extends BaseController
     /** @return array<string, mixed> */
     private function versionItem(CatalogVersion $version): array
     {
-        return ['version' => $version->version, 'published_at' => $this->date($version->published_at)];
+        // Le canal accompagne chaque version : en mode bêta, la liste contient
+        // les deux, et le client doit pouvoir distinguer une bêta d'une release.
+        return ['version' => $version->version, 'channel' => $version->channel,
+            'published_at' => $this->date($version->published_at)];
     }
 
     private function date(?\DateTimeImmutable $date): ?string

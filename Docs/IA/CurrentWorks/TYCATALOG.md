@@ -320,6 +320,20 @@ les octets et la signature sont identiques. Le déplacement d'un ZIP identique
 met à jour uniquement l'URL de transport, de façon auditée, sans changer la
 version ni les octets attendus.
 
+### Canal de diffusion
+
+Une version publiée porte un `channel` : `release` (défaut) ou `beta`. Le canal
+se choisit **à la publication** et ne revient jamais en arrière : le passage
+bêta → release existe (`promote`), l'inverse est refusé. Une version bêta est
+servie seulement à un client qui la demande (`?channel=beta`) ; celui-ci reçoit
+alors la bêta **et** les release, pour pouvoir revenir à une version stable sans
+changer de catalogue. Sans paramètre, seules les release sont servies.
+
+La réactivation d'une version retirée **conserve son canal** : réactiver une
+bêta ne la publie pas pour tous. Une migration (`Mig_1_0_5`) ajoute la colonne
+avec `release` par défaut, donc les versions déjà publiées restent servies comme
+avant.
+
 La rétention est réglée par catalogue (`keep_versions`, `keep_archives`, défaut
 4, bornes 1–100). Elle s'applique par extension, brouillons compris, après
 chaque publication ou réactivation et depuis **Nettoyer maintenant**. Au-delà

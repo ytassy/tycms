@@ -17,7 +17,7 @@ final class TyCatalogPluginTest extends FrameworkTestCase
         $plugin = new Plugin($this->createApplication());
 
         self::assertSame('TyCatalog', $plugin->getName());
-        self::assertSame(['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4'], $plugin->getMigrations());
+        self::assertSame(['1.0.0', '1.0.1', '1.0.2', '1.0.3', '1.0.4', '1.0.5'], $plugin->getMigrations());
         self::assertInstanceOf(Permissions::class, $plugin->coreOnRegisterAclPermissions());
         self::assertCount(3, $plugin->getControllers());
     }

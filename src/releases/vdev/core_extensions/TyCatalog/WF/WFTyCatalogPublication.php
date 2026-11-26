@@ -7,6 +7,7 @@ namespace YTassy\Tycms\CoreExts\TyCatalog\WF;
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
 use YTassy\Tycms\CoreExts\TyCatalog\Exception\PublicationException;
 use YTassy\Tycms\CoreExts\TyCatalog\Models\Catalog;
+use YTassy\Tycms\CoreExts\TyCatalog\Models\CatalogVersion;
 use YTassy\Tycms\CoreExts\TyCatalog\Permissions;
 use YTassy\Tycms\CoreExts\TyCatalog\Traits\TraitTyCatalogHelpers;
 use YTassy\Tycms\Exceptions\AccessDeniedException;
@@ -94,16 +95,28 @@ final class WFTyCatalogPublication extends BaseWF
         }
     }
 
-    public function publish(int $catalogId, int $versionId): array
+    public function publish(int $catalogId, int $versionId,
+        string $channel = CatalogVersion::CHANNEL_RELEASE): array
     {
         $catalog = $this->catalog($catalogId, Permissions::PUBLISH);
         try {
-            $this->tyCatalogPublicationHelper->publish($catalog, $versionId, $this->session->getUserId());
+            $this->tyCatalogPublicationHelper->publish($catalog, $versionId, $this->session->getUserId(), $channel);
         } catch (PublicationException $exception) {
             ExceptionResponse::throwWarning($exception->getMessage());
         }
 
         return $this->tyCatalogPublicationHelper->cleanupSafely($catalog);
+    }
+
+    /** Promouvoir une bêta en release ; sens unique. */
+    public function promote(int $catalogId, int $versionId): void
+    {
+        $catalog = $this->catalog($catalogId, Permissions::PUBLISH);
+        try {
+            $this->tyCatalogPublicationHelper->promote($catalog, $versionId, $this->session->getUserId());
+        } catch (PublicationException $exception) {
+            ExceptionResponse::throwWarning($exception->getMessage());
+        }
     }
 
     public function withdraw(int $catalogId, int $versionId): void

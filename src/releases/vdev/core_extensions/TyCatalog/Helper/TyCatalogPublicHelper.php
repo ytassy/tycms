@@ -103,14 +103,25 @@ final class TyCatalogPublicHelper extends BaseHelper
         return $present === null ? null : $extension;
     }
 
-    /** @return array{items:list<CatalogVersion>,total:int} */
-    public function versions(CatalogExtension $extension, int $page, int $limit): array
+    /**
+     * Versions publiées d'une extension, filtrées par canal.
+     *
+     * Par défaut, seules les versions release sont servies. Le canal bêta
+     * ajoute les versions en bêta **et** les release : un client en bêta doit
+     * pouvoir revenir à une version stable sans changer de catalogue.
+     *
+     * @return array{items:list<CatalogVersion>,total:int}
+     */
+    public function versions(CatalogExtension $extension, int $page, int $limit,
+        string $channel = CatalogVersion::CHANNEL_RELEASE): array
     {
+        $channels = self::channelsFor($channel);
         $versions = $this->db->selectOrm(
             CatalogVersion::class,
             'SELECT * FROM ty_catalog_versions
-             WHERE extension_id = % AND status = % AND archive_removed_at IS NULL',
-            [$extension->id, CatalogVersion::STATUS_PUBLISHED],
+             WHERE extension_id = % AND status = % AND archive_removed_at IS NULL
+               AND channel IN (' . implode(', ', array_fill(0, count($channels), '%')) . ')',
+            [$extension->id, CatalogVersion::STATUS_PUBLISHED, ...$channels],
         );
 
         usort($versions, static function (CatalogVersion $first, CatalogVersion $second): int {
@@ -123,8 +134,11 @@ final class TyCatalogPublicHelper extends BaseHelper
         ];
     }
 
-    public function version(Catalog $catalog, string $identifier, string $version): ?CatalogVersion
+    public function version(Catalog $catalog, string $identifier, string $version,
+        string $channel = CatalogVersion::CHANNEL_RELEASE): ?CatalogVersion
     {
+        $channels = self::channelsFor($channel);
+
         return $this->db->selectOrmOneOrNull(
             CatalogVersion::class,
             'SELECT version.*
@@ -134,9 +148,22 @@ final class TyCatalogPublicHelper extends BaseHelper
                AND extension.extension_identifier = %
                AND version.version = %
                AND version.status = %
-               AND version.archive_removed_at IS NULL',
-            [$catalog->id, $identifier, $version, CatalogVersion::STATUS_PUBLISHED],
+               AND version.archive_removed_at IS NULL
+               AND version.channel IN (' . implode(', ', array_fill(0, count($channels), '%')) . ')',
+            [$catalog->id, $identifier, $version, CatalogVersion::STATUS_PUBLISHED, ...$channels],
         );
+    }
+
+    /**
+     * Canaux servis pour une demande.
+     *
+     * @return list<string>
+     */
+    private static function channelsFor(string $channel): array
+    {
+        return $channel === CatalogVersion::CHANNEL_BETA
+            ? [CatalogVersion::CHANNEL_BETA, CatalogVersion::CHANNEL_RELEASE]
+            : [CatalogVersion::CHANNEL_RELEASE];
     }
 
     /** Chemin privé de l'archive locale, ou null si elle est absente ou retirée. */
