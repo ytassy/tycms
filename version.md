@@ -16,6 +16,7 @@ Ce document présente uniquement les changements utiles aux utilisateurs de Tycm
 
 ## Changements
 
+- Automatisation : les actions `core::sendMail` et `core::sendMailTemplate` mettent désormais le message en file au lieu de l'envoyer pendant le scénario. Elles rendent vrai dès l'enfilement ; l'envoi réel a lieu au prochain passage du worker de la file. Un échec SMTP apparaît donc dans l'onglet **Jobs** et non dans l'historique du run.
 - Automatisation : l'action d'envoi de modèle devient `core::sendMailTemplate(template, to, ?vars)`. Une nouvelle action `core::sendMail(to, subject, htmlBody)` envoie un corps HTML libre après purification avec le profil e-mail du site, dans l'habillage du Space. Les images des médias y reçoivent une URL absolue, comme pour les modèles.
 - Automatisation : après une exécution manuelle réussie, une modale d'information confirme le succès et indique que le détail du run est affiché plus bas.
 - Configuration : le bootstrap applique désormais `display_errors`, `log_errors` et `error_reporting_level`. Par défaut, les erreurs PHP ne sont plus affichées aux visiteurs, restent écrites dans le journal du serveur et les dépréciations sont ignorées (`E_ALL & ~E_DEPRECATED`). Le développement continue d'afficher toutes les erreurs. Un nouveau contrôle du bilan **Sécurité** signale une configuration risquée, y compris lorsque l'hébergement n'applique pas les valeurs demandées.

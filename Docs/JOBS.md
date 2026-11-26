@@ -72,6 +72,17 @@ final class Plugin extends BasePlugin implements IJobProvider
 unique `extension.job`, un libellé, un `min_time` et un nombre de tentatives.
 Un identifiant dupliqué est refusé au démarrage.
 
+## Types fournis par Core
+
+| Type | Rôle |
+| --- | --- |
+| `core.mail_send` | Bienvenue après inscription locale ou SSO, sans secret dans le payload |
+| `core.mail_template` | Envoi d'un modèle, utilisé par l'action `core::sendMailTemplate` |
+| `core.mail_html` | Envoi d'un corps HTML libre, utilisé par l'action `core::sendMail` |
+
+Les deux actions d'e-mail de l'automatisation passent donc par la file : le
+scénario n'attend plus le SMTP, il rend vrai dès que le job est enfilé.
+
 ## Écrire un handler
 
 Un handler étend `BaseJobHandler`. Il n'est pas un helper de couche : c'est
@@ -154,7 +165,8 @@ existant.
 
 ## Payload
 
-- JSON uniquement, 32 Ko au maximum.
+- JSON uniquement, 256 Ko au maximum. Un corps d'e-mail purifié peut être
+  volumineux : c'est le seul payload légitimement gros, et il reste borné.
 - Des références, jamais une autorité : identifiants, clés de modèle, options
   simples. Jamais de secret, de mot de passe, de jeton, ni d'entité complète.
 - Un handler n'est jamais désigné par un nom de classe stocké en base : le type

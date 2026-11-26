@@ -180,6 +180,10 @@
 
 export default {
 
+	props: {
+		active: { type: Boolean, default: true },
+	},
+
 	data() {
 		return {
 			statuses: ['pending', 'processing', 'completed', 'failed', 'cancelled'],
@@ -211,7 +215,12 @@ export default {
 	},
 
 	mounted() {
-		this.store.load()
+		if (this.active) this.store.load()
+	},
+
+	watch: {
+		// Le Système monte tous les onglets : on ne lit la file qu'à l'ouverture.
+		active(now) { if (now) this.store.load() },
 	},
 
 	methods: {

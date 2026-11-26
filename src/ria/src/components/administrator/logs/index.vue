@@ -1,6 +1,6 @@
 <template>
 	<section>
-		<h1>Journaux</h1>
+		<h2 class="h4">Journaux</h2>
 		<p class="text-muted">Journaux de cette installation, tous Spaces confondus. La conservation dépend de la durée et du volume maximum de chaque niveau.</p>
 		<div v-if="store.status && !store.status.available" class="alert alert-warning" role="alert">{{ store.status.storage_error }}</div>
 		<div v-if="store.status?.available" class="d-flex gap-3 flex-wrap mb-3">
@@ -61,7 +61,15 @@ export default {
 		query() { return { ...this.filters, space_id: this.spaceId === '' ? null : Number(this.spaceId) } },
 		changed() { return JSON.stringify(this.query) !== this.store.applied },
 	},
-	mounted() { this.refresh() },
+	props: {
+		active: { type: Boolean, default: true },
+	},
+
+	mounted() { if (this.active) this.refresh() },
+
+	watch: {
+		active(now) { if (now) this.refresh() },
+	},
 	beforeUnmount() { this.store.clear() },
 	methods: {
 		refresh() { this.store.load(this.query) },

@@ -116,6 +116,10 @@
 
 export default {
 
+	props: {
+		active: { type: Boolean, default: true },
+	},
+
 	computed: {
 
 		store() { return this.stores.useAdminJobsStore() },
@@ -128,7 +132,18 @@ export default {
 	},
 
 	mounted() {
-		if (!this.store.documentation) this.store.loadDocumentation()
+		if (this.active) this.loadDocumentation()
+	},
+
+	watch: {
+		active(now) { if (now) this.loadDocumentation() },
+	},
+
+	methods: {
+
+		loadDocumentation() {
+			if (!this.store.documentation) this.store.loadDocumentation()
+		},
 	},
 }
 </script>

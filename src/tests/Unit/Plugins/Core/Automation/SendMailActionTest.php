@@ -11,6 +11,10 @@ use YTassy\Tycms\CoreExts\Automation\Language\SourcePosition;
 use YTassy\Tycms\CoreExts\Automation\Language\SourceSpan;
 use YTassy\Tycms\CoreExts\Automation\Runtime\ExecutionException;
 use YTassy\Tycms\CoreExts\Core\Automation\Actions\SendMailAction;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailHtmlJobHandler;
+use YTassy\Tycms\DB\Database;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailHelper;
 use YTassy\Tycms\CoreExts\Core\Models\Space;
 use YTassy\Tycms\Application;
@@ -19,11 +23,25 @@ use YTassy\Tycms\Tests\Support\FrameworkTestCase;
 final class SendMailActionTest extends FrameworkTestCase
 {
     #[Test]
-    public function purifiesTheBodyAndSendsThroughTheSpaceLayout(): void
+    public function purifiesTheBodyBeforeEnqueueingIt(): void
     {
         $app = $this->createApplication();
-        $messages = [];
-        $this->replaceMailHelper($app, $messages);
+        $inserted = null;
+
+        // L'action ne parle plus au SMTP : elle écrit une ligne de file.
+        $db = $this->createMock(Database::class);
+        $db->expects(self::once())
+            ->method('execute')
+            ->willReturnCallback(static function (string $query, ?array $values) use (&$inserted): int {
+                $inserted = $values;
+
+                return 1;
+            });
+        new \ReflectionProperty(Application::class, 'database')->setValue($app, $db);
+
+        /** @var JobTypeRegistry $registry */
+        $registry = $app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+        $registry->register(JobType::for(SendMailHtmlJobHandler::class));
 
         $result = (new SendMailAction($app))->execute($this->context(), [
             'to' => 'alice@example.test',
@@ -34,19 +52,23 @@ final class SendMailActionTest extends FrameworkTestCase
         ]);
 
         self::assertTrue($result);
-        self::assertCount(1, $messages);
+        self::assertNotNull($inserted);
 
-        $message = $messages[0];
-        self::assertSame('alice@example.test', $message['to']);
-        self::assertSame('Bienvenue', $message['subject']);
-        self::assertSame(7, $message['sourceSpace']);
-        self::assertSame('default', $message['renderMode']);
+        // Colonnes : space_id, type, producteur, payload…
+        self::assertSame(7, $inserted[0]);
+        self::assertSame(SendMailHtmlJobHandler::JOB_TYPE, $inserted[1]);
 
-        // Les balises actives et les schémas de lien dangereux sont retirés.
-        self::assertStringContainsString('<p>Bonjour</p>', $message['html']);
-        self::assertStringNotContainsString('<script', $message['html']);
-        self::assertStringNotContainsString('<iframe', $message['html']);
-        self::assertStringNotContainsString('javascript:', $message['html']);
+        $payload = json_decode((string) $inserted[3], true, 32, JSON_THROW_ON_ERROR);
+
+        self::assertSame('alice@example.test', $payload['to']);
+        self::assertSame('Bienvenue', $payload['subject']);
+
+        // Les balises actives et les schémas de lien dangereux sont retirés
+        // avant l'écriture : la ligne de file ne contient pas de HTML actif.
+        self::assertStringContainsString('<p>Bonjour</p>', $payload['html']);
+        self::assertStringNotContainsString('<script', $payload['html']);
+        self::assertStringNotContainsString('<iframe', $payload['html']);
+        self::assertStringNotContainsString('javascript:', $payload['html']);
     }
 
     #[Test]

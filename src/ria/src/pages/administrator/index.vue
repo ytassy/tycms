@@ -15,7 +15,6 @@
         <div class="administrator-content flex-grow-1" :class="{ 'administrator-content--editor': editorOpen && page === 'pages' }">
             
 			<dashboard v-if="page == 'dashboard'" :groups="dashboardGroups" :can-check-updates="availablePages.includes('info_system')" />
-			<logs v-if="page == 'logs'"></logs>
 			<info_system v-if="page == 'info_system'"></info_system>
 			<extensions v-if="page == 'extensions'"></extensions>
 			<ty_catalog v-if="page == 'ty_catalog'"></ty_catalog>
@@ -42,7 +41,6 @@
 
 import dashboard from '../../components/administrator/dashboard/index.vue'
 import info_system from '../../components/administrator/infos_system/index.vue'
-import logs from '../../components/administrator/logs/index.vue'
 import users from '../../components/administrator/users/index.vue'
 import user_assignments from '../../components/administrator/user_assignments/index.vue'
 import user_groups from '../../components/administrator/user_groups/index.vue'
@@ -63,7 +61,7 @@ import service_accounts from '../../components/administrator/service_accounts/in
 
 export default {
 
-	components: { logs, dashboard, fonts, info_system, users, user_assignments, user_groups, roles, spaces, languages, email_templates, sso_providers, admin_ai, pages, menus, medias, extensions, ty_catalog, automation, service_accounts },
+	components: { dashboard, fonts, info_system, users, user_assignments, user_groups, roles, spaces, languages, email_templates, sso_providers, admin_ai, pages, menus, medias, extensions, ty_catalog, automation, service_accounts },
 
 	props: {
 		id: { type: [String, Number], default: null },
@@ -89,7 +87,6 @@ export default {
 					items: [
 						{ page: 'dashboard', label: 'Tableau de bord', icon: 'fa-solid fa-table-cells-large' },
 						{ page: 'info_system', label: 'Système', icon: 'fa-solid fa-gears', permission: 'ROOT' },
-						{ page: 'logs', label: 'Journaux', icon: 'fa-solid fa-file-lines', permission: 'ROOT' },
 						{ page: 'extensions', label: 'Extensions', icon: 'fa-solid fa-plug', permission: 'EXTENSION_EDIT' },
 						{ page: 'ty_catalog', label: 'Catalogues TyCMS', icon: 'fa-solid fa-book-open', permission: 'plg_ty_catalog__VIEW' },
 						{ page: 'automation', label: 'Automatisations', icon: 'fa-solid fa-diagram-project', permission: 'plg_automation__VIEW' },
@@ -102,13 +99,11 @@ export default {
 						{ page: 'pages', label: 'Pages', icon: 'fa-solid fa-file-lines', permission: 'PAGE_READ' },
 						{ page: 'fonts', label: 'Polices', icon: 'fa-solid fa-font', permission: 'FONT_ADD' },
 						{ page: 'medias', label: 'Médias', icon: 'fa-solid fa-images', permission: 'MEDIA_READ' },
-					].filter(item => item.page === 'dashboard' || (item.page === 'logs'
-						? this.acl.isRoot()
-						: item.page === 'automation'
-							? this.hasAutomationPermission
-							: item.page === 'ty_catalog'
-								? this.hasTyCatalogPermission
-								: this.acl.hasGlobalPermission(item.permission))
+					].filter(item => item.page === 'dashboard' || (item.page === 'automation'
+						? this.hasAutomationPermission
+						: item.page === 'ty_catalog'
+							? this.hasTyCatalogPermission
+							: this.acl.hasGlobalPermission(item.permission))
 						|| (item.page === 'fonts' && this.hasFontPermission)
 						|| (item.page === 'extensions' && this.canEditExtensions)
 						|| (item.page === 'spaces' && this.acl.hasGlobalPermission('SPACE_ADMIN'))

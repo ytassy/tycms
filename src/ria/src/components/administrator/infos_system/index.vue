@@ -8,6 +8,19 @@
 			<tab label="Mises à jour" icon="fa-solid fa-arrows-rotate">
 				<system_updates />
 			</tab>
+			<tab label="Jobs" icon="fa-solid fa-list-check">
+				<template #default="{ active }">
+					<jobs :active="active" />
+				</template>
+			</tab>
+			<tab label="Sécurité" icon="fa-solid fa-shield-halved">
+				<security />
+			</tab>
+			<tab label="Documentation" icon="fa-solid fa-book">
+				<template #default="{ active }">
+					<documentation :active="active" />
+				</template>
+			</tab>
 			<tab label="Routes" icon="fa-solid fa-location-arrow">
 				<spinner v-if="processing" />
 				<routes v-else-if="data" :data="data.routes"></routes>
@@ -16,14 +29,10 @@
 				<spinner v-if="processing" />
 				<php v-else-if="data" :data="data.php"></php>
 			</tab>
-			<tab label="Sécurité" icon="fa-solid fa-shield-halved">
-				<security />
-			</tab>
-			<tab label="Jobs" icon="fa-solid fa-list-check">
-				<jobs />
-			</tab>
-			<tab label="Documentation" icon="fa-solid fa-book">
-				<documentation />
+			<tab label="Journaux" icon="fa-solid fa-file-lines">
+				<template #default="{ active }">
+					<logs :active="active" />
+				</template>
 			</tab>
 		</tabs>
 	</section>
@@ -33,6 +42,7 @@
 
 import documentation from './documentation.vue'
 import jobs from './jobs.vue'
+import logs from '../logs/index.vue'
 import php from './php.vue'
 import routes from './routes.vue'
 import security from './security.vue'
@@ -40,7 +50,7 @@ import system_updates from '../system_updates/index.vue'
 
 export default {
 
-	components: { documentation, jobs, php, routes, security, system_updates },
+	components: { documentation, jobs, logs, php, routes, security, system_updates },
 
 	data() {
 		return {
@@ -52,8 +62,8 @@ export default {
 
 	async mounted() {
 
-		// Les onglets Routes et PHP dépendent de cette lecture ; les mises à jour
-		// chargent leurs propres données dans leur store.
+		// Les onglets Routes et PHP dépendent de cette lecture ; les autres
+		// chargent leurs propres données à leur première ouverture.
 		try {
 			const response = await this.api.get('/administrator/api/infos_system')
 			this.data = response;
@@ -62,10 +72,6 @@ export default {
 		} finally {
 			this.processing = false
 		}
-	},
-
-	methods: {
-
 	},
 }
 </script>

@@ -63,9 +63,12 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_4;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_5;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_9;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_10;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailHtmlJobHandler;
 use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailTemplateJobHandler;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_12;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_13;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
@@ -130,10 +133,15 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
 
     public function coreOnRegisterJobTypes(JobTypeRegistry $registry): void
     {
-        // Un seul type pour l'instant : les bienvenues qui ne portent aucun
-        // secret. L'accueil d'un compte créé par un administrateur contient le
-        // mot de passe initial et reste envoyé de façon synchrone.
+        // Bienvenues qui ne portent aucun secret. L'accueil d'un compte créé
+        // par un administrateur contient le mot de passe initial et reste
+        // envoyé de façon synchrone.
         $registry->register(JobType::for(SendMailJobHandler::class));
+
+        // Actions d'automatisation : le modèle et le corps libre passent par la
+        // file, ce qui retire l'envoi SMTP du déroulé du scénario.
+        $registry->register(JobType::for(SendMailTemplateJobHandler::class));
+        $registry->register(JobType::for(SendMailHtmlJobHandler::class));
     }
 
     #[Override]
@@ -154,6 +162,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.10' => [Mig_1_1_10::class],
             '1.1.11' => [Mig_1_1_11::class],
             '1.1.12' => [Mig_1_1_12::class],
+            '1.1.13' => [Mig_1_1_13::class],
         ];
 	}
 

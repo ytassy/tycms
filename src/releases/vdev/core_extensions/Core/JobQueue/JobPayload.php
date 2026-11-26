@@ -16,8 +16,13 @@ use YTassy\Tycms\Exceptions\TechException;
  */
 final class JobPayload
 {
-    /** Taille maximale du JSON encodé, en octets. */
-    public const MAX_BYTES = 32768;
+    /**
+     * Taille maximale du JSON encodé, en octets.
+     *
+     * Assez large pour un corps d'e-mail purifié de 128 Ko et son échappement
+     * JSON : c'est le seul payload légitimement volumineux.
+     */
+    public const MAX_BYTES = 262144;
 
     /** Profondeur maximale acceptée au décodage, pour ne pas suivre une structure abusive. */
     private const MAX_DEPTH = 32;

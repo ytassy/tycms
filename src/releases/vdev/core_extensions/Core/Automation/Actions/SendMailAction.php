@@ -9,6 +9,8 @@ use YTassy\Tycms\CoreExts\Automation\ExtensionApi\BaseAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\Language\DiagnosticCode;
 use YTassy\Tycms\CoreExts\Automation\Runtime\ValueTools;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\EmailHtmlSanitizer;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailHtmlJobHandler;
 
 /** Envoie un corps HTML libre, purifié avec le profil e-mail du site. */
 final class SendMailAction extends BaseAutomationAction
@@ -26,15 +28,23 @@ final class SendMailAction extends BaseAutomationAction
         $htmlBody = $this->purifyBody($htmlBody, $context);
 
         try {
-            return $this->coreMailHelper->sendHtml(
-                $to,
-                $subject,
-                $htmlBody,
-                sourceSpace: $context->spaceId,
+            $this->queue()->enqueue(
+                SendMailHtmlJobHandler::create($to, $subject, $htmlBody, $context->spaceId),
             );
         } catch (\Throwable $exception) {
             throw $this->actionException($exception, $context);
         }
+
+        return true;
+    }
+
+    /** Le scénario n'envoie plus le message : il le confie à la file. */
+    private function queue(): JobQueue
+    {
+        /** @var JobQueue $queue */
+        $queue = $this->getSharedExtensionsClass(JobQueue::class);
+
+        return $queue;
     }
 
     /** L'objet reste sur une seule ligne : un retour introduirait un en-tête. */

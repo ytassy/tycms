@@ -1019,7 +1019,9 @@ la session HTTP ne s'appliquent pas à l'exécution interne.
 - Chaque action qui écrit gère sa propre transaction ; un échec d'action
   n'annule pas les effets déjà appliqués.
 - Les effets externes sont exécutés pendant le run, avec timeout et quotas.
-  Aucun job différé en v1.
+  Les envois d'e-mail font exception : `core::sendMail` et `core::sendMailTemplate`
+  passent par la [file de jobs](../../JOBS.md) et rendent vrai dès la mise en
+  file, sans attendre le SMTP.
 - Le run n'est jamais rejoué automatiquement.
 - La notification d'échec est best-effort, après persistance du statut.
 - Le run manuel passe par `POST administrator/api/automation/run`, route
@@ -1365,7 +1367,8 @@ archivage et rétention avancée restent à étudier plus tard.
 - Plusieurs points d'entrée en v1.
 - Garantie « exactement une fois ».
 - Reprise automatique des runs échoués.
-- File de jobs différés.
+- File de jobs propre à l'automatisation : seul l'envoi d'e-mail est différé,
+  via la file Core.
 - Principal de service en v1.
 - Approbation `SPACE_ADMIN` d'un mode `author` : remplacée par la permission
   `RUN_AS_AUTHOR`.

@@ -7,6 +7,8 @@ namespace YTassy\Tycms\CoreExts\Core\Automation\Actions;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\ActionContext;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\BaseAutomationAction;
 use YTassy\Tycms\CoreExts\Automation\Runtime\ValueTools;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailTemplateJobHandler;
 
 /** Envoie un modèle d'e-mail déclaré dans le Space du run. */
 final class SendMailTemplateAction extends BaseAutomationAction
@@ -22,14 +24,22 @@ final class SendMailTemplateAction extends BaseAutomationAction
         }
 
         try {
-            return $this->coreMailHelper->sendTemplate(
-                $template,
-                $to,
-                $vars,
-                $context->spaceId,
+            $this->queue()->enqueue(
+                SendMailTemplateJobHandler::create($template, $to, $vars, $context->spaceId),
             );
         } catch (\Throwable $exception) {
             throw $this->actionException($exception, $context);
         }
+
+        return true;
+    }
+
+    /** Le scénario n'envoie plus le message : il le confie à la file. */
+    private function queue(): JobQueue
+    {
+        /** @var JobQueue $queue */
+        $queue = $this->getSharedExtensionsClass(JobQueue::class);
+
+        return $queue;
     }
 }

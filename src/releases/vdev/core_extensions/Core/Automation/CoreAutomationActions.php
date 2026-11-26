@@ -74,8 +74,9 @@ final class CoreAutomationActions
                 id: 'core::sendMail',
                 label: 'Envoyer un e-mail',
                 handlerClass: SendMailAction::class,
-                description: 'Envoie un message dont le corps HTML est fourni par le scénario, '
-                    . 'après purification, avec l’habillage e-mail du Space.',
+                description: 'Met en file un message dont le corps HTML est fourni par le scénario. '
+                    . 'Le corps est purifié avant l’enfilement, puis l’envoi a lieu au prochain passage '
+                    . 'du worker, avec l’habillage e-mail du Space.',
                 parameters: [
                     new AutomationParameterDefinition(
                         'to',
@@ -108,7 +109,8 @@ final class CoreAutomationActions
                 id: 'core::sendMailTemplate',
                 label: 'Envoyer un modèle d’e-mail',
                 handlerClass: SendMailTemplateAction::class,
-                description: 'Envoie un modèle d’e-mail déclaré par une extension ou créé pour le Space.',
+                description: 'Met en file l’envoi d’un modèle déclaré par une extension ou créé pour le '
+                    . 'Space. L’envoi a lieu au prochain passage du worker.',
                 parameters: [
                     new AutomationParameterDefinition(
                         'template',
