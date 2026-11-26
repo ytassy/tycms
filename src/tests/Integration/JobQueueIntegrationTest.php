@@ -177,6 +177,43 @@ final class JobQueueIntegrationTest extends TestCase
         self::assertSame('completed', $this->queue->status($jobId)['status']);
     }
 
+    public function testJobLongerThanTheRemainingBudgetIsDeferred(): void
+    {
+        // Un type qui déclare 20 secondes ne peut pas démarrer dans un budget
+        // de trafic de 5 secondes : il doit rester en attente, sans tentative.
+        /** @var JobTypeRegistry $registry */
+        $registry = $this->app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+        $registry->register(new JobType('plg_test.slow', 'Test lent', SlowJobHandler::class, 20, 1));
+
+        $this->db->execute(
+            "INSERT INTO jobs (space_id, type, producer, payload)
+             VALUES (1, 'plg_test.slow', 'plg_test', '{}')",
+        );
+        $jobId = (int) $this->db->getLastInsertId();
+
+        $summary = $this->worker->run(JobWorker::SOURCE_TRAFFIC);
+
+        self::assertSame(0, $summary['ran']);
+        self::assertSame(1, $summary['deferred']);
+
+        $row = $this->queue->status($jobId);
+
+        self::assertSame('pending', $row['status']);
+        self::assertSame(0, (int) $row['attempts']);
+    }
+
+    public function testTrafficSourceRunsFastJobsUpToItsBudget(): void
+    {
+        $first = $this->queue->enqueue(new JobRequest('plg_test.noop', [], ['space_id' => 1]));
+        $second = $this->queue->enqueue(new JobRequest('plg_test.noop', [], ['space_id' => 1]));
+
+        $summary = $this->worker->run(JobWorker::SOURCE_TRAFFIC);
+
+        self::assertSame(2, $summary['ran']);
+        self::assertSame('completed', $this->queue->status($first)['status']);
+        self::assertSame('completed', $this->queue->status($second)['status']);
+    }
+
     public function testUnknownTypeIsFailedWithoutRunning(): void
     {
         $this->db->execute(
@@ -207,6 +244,15 @@ final class JobQueueIntegrationTest extends TestCase
 
 /** Handler sans effet : le job doit seulement atteindre l'état terminal. */
 final class NoopJobHandler extends BaseJobHandler
+{
+    public function handle(JobContext $context, array $payload): JobResult
+    {
+        return JobResult::success();
+    }
+}
+
+/** Handler qui déclare une durée trop longue pour le budget du trafic. */
+final class SlowJobHandler extends BaseJobHandler
 {
     public function handle(JobContext $context, array $payload): JobResult
     {

@@ -32,16 +32,38 @@ final class JobWorker extends BaseHelper
     public const SOURCE_ADMIN = 'admin';
 
     /** Budget du CRON de la file : un passage par minute sur mutualisé. */
-    public const CRON_MAX_JOBS = 20;
     public const CRON_BUDGET_SECONDS = 30;
 
-    /** Budget du déclenchement par le trafic : court, il ne paie pas une visite. */
-    public const TRAFFIC_MAX_JOBS = 3;
+    /**
+     * Politique de temps par porte d'entrée.
+     *
+     * Le trafic reste court parce qu'il s'exécute sur une requête déclenchée
+     * par un visiteur. Le CRON et l'administration peuvent voir plus grand.
+     * Chaque valeur est ensuite bornée par la limite réelle du serveur.
+     */
     public const TRAFFIC_BUDGET_SECONDS = 5;
 
     /** Exécution manuelle depuis l'administration : plus large, mais bornée. */
-    public const ADMIN_MAX_JOBS = 10;
     public const ADMIN_BUDGET_SECONDS = 20;
+
+    /**
+     * Marge laissée sous la limite du serveur, en secondes.
+     *
+     * Elle couvre la fin de requête : libération du verrou, écriture du
+     * battement, envoi de la réponse.
+     */
+    public const SAFETY_MARGIN_SECONDS = 10;
+
+    /** Budget minimal : même sous une limite serveur serrée, un job doit pouvoir démarrer. */
+    public const MIN_BUDGET_SECONDS = 3;
+
+    /**
+     * Garde-fou de boucle, jamais un plafond fonctionnel.
+     *
+     * Le temps borne chaque passage ; ce nombre évite seulement qu'une file de
+     * milliers de jobs instantanés monopolise la requête.
+     */
+    public const SAFETY_MAX_JOBS = 200;
 
     /** Fenêtre de candidats lue en une requête. */
     private const SCAN_WINDOW = 20;
@@ -83,11 +105,12 @@ final class JobWorker extends BaseHelper
     public function run(string $source = self::SOURCE_CRON): array
     {
         $startedAt = microtime(true);
-        [$maxJobs, $budget] = match ($source) {
-            self::SOURCE_TRAFFIC => [self::TRAFFIC_MAX_JOBS, self::TRAFFIC_BUDGET_SECONDS],
-            self::SOURCE_ADMIN => [self::ADMIN_MAX_JOBS, self::ADMIN_BUDGET_SECONDS],
-            default => [self::CRON_MAX_JOBS, self::CRON_BUDGET_SECONDS],
+        $policy = match ($source) {
+            self::SOURCE_TRAFFIC => self::TRAFFIC_BUDGET_SECONDS,
+            self::SOURCE_ADMIN => self::ADMIN_BUDGET_SECONDS,
+            default => self::CRON_BUDGET_SECONDS,
         };
+        $budget = self::clampBudget($policy, (int) ini_get('max_execution_time'));
         $deadline = $startedAt + $budget;
 
         $summary = [
@@ -110,7 +133,7 @@ final class JobWorker extends BaseHelper
             // Variable de session refusée : le worker reste utilisable.
         }
 
-        $this->extendExecutionTime($budget);
+        $this->applyExecutionLimit($budget);
 
         if (!$this->acquireLock()) {
             $summary['busy'] = true;
@@ -122,7 +145,7 @@ final class JobWorker extends BaseHelper
         try {
             $summary['recovered'] = $this->recoverExpiredLeases();
             $summary['purged'] = $this->purgeIfDue();
-            $this->drain($summary, $maxJobs, $deadline);
+            $this->drain($summary, $deadline);
         } finally {
             $this->releaseLock();
 
@@ -162,12 +185,12 @@ final class JobWorker extends BaseHelper
     /**
      * @param array<string, int|bool> $summary
      */
-    private function drain(array &$summary, int $maxJobs, float $deadline): void
+    private function drain(array &$summary, float $deadline): void
     {
         /** @var list<int> $skipped Identifiants écartés pour ce tick (budget insuffisant). */
         $skipped = [];
 
-        while ($summary['ran'] < $maxJobs) {
+        while ($summary['ran'] < self::SAFETY_MAX_JOBS) {
             $remaining = $deadline - microtime(true);
 
             // Sous la plus courte durée déclarée, aucun type ne peut démarrer.
@@ -623,14 +646,46 @@ final class JobWorker extends BaseHelper
         return $registry->get($type);
     }
 
-    private function extendExecutionTime(int $budgetSeconds): void
+    /**
+     * Budget effectif d'un passage.
+     *
+     * La politique de la porte d'entrée est bornée par la limite PHP déclarée,
+     * moins une marge de fin de requête. Une limite nulle (0) signifie
+     * « illimitée » : la politique s'applique seule.
+     *
+     * Cette limite exprime un temps processeur, pas un temps écoulé : elle sert
+     * de plafond, jamais de mesure. Le worker mesure le temps réel.
+     */
+    public static function clampBudget(
+        int $policySeconds,
+        int $serverSeconds,
+        int $marginSeconds = self::SAFETY_MARGIN_SECONDS,
+    ): int {
+        if ($serverSeconds <= 0) {
+            return $policySeconds;
+        }
+
+        return max(
+            self::MIN_BUDGET_SECONDS,
+            min($policySeconds, $serverSeconds - $marginSeconds),
+        );
+    }
+
+    /**
+     * Impose une limite PHP cohérente avec le budget du passage.
+     *
+     * Elle peut l'abaisser comme la relever : c'est la limite du passage, pas
+     * une extension. Indispensable quand le serveur déclare `0` (illimité),
+     * car il ne reste alors que cette borne. `set_time_limit` est souvent
+     * neutralisé sur mutualisé : l'appel reste une protection, jamais une
+     * garantie.
+     */
+    private function applyExecutionLimit(int $budgetSeconds): void
     {
-        // `set_time_limit` est souvent neutralisé sur mutualisé ; l'appel reste
-        // une protection utile quand il est disponible, jamais une garantie.
         $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
 
         if (!in_array('set_time_limit', $disabled, true)) {
-            set_time_limit($budgetSeconds + 10);
+            set_time_limit($budgetSeconds + self::SAFETY_MARGIN_SECONDS);
         }
     }
 

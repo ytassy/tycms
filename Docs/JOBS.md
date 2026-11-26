@@ -206,12 +206,35 @@ réservation d'une ligne est atomique ; un bail expiré est remis en attente par
 le tick suivant.
 
 Un job n'est réservé que si le budget restant du tick couvre son `min_time` :
-un handler lent ne bloque pas les suivants.
+un handler lent ne bloque pas les suivants, et un job trop long pour le budget
+courant reste `pending` sans consommer de tentative. C'est ce contrôle, plus
+que le nombre de jobs, qui borne réellement un passage.
 
-| Déclencheur | Budget |
+| Déclencheur | Budget visé |
 | --- | --- |
-| CRON de la file | 20 jobs, 30 secondes |
-| Trafic du site | 3 jobs, 5 secondes |
+| CRON de la file | 30 secondes |
+| Trafic du site | 5 secondes |
+| Administration | 20 secondes |
+
+Le nombre de jobs n'est pas un plafond : c'est le temps qui décide, et le
+`min_time` de chaque type avant chaque réservation. Un garde-fou de 200 jobs
+évite seulement qu'une file de milliers d'éléments instantanés monopolise la
+requête.
+
+Chaque budget est borné par la limite du serveur, de deux façons.
+
+- **Limite déclarée** (`max_execution_time` positif) : le budget vaut
+  `min(budget visé, limite − 10)`, avec un plancher de 3 secondes. Une limite de
+  30 secondes donne donc 20 secondes au CRON, et le trafic garde ses 5 secondes.
+- **Limite nulle** (illimitée) : le budget visé s'applique tel quel, et
+  `set_time_limit(budget + 10)` devient la seule borne PHP. Si l'hébergeur
+  désactive aussi `set_time_limit`, plus rien ne coupe une requête bloquée :
+  un handler coincé garde le verrou nommé, et la file attend que le serveur web
+  termine la requête. Une limite déclarée reste préférable.
+
+Sous Unix, `max_execution_time` compte du temps processeur, pas du temps
+écoulé : elle sert de plafond, jamais de mesure. Le worker mesure le temps réel
+de son côté.
 
 En cas d'échec, le délai avant nouvelle tentative est exponentiel :
 30 secondes × 2ⁿ, plafonné à une heure, avec une gigue de 0 à 20 %. Les jobs
@@ -232,8 +255,7 @@ utilisateur n'y figure.
 
 ## Administration
 
-L'onglet **Jobs** de l'écran **Système**, réservé à ROOT, liste la file et filtre par statut, par type et par Space. Il affiche le détail d'un job — payload compris, en lecture seule — relance un job en échec avec un compteur neuf, annule un job en attente ou en cours, lance un passage du worker (10 jobs,
-20 secondes) et purge les jobs terminés. Un avertissement apparaît quand le worker n'a pas tourné depuis cinq minutes.
+L'onglet **Jobs** de l'écran **Système**, réservé à ROOT, liste la file et filtre par statut, par type et par Space. Il affiche le détail d'un job — payload compris, en lecture seule — relance un job en échec avec un compteur neuf, annule un job en attente ou en cours, lance un passage du worker (20 secondes) et purge les jobs terminés. Un avertissement apparaît quand le worker n'a pas tourné depuis cinq minutes.
 
 L'onglet **Documentation** du même écran rappelle les deux lignes de CRON à installer, l'état des jetons (jamais leur valeur) et les plafonds appliqués. Le bilan de sécurité signale un jeton de worker absent ou un worker inactif alors que des jobs attendent.
 

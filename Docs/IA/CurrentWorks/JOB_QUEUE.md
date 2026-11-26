@@ -51,8 +51,12 @@ et ses propres codes de journal (`CRON_*`, `JOB_WORKER_*`).
 | Porte | Route | Budget | Authentification |
 | --- | --- | --- | --- |
 | CRON système | `GET/POST /cron` | — | `cron_token` |
-| CRON de la file | `GET/POST /queue-worker` | 20 jobs / 30 s | `job_worker_token` |
-| Trafic du site | `POST api/jobs/ping` | 3 jobs / 5 s | aucune, plafonné |
+| CRON de la file | `GET/POST /queue-worker` | 30 s visés | `job_worker_token` |
+| Trafic du site | `POST api/jobs/ping` | 5 s visés | aucune, plafonné |
+| Administration | `POST administrator/api/jobs/run` | 20 s visés | ROOT + CSRF |
+
+Chaque budget est borné par `max_execution_time` moins 10 secondes de marge
+(plancher 3 s) : le nombre de jobs n'est plus un plafond fonctionnel.
 | Administration | `administrator/api/jobs` | aucune exécution | ROOT |
 
 Le CRON système ne déclenche pas la file : les deux routes sont indépendantes.
@@ -302,8 +306,8 @@ porte l'échéance.
 - Réglage `job_traffic_trigger`, actif par défaut : `false` s'en remet au seul
   CRON de la file. Le tag est également omis quand la page ne rend pas l'Import
   Map : sans nonce CSP, le script en ligne serait bloqué, donc inutile.
-- Le navigateur applique un délai local (environ 5 minutes par onglet) pour
-  éviter un boot PHP à chaque page vue.
+- Le navigateur applique un délai local de 5 secondes par onglet, aligné sur le
+  budget du worker de trafic.
 - La route ne retourne que des compteurs, jamais une sortie de job, et ne
   vérifie aucune session.
 - **Aucun jeton.** La route n'accorde aucune autorité : elle ne peut ni créer,

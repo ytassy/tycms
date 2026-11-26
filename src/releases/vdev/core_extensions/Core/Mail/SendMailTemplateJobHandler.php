@@ -22,8 +22,14 @@ final class SendMailTemplateJobHandler extends BaseJobHandler
 
     public const JOB_LABEL = 'Envoi d’un modèle d’e-mail';
 
-    /** Durée attendue : un envoi SMTP court sur mutualisé. */
-    public const JOB_MIN_TIME = 3;
+    /**
+     * Durée attendue d'un envoi SMTP sur mutualisé.
+     *
+     * Deux secondes, pas trois : le worker ne démarre un job que si le budget
+     * restant couvre cette valeur, et une valeur trop haute bloque le lot
+     * suivant. La marge du bail (15 s) absorbe les dépassements.
+     */
+    public const JOB_MIN_TIME = 2;
 
     public const JOB_MAX_ATTEMPTS = 2;
 
