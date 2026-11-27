@@ -27,6 +27,23 @@ final class JobType
     /** Plafond de tentatives admis par un type. */
     public const MAX_ATTEMPTS_MAX = 10;
 
+    /** Bornes de priorité : la valeur reste un entier réglable sur toute l'échelle. */
+    public const PRIORITY_MIN = 0;
+
+    public const PRIORITY_MAX = 100;
+
+    /**
+     * Niveaux nommés, proposés aux types.
+     *
+     * Ils ne sont qu'un vocabulaire : une priorité intermédiaire reste admise,
+     * la colonne et la validation acceptant tout entier de 0 à 100.
+     */
+    public const PRIORITY_LOW = 20;
+
+    public const PRIORITY_NORMAL = 50;
+
+    public const PRIORITY_HIGH = 80;
+
     /** Identifiant stable « extension.job », en minuscules. */
     public const ID_PATTERN = '/\A[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\z/';
 
@@ -35,6 +52,12 @@ final class JobType
 
     /** Constantes que le handler doit déclarer pour `for()`. */
     private const HANDLER_METADATA = ['JOB_TYPE', 'JOB_LABEL', 'JOB_MIN_TIME', 'JOB_MAX_ATTEMPTS'];
+
+    /**
+     * Constantes facultatives : une priorité absente vaut `PRIORITY_NORMAL`,
+     * ce qui laisse les handlers déjà écrits fonctionner sans modification.
+     */
+    private const HANDLER_OPTIONAL_METADATA = ['JOB_PRIORITY'];
 
     public readonly string $id;
 
@@ -48,6 +71,9 @@ final class JobType
 
     public readonly int $maxAttempts;
 
+    /** Priorité par défaut des jobs de ce type, surchargeable à l'enfilement. */
+    public readonly int $priority;
+
     /**
      * @param class-string<IJobHandler> $handlerClass
      */
@@ -57,6 +83,7 @@ final class JobType
         string $handlerClass,
         int $minTime = 5,
         int $maxAttempts = 3,
+        int $priority = self::PRIORITY_NORMAL,
     ) {
         if (preg_match(self::ID_PATTERN, $id) !== 1 || strlen($id) > self::ID_MAX_LENGTH) {
             throw new InvalidArgumentException(sprintf(
@@ -98,11 +125,21 @@ final class JobType
             ));
         }
 
+        if ($priority < self::PRIORITY_MIN || $priority > self::PRIORITY_MAX) {
+            throw new InvalidArgumentException(sprintf(
+                'priorité du job "%s" hors limites (%d-%d).',
+                $id,
+                self::PRIORITY_MIN,
+                self::PRIORITY_MAX,
+            ));
+        }
+
         $this->id = $id;
         $this->label = trim($label);
         $this->handlerClass = $handlerClass;
         $this->minTime = $minTime;
         $this->maxAttempts = $maxAttempts;
+        $this->priority = $priority;
     }
 
     /**
@@ -130,12 +167,27 @@ final class JobType
             }
         }
 
+        // Les métadonnées facultatives sont lues seulement si elles existent :
+        // un handler sans priorité garde la priorité normale.
+        foreach (self::HANDLER_OPTIONAL_METADATA as $constant) {
+            if (defined($handlerClass . '::' . $constant) && !is_int(constant($handlerClass . '::' . $constant))) {
+                throw new InvalidArgumentException(sprintf(
+                    'La constante %s du handler "%s" doit être un entier.',
+                    $constant,
+                    $handlerClass,
+                ));
+            }
+        }
+
         return new self(
             (string) constant($handlerClass . '::JOB_TYPE'),
             (string) constant($handlerClass . '::JOB_LABEL'),
             $handlerClass,
             (int) constant($handlerClass . '::JOB_MIN_TIME'),
             (int) constant($handlerClass . '::JOB_MAX_ATTEMPTS'),
+            defined($handlerClass . '::JOB_PRIORITY')
+                ? (int) constant($handlerClass . '::JOB_PRIORITY')
+                : self::PRIORITY_NORMAL,
         );
     }
 

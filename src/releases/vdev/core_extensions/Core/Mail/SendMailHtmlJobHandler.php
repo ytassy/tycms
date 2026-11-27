@@ -8,6 +8,7 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\BaseJobHandler;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobContext;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\EmailHtmlSanitizer;
 
 /**
@@ -35,18 +36,34 @@ final class SendMailHtmlJobHandler extends BaseJobHandler
 
     public const JOB_MAX_ATTEMPTS = 2;
 
+    /**
+     * Envoi de scénario : rien n'attend pendant le rendu, il peut passer après
+     * les messages transactionnels. Une fabrique peut demander mieux au cas par
+     * cas si le scénario porte un message critique.
+     */
+    public const JOB_PRIORITY = JobType::PRIORITY_LOW;
+
     /** Aligné sur la limite du corps dans l'action d'automatisation. */
     public const MAX_BODY_BYTES = 131072;
 
-    public static function create(string $to, string $subject, string $htmlBody, ?int $spaceId = null): JobRequest
-    {
+    public static function create(
+        string $to,
+        string $subject,
+        string $htmlBody,
+        ?int $spaceId = null,
+        ?int $priority = null,
+    ): JobRequest {
+        $options = ['space_id' => $spaceId];
+
+        if ($priority !== null) {
+            $options['priority'] = $priority;
+        }
+
         return new JobRequest(self::JOB_TYPE, [
             'to' => $to,
             'subject' => $subject,
             'html' => $htmlBody,
-        ], [
-            'space_id' => $spaceId,
-        ]);
+        ], $options);
     }
 
     public function handle(JobContext $context, array $payload): JobResult

@@ -11,8 +11,8 @@ use DateTimeInterface;
  *
  * Le producteur ne compose pas ce tableau à la main : chaque type expose une
  * fabrique typée sur son handler, par exemple
- * `SendMailJobHandler::forLocalRegistration($userId, $spaceId, $locale)`. Les
- * clés du payload et des options restent ainsi la propriété du type, et une
+ * `SendWelcomeMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, $userId, $spaceId, $locale)`.
+ * Les clés du payload et des options restent ainsi la propriété du type, et une
  * signature nommée se lit sans ouvrir la classe.
  *
  * Le payload ne porte que des références : la validation du type et la

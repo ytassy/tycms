@@ -70,18 +70,70 @@ final class Plugin extends BasePlugin implements IJobProvider
 
 `JobType::for()` lit les métadonnées déclarées par le handler : un identifiant
 unique `extension.job`, un libellé, un `min_time` et un nombre de tentatives.
-Un identifiant dupliqué est refusé au démarrage.
+Un identifiant dupliqué est refusé au démarrage. Une constante facultative
+`JOB_PRIORITY` fixe la priorité du type ; son absence vaut priorité normale.
 
 ## Types fournis par Core
 
-| Type | Rôle |
-| --- | --- |
-| `core.mail_send` | Bienvenue après inscription locale ou SSO, sans secret dans le payload |
-| `core.mail_template` | Envoi d'un modèle, utilisé par l'action `core::sendMailTemplate` |
-| `core.mail_html` | Envoi d'un corps HTML libre, utilisé par l'action `core::sendMail` |
+| Type | Rôle | Priorité |
+| --- | --- | --- |
+| `core.mail_welcome` | Bienvenue après inscription locale ou SSO, sans secret dans le payload | haute (80) |
+| `core.mail_template` | Envoi d'un modèle, utilisé par l'action `core::sendMailTemplate` | basse (20) |
+| `core.mail_html` | Envoi d'un corps HTML libre, utilisé par l'action `core::sendMail` | basse (20) |
 
 Les deux actions d'e-mail de l'automatisation passent donc par la file : le
 scénario n'attend plus le SMTP, il rend vrai dès que le job est enfilé.
+
+La bienvenue est en priorité haute : ce message est attendu par le nouvel
+inscrit, il passe donc avant les envois de scénario. La priorité est portée par
+le type, les appelants n'ont rien à préciser.
+
+## Priorité
+
+Un job est classé par priorité, de 0 à 100. Le worker réserve d'abord la
+priorité la plus haute, puis, à priorité égale, l'échéance la plus ancienne
+(`available_at`, puis `id`). La priorité n'est qu'un ordre de préférence :
+
+- elle ne préempte jamais un job en cours ;
+- elle ne garantit pas un délai : un flux continu de jobs hauts retarde les
+  bas, qui passent entre deux vagues ;
+- un job dont le `min_time` dépasse le budget restant du tick est écarté,
+  quelle que soit sa priorité ; il revient au tick suivant.
+
+Trois niveaux nommés évitent les valeurs arbitraires sans fermer l'échelle :
+`JobType::PRIORITY_LOW` (20), `PRIORITY_NORMAL` (50) et `PRIORITY_HIGH` (80).
+Tout entier de 0 à 100 reste accepté, par exemple 65 pour un cas intermédiaire.
+
+La priorité se déclare une fois pour le type, par une constante facultative sur
+le handler :
+
+```php
+public const JOB_PRIORITY = JobType::PRIORITY_HIGH;
+```
+
+`enqueue()` applique cette valeur par défaut. Un producteur la surcharge par
+l'option `priority` du `JobRequest`, ou par l'argument nommé `priority` des
+fabriques fournies par Core. Sans constante ni option, un type reste en priorité
+normale : les handlers existants ne changent pas de comportement.
+
+Le type porte donc son niveau, et l'appelant n'a rien à préciser :
+
+```php
+$this->coreJobQueue->enqueue(
+    SendWelcomeMailJobHandler::create(
+        UserWelcomeMailHelper::TEMPLATE_LOCAL,
+        $userId,
+        (int) $space->id,
+        $this->corePublicLocaleHelper->locale(),
+    ),
+);
+```
+
+Les types Core suivent la même règle : la bienvenue d'inscription est en
+priorité haute parce que son destinataire l'attend, les envois de scénario
+restent en priorité basse. L'accueil d'un compte créé par un administrateur
+reste hors de la file, car il porte le mot de passe initial ; il n'a donc pas de
+priorité à déclarer.
 
 ## Écrire un handler
 
@@ -95,6 +147,9 @@ final class SendNewsletterHandler extends BaseJobHandler
     public const JOB_LABEL = 'Envoi d’une lettre d’information';
     public const JOB_MIN_TIME = 8;
     public const JOB_MAX_ATTEMPTS = 3;
+
+    /** Envoi de masse : il attend les messages transactionnels. */
+    public const JOB_PRIORITY = JobType::PRIORITY_LOW;
 
     /** Fabrique appelée par les producteurs. */
     public static function create(int $issueId): JobRequest
@@ -155,9 +210,10 @@ boîte d'envoi.
 | `cancel(int $id): bool` | Annule un job en attente, ou demande l'arrêt d'un job en cours |
 | `hasDueWork(): bool` | Indique s'il reste un job dû, sans charger de ligne |
 
-Options d'enfilement, portées par `JobRequest` : `space_id`, `priority` (0–100,
-défaut 50), `available_at`, `dedup_key`, `principal`, `exec_user_id`,
-`max_attempts` (0–10), `created_by`, et `producer` (défaut : préfixe du type).
+Options d'enfilement, portées par `JobRequest` : `space_id`, `priority` (0–100 ;
+défaut : priorité déclarée par le type, sinon 50), `available_at`, `dedup_key`,
+`principal`, `exec_user_id`, `max_attempts` (0–10), `created_by`, et `producer`
+(défaut : préfixe du type).
 
 Avec `dedup_key`, un job déjà présent pour le même type et la même clé est
 retourné au lieu d'en créer un second : `enqueue()` renvoie l'identifiant
@@ -272,7 +328,8 @@ corps retourné est un bilan de compteurs (`ran`, `completed`, `failed`,
 ## Limites
 
 - Livraison **au moins une fois**, jamais exactement une fois.
-- Un seul job à la fois, sans parallélisme ni préemption par priorité.
+- Un seul job à la fois : la priorité ordonne la réservation, sans parallélisme
+  ni préemption d'un job en cours.
 - Pas de chaînage de jobs : les enchaînements restent dans l'automatisation.
 - Pas d'enfilement par API HTTP : les producteurs sont du code PHP de
   l'installation.

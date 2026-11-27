@@ -9,10 +9,12 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use YTassy\Tycms\Application;
 use YTassy\Tycms\CoreExts\Core\Helper\Acl\AclHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Space\SpaceAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Space\SpaceHelper;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Roles;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
 use YTassy\Tycms\CoreExts\Core\WF\WFUser;
 use YTassy\Tycms\CoreExts\Core\WF\WFSso;
 use YTassy\Tycms\Request\Request;
@@ -129,6 +131,15 @@ final class RegistrationIntegrationTest extends TestCase
         self::assertNotNull($user);
         $this->createdUserId = (int) $user['id'];
         self::assertSame($targetId ?? 2, (int) $user['space_id']);
+
+        // La bienvenue est enfilée en priorité haute, alors que le type
+        // Le type `core.mail_welcome` est en priorité haute : la bienvenue d'un
+        // inscrit passe avant les envois de scénario.
+        $welcome = $db->query('SELECT priority FROM jobs WHERE dedup_key = '
+            . "'welcome:" . UserWelcomeMailHelper::TEMPLATE_LOCAL . ":" . $this->createdUserId . "'")
+            ->fetch_assoc();
+        self::assertNotNull($welcome);
+        self::assertSame(JobQueue::PRIORITY_HIGH, (int) $welcome['priority']);
 
         $group = $db->query('SELECT ug.id, ug.space_id, ug.parent_id, ug.type FROM user_groups ug '
             . 'INNER JOIN user_groups_map gm ON gm.group_id = ug.id WHERE gm.user_id = ' . $this->createdUserId)

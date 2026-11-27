@@ -207,7 +207,7 @@ Table `jobs` :
 | `type` | Identifiant du type enregistré |
 | `payload` | JSON borné |
 | `status` | `pending`, `processing`, `completed`, `failed`, `cancelled` |
-| `priority` | Entier 0–100, défaut 50 |
+| `priority` | Entier 0–100 ; défaut : `JOB_PRIORITY` du type, sinon 50 |
 | `attempts`, `max_attempts` | Tentatives consommées et plafond |
 | `available_at` | Plus tôt instant d'exécution (date planifiée, backoff) |
 | `reserved_until`, `claim` | Bail et jeton de réservation |
@@ -242,9 +242,10 @@ JobQueue::cancel(int $id): bool
 JobQueue::hasDueWork(): bool
 ```
 
-Options d'enfilement : `space_id`, `priority`, `available_at`, `dedup_key`,
-`principal` (`none` par défaut, `system` ou `user`), `exec_user_id` (requis avec
-`user`, interdit sinon), `producer` (défaut : préfixe du type), `max_attempts`.
+Options d'enfilement : `space_id`, `priority` (défaut : priorité du type),
+`available_at`, `dedup_key`, `principal` (`none` par défaut, `system` ou `user`),
+`exec_user_id` (requis avec `user`, interdit sinon), `producer` (défaut :
+préfixe du type), `max_attempts`.
 
 Le `JobRequest` vient d'une fabrique statique du handler, jamais d'un tableau
 composé à la main : le producteur ne connaît ni les clés du payload ni celles
@@ -252,7 +253,12 @@ des options.
 
 ```php
 $this->coreJobQueue->enqueue(
-    SendMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, $userId, $spaceId, $locale),
+    SendWelcomeMailJobHandler::create(
+        UserWelcomeMailHelper::TEMPLATE_LOCAL,
+        $userId,
+        $spaceId,
+        $locale,
+    ),
 );
 ```
 
@@ -359,11 +365,13 @@ porte l'échéance.
 
 ## Premier consommateur
 
-`core.mail_send` : envoi différé d'un e-mail à partir d'un modèle, d'une langue
-et de variables d'affichage. L'habillage et l'envoi passent par les mécanismes
-existants au moment de l'exécution. Le payload ne porte que des références et
-des valeurs d'affichage : jamais de mot de passe, de jeton ni de contenu
-sensible, la ligne de file étant lisible en base.
+`core.mail_welcome` : envoi différé d'un message de bienvenue à partir d'un modèle
+et d'une langue. Le destinataire, son prénom et le contenu sont relus à
+l'exécution, et l'habillage comme l'envoi passent par les mécanismes existants.
+Le payload ne porte que des références : jamais de mot de passe, de jeton ni de
+contenu sensible, la ligne de file étant lisible en base.
+
+Le type est en priorité haute : le nouvel inscrit attend ce message.
 
 Sont basculés en v1 les deux messages de bienvenue qui ne contiennent aucun
 secret : inscription locale et inscription SSO. L'accueil d'un compte créé par
@@ -387,7 +395,7 @@ Les cinq lots ci-dessous sont **livrés** ; les contrats d'usage sont dans
 | 1 | Migration `jobs`, `JobTypeRegistry` et `IJobProvider`, `JobQueue` (enfilement, dédup, statut, annulation), provisionnement du compte système, tests unitaires |
 | 2 | `JobWorker` (verrou non bloquant, candidats, `min_time`, réservation, bail, reprise, backoff), route `queue-worker` et son jeton, écriture du battement `job_worker_state`, tests d'intégration sur la réservation concurrente |
 | 3 | Déclenchement par le trafic : `hasDueWork()` au rendu, tag JS limité, route `api/jobs/ping` |
-| 4 | Type `core.mail_send` et bascule de l'e-mail de bienvenue, sans régression sur les autres envois |
+| 4 | Type `core.mail_welcome` et bascule de l'e-mail de bienvenue, sans régression sur les autres envois |
 | 5 | Écran Jobs, onglet Documentation, guide `Docs/JOBS.md`, index, état du projet, `version.md` |
 
 ## Limites et hors périmètre
@@ -395,8 +403,8 @@ Les cinq lots ci-dessous sont **livrés** ; les contrats d'usage sont dans
 - Livraison **au moins une fois** : un job interrompu après un effet externe
   mais avant l'écriture du statut sera rejoué. Les handlers doivent être
   idempotents. Aucune garantie « exactement une fois ».
-- Un seul job à la fois, aucune parallélisation et aucune préemption par
-  priorité.
+- Un seul job à la fois : la priorité déclarée par le type ordonne la
+  réservation, sans parallélisation ni préemption d'un job en cours.
 - Pas de chaînage de jobs : les enchaînements métier restent dans
   l'automatisation.
 - Pas d'enfilement par API HTTP : les producteurs sont du code PHP de

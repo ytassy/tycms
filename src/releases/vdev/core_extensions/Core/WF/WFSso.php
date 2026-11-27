@@ -6,7 +6,7 @@ use YTassy\Tycms\Logging\LogEventException;
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
 use YTassy\Tycms\CoreExts\Core\Helper\AccountReturnPath;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
-use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
+use YTassy\Tycms\CoreExts\Core\Mail\SendWelcomeMailJobHandler;
 use YTassy\Tycms\CoreExts\Core\Models\SsoProvider;
 use YTassy\Tycms\CoreExts\Core\Models\Space;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
@@ -173,7 +173,7 @@ final class WFSso extends BaseWF
         // adhésion. L'envoi passe par la file, après le commit.
         if ($this->newRegistrationEmail !== null) {
             $this->coreJobQueue->enqueue(
-                SendMailJobHandler::create(
+                SendWelcomeMailJobHandler::create(
                     UserWelcomeMailHelper::TEMPLATE_SSO,
                     $userId,
                     (int) $space->id,

@@ -8,6 +8,7 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\BaseJobHandler;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobContext;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 
 /**
  * Envoi différé d'un modèle d'e-mail.
@@ -33,16 +34,32 @@ final class SendMailTemplateJobHandler extends BaseJobHandler
 
     public const JOB_MAX_ATTEMPTS = 2;
 
+    /**
+     * Envoi de scénario : rien n'attend pendant le rendu, il peut passer après
+     * les messages transactionnels. Une fabrique peut demander mieux au cas par
+     * cas si le scénario porte un message critique.
+     */
+    public const JOB_PRIORITY = JobType::PRIORITY_LOW;
+
     /** @param array<string, scalar|null> $vars */
-    public static function create(string $template, string $to, array $vars = [], ?int $spaceId = null): JobRequest
-    {
+    public static function create(
+        string $template,
+        string $to,
+        array $vars = [],
+        ?int $spaceId = null,
+        ?int $priority = null,
+    ): JobRequest {
+        $options = ['space_id' => $spaceId];
+
+        if ($priority !== null) {
+            $options['priority'] = $priority;
+        }
+
         return new JobRequest(self::JOB_TYPE, [
             'template' => $template,
             'to' => $to,
             'vars' => $vars,
-        ], [
-            'space_id' => $spaceId,
-        ]);
+        ], $options);
     }
 
     public function handle(JobContext $context, array $payload): JobResult

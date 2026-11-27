@@ -18,6 +18,7 @@ use YTassy\Tycms\CoreExts\Core\JobQueue\JobTypeRegistry;
 use YTassy\Tycms\CoreExts\Core\JobQueue\SystemAccount;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobWorker;
 use YTassy\Tycms\DB\Database;
+use YTassy\Tycms\Exceptions\TechException;
 use YTassy\Tycms\Request\Request;
 use YTassy\Tycms\Request\RequestMethod;
 use YTassy\Tycms\Session\Session;
@@ -109,6 +110,81 @@ final class JobQueueIntegrationTest extends TestCase
 
         self::assertSame(0, $summary['ran']);
         self::assertSame('pending', $this->queue->status($jobId)['status']);
+    }
+
+    public function testEnqueueAppliesTheTypePriorityByDefault(): void
+    {
+        /** @var JobTypeRegistry $registry */
+        $registry = $this->app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+        $registry->register(new JobType(
+            'plg_test.priority',
+            'Test prioritaire',
+            NoopJobHandler::class,
+            1,
+            1,
+            JobQueue::PRIORITY_HIGH,
+        ));
+
+        $jobId = $this->queue->enqueue(new JobRequest('plg_test.priority', [], ['space_id' => 1]));
+
+        // Sans option explicite, la priorité déclarée par le type s'applique.
+        self::assertSame(JobQueue::PRIORITY_HIGH, (int) $this->queue->status($jobId)['priority']);
+    }
+
+    public function testEnqueueOverrideWinsOverTheTypePriority(): void
+    {
+        /** @var JobTypeRegistry $registry */
+        $registry = $this->app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+        $registry->register(new JobType(
+            'plg_test.priority',
+            'Test prioritaire',
+            NoopJobHandler::class,
+            1,
+            1,
+            JobQueue::PRIORITY_HIGH,
+        ));
+
+        $jobId = $this->queue->enqueue(new JobRequest('plg_test.priority', [], [
+            'space_id' => 1,
+            'priority' => JobQueue::PRIORITY_LOW,
+        ]));
+
+        self::assertSame(JobQueue::PRIORITY_LOW, (int) $this->queue->status($jobId)['priority']);
+    }
+
+    public function testEnqueueRefusesAPriorityOutOfBounds(): void
+    {
+        $this->expectException(TechException::class);
+
+        $this->queue->enqueue(new JobRequest('plg_test.noop', [], [
+            'space_id' => 1,
+            'priority' => JobQueue::PRIORITY_MAX + 1,
+        ]));
+    }
+
+    public function testWorkerRunsTheHighestPriorityJobFirst(): void
+    {
+        /** @var JobTypeRegistry $registry */
+        $registry = $this->app->getOrAddSharedExtensionsClass(JobTypeRegistry::class);
+        $registry->register(new JobType('plg_test.recording', 'Test d’ordre', RecordingJobHandler::class, 1, 1));
+
+        RecordingJobHandler::$handled = [];
+
+        // Le job prioritaire est enfilé en second : c'est bien la priorité, et
+        // non l'ordre d'insertion, qui décide du passage en premier.
+        $low = $this->queue->enqueue(new JobRequest('plg_test.recording', [], [
+            'space_id' => 1,
+            'priority' => JobQueue::PRIORITY_LOW,
+        ]));
+        $high = $this->queue->enqueue(new JobRequest('plg_test.recording', [], [
+            'space_id' => 1,
+            'priority' => JobQueue::PRIORITY_HIGH,
+        ]));
+
+        $summary = $this->worker->run(JobWorker::SOURCE_CRON);
+
+        self::assertSame(2, $summary['ran']);
+        self::assertSame([$high, $low], RecordingJobHandler::$handled);
     }
 
     public function testDeduplicationKeepsASingleJob(): void
@@ -362,5 +438,24 @@ final class FailingJobHandler extends BaseJobHandler
     public function handle(JobContext $context, array $payload): JobResult
     {
         return JobResult::failure('Échec demandé par le test.');
+    }
+}
+
+/**
+ * Handler qui mémorise l'ordre d'exécution.
+ *
+ * La propriété est statique : le worker construit une Application isolée, mais
+ * reste dans le même processus PHP.
+ */
+final class RecordingJobHandler extends BaseJobHandler
+{
+    /** @var list<int> */
+    public static array $handled = [];
+
+    public function handle(JobContext $context, array $payload): JobResult
+    {
+        self::$handled[] = $context->jobId;
+
+        return JobResult::success();
     }
 }

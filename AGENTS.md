@@ -36,6 +36,7 @@
 - Aérer le code avec des lignes vides entre les étapes d'un traitement.
 - Commenter régulièrement ces étapes en français, en expliquant leur rôle ou
   la raison d'un choix. Voir `Docs/ARCHITECTURE.md`.
+- Fait super attention que le nom des classes PHP correspondent bien à leur rôle
 
 ## Convention d'accès aux services partagés
 

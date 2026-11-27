@@ -31,9 +31,23 @@ final class JobQueue extends BaseHelper
     public const PRINCIPAL_SYSTEM = 'system';
     public const PRINCIPAL_USER = 'user';
 
-    public const PRIORITY_MIN = 0;
-    public const PRIORITY_MAX = 100;
-    public const PRIORITY_DEFAULT = 50;
+    /**
+     * Bornes et niveaux de priorité.
+     *
+     * Les valeurs vivent dans `JobType`, qui décrit le contrat d'un type ; la
+     * façade les reprend pour les producteurs qui n'ont pas le type sous la
+     * main. Une priorité intermédiaire reste admise : l'échelle est un entier
+     * de 0 à 100, les niveaux ne sont qu'un vocabulaire.
+     */
+    public const PRIORITY_MIN = JobType::PRIORITY_MIN;
+
+    public const PRIORITY_MAX = JobType::PRIORITY_MAX;
+
+    public const PRIORITY_DEFAULT = JobType::PRIORITY_NORMAL;
+
+    public const PRIORITY_LOW = JobType::PRIORITY_LOW;
+
+    public const PRIORITY_HIGH = JobType::PRIORITY_HIGH;
 
     /**
      * Enfile un job et retourne son identifiant.
@@ -177,7 +191,9 @@ final class JobQueue extends BaseHelper
         $createdBy = $this->optionalPositiveInt($options['created_by'] ?? null, 'created_by');
         $execUserId = $this->optionalPositiveInt($options['exec_user_id'] ?? null, 'exec_user_id');
 
-        $priority = $options['priority'] ?? self::PRIORITY_DEFAULT;
+        // La priorité du type fait foi par défaut : les producteurs n'ont pas
+        // à connaître l'échelle pour classer correctement leurs jobs.
+        $priority = $options['priority'] ?? $jobType->priority;
 
         if (!is_int($priority) || $priority < self::PRIORITY_MIN || $priority > self::PRIORITY_MAX) {
             throw new TechException(sprintf(

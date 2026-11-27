@@ -9,12 +9,16 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
 use YTassy\Tycms\Application;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobContext;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
-use YTassy\Tycms\CoreExts\Core\Mail\SendMailJobHandler;
+use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailHtmlJobHandler;
+use YTassy\Tycms\CoreExts\Core\Mail\SendMailTemplateJobHandler;
+use YTassy\Tycms\CoreExts\Core\Mail\SendWelcomeMailJobHandler;
 use YTassy\Tycms\DB\Database;
 use YTassy\Tycms\Tests\Support\FrameworkTestCase;
 
-final class SendMailJobHandlerTest extends FrameworkTestCase
+final class SendWelcomeMailJobHandlerTest extends FrameworkTestCase
 {
     #[DataProvider('invalidPayloads')]
     public function testInvalidPayloadIsRefusedWithoutTouchingTheDatabase(array $payload): void
@@ -27,7 +31,7 @@ final class SendMailJobHandlerTest extends FrameworkTestCase
         $db->expects(self::never())->method('selectOneOrNull');
         new ReflectionProperty(Application::class, 'database')->setValue($app, $db);
 
-        $result = (new SendMailJobHandler($app))->handle($this->context(), $payload);
+        $result = (new SendWelcomeMailJobHandler($app))->handle($this->context(), $payload);
 
         self::assertFalse($result->success);
     }
@@ -64,9 +68,9 @@ final class SendMailJobHandlerTest extends FrameworkTestCase
 
     public function testFactoryCarriesReferencesOnly(): void
     {
-        $request = SendMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, 1200, 2, 'fr');
+        $request = SendWelcomeMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, 1200, 2, 'fr');
 
-        self::assertSame(SendMailJobHandler::JOB_TYPE, $request->type);
+        self::assertSame(SendWelcomeMailJobHandler::JOB_TYPE, $request->type);
         self::assertSame(2, $request->options['space_id']);
         self::assertSame(
             'welcome:' . UserWelcomeMailHelper::TEMPLATE_LOCAL . ':1200',
@@ -82,7 +86,7 @@ final class SendMailJobHandlerTest extends FrameworkTestCase
 
     public function testFactoryDistinguishesTheSsoWelcome(): void
     {
-        $request = SendMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_SSO, 1200, 2);
+        $request = SendWelcomeMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_SSO, 1200, 2);
 
         self::assertSame(UserWelcomeMailHelper::TEMPLATE_SSO, $request->payload['template']);
         self::assertNull($request->payload['locale']);
@@ -97,20 +101,54 @@ final class SendMailJobHandlerTest extends FrameworkTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('non diffusable');
 
-        SendMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_ADMIN, 1200, 2);
+        SendWelcomeMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_ADMIN, 1200, 2);
+    }
+
+    /**
+     * Le type porte la priorité : sans demande explicite, la fabrique ne fixe
+     * rien, sinon le type ne serait plus la source de vérité.
+     */
+    public function testFactoryLeavesTheTypePriorityByDefault(): void
+    {
+        $request = SendWelcomeMailJobHandler::create(UserWelcomeMailHelper::TEMPLATE_LOCAL, 1200, 2);
+
+        self::assertArrayNotHasKey('priority', $request->options);
+    }
+
+    public function testFactoryCanOverrideThePriority(): void
+    {
+        $request = SendWelcomeMailJobHandler::create(
+            UserWelcomeMailHelper::TEMPLATE_LOCAL,
+            1200,
+            2,
+            null,
+            JobQueue::PRIORITY_LOW,
+        );
+
+        self::assertSame(JobQueue::PRIORITY_LOW, $request->options['priority']);
+    }
+
+    /** Les trois types d'e-mail Core classent leur envoi attendu. */
+    public function testCoreMailTypesDeclareTheirPriority(): void
+    {
+        // La bienvenue est attendue par son destinataire ; les envois de
+        // scénario peuvent patienter.
+        self::assertSame(JobQueue::PRIORITY_HIGH, JobType::for(SendWelcomeMailJobHandler::class)->priority);
+        self::assertSame(JobQueue::PRIORITY_LOW, JobType::for(SendMailTemplateJobHandler::class)->priority);
+        self::assertSame(JobQueue::PRIORITY_LOW, JobType::for(SendMailHtmlJobHandler::class)->priority);
     }
 
     private function context(): JobContext
     {
         return new JobContext(
             jobId: 1,
-            type: SendMailJobHandler::JOB_TYPE,
+            type: SendWelcomeMailJobHandler::JOB_TYPE,
             spaceId: 1,
             principal: 'none',
             execUserId: null,
             producer: 'plg_core',
             attempts: 1,
-            maxAttempts: SendMailJobHandler::JOB_MAX_ATTEMPTS,
+            maxAttempts: SendWelcomeMailJobHandler::JOB_MAX_ATTEMPTS,
         );
     }
 }

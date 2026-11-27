@@ -9,26 +9,30 @@ use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\BaseJobHandler;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobContext;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobRequest;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobResult;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\TraitCoreAdditionalHelpers;
 
 /**
  * Envoi différé d'un message de bienvenue.
  *
- * Le payload ne porte que des références : modèle, compte, Space, langue. Le
- * destinataire, son prénom et le contenu sont relus à l'exécution, et le rendu
- * comme l'envoi restent dans `UserWelcomeMailHelper`. Ce message ne contient
- * jamais de mot de passe ; l'accueil d'un compte créé par un administrateur,
- * qui en porte un, n'utilise pas la file.
+ * Le type est dédié à la bienvenue et porte des références uniquement : modèle,
+ * compte, Space, langue. Le destinataire, son prénom et le contenu sont relus à
+ * l'exécution, et le rendu comme l'envoi restent dans `UserWelcomeMailHelper`.
+ * Ce message ne contient jamais de mot de passe ; l'accueil d'un compte créé par
+ * un administrateur, qui en porte un, n'utilise pas la file.
+ *
+ * L'envoi générique d'un modèle à une adresse libre, lui, appartient à
+ * `SendMailTemplateJobHandler` (`core.mail_template`).
  */
-final class SendMailJobHandler extends BaseJobHandler
+final class SendWelcomeMailJobHandler extends BaseJobHandler
 {
     use TraitCoreAdditionalHelpers;
 
     /** Métadonnées du type, lues par `JobType::for()`. */
 
     /** Identifiant du type enregistré par Core. */
-    public const JOB_TYPE = 'core.mail_send';
+    public const JOB_TYPE = 'core.mail_welcome';
 
     public const JOB_LABEL = 'Envoi d’un e-mail de bienvenue';
 
@@ -43,6 +47,14 @@ final class SendMailJobHandler extends BaseJobHandler
 
     /** Un échec SMTP transitoire mérite une seconde chance, au risque d'un doublon. */
     public const JOB_MAX_ATTEMPTS = 2;
+
+    /**
+     * Message transactionnel : un nouvel inscrit attend son courriel.
+     *
+     * Le type étant dédié à la bienvenue, la priorité haute vaut pour tous ses
+     * jobs ; les envois de scénario restent en priorité basse.
+     */
+    public const JOB_PRIORITY = JobType::PRIORITY_HIGH;
 
     /**
      * Modèles diffusables par la file.
@@ -68,6 +80,7 @@ final class SendMailJobHandler extends BaseJobHandler
         int $userId,
         int $spaceId,
         ?string $locale = null,
+        ?int $priority = null,
     ): JobRequest {
         if (!in_array($template, self::TEMPLATES, true)) {
             throw new InvalidArgumentException(sprintf(
@@ -76,16 +89,24 @@ final class SendMailJobHandler extends BaseJobHandler
             ));
         }
 
+        $options = [
+            'space_id' => $spaceId,
+            'created_by' => $userId,
+            'dedup_key' => 'welcome:' . $template . ':' . $userId,
+        ];
+
+        // Une priorité explicite surcharge celle du type ; sans elle, le type
+        // reste la seule source de vérité.
+        if ($priority !== null) {
+            $options['priority'] = $priority;
+        }
+
         return new JobRequest(self::JOB_TYPE, [
             'template' => $template,
             'user_id' => $userId,
             'space_id' => $spaceId,
             'locale' => $locale,
-        ], [
-            'space_id' => $spaceId,
-            'created_by' => $userId,
-            'dedup_key' => 'welcome:' . $template . ':' . $userId,
-        ]);
+        ], $options);
     }
 
     public function handle(JobContext $context, array $payload): JobResult
