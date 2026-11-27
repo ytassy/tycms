@@ -323,6 +323,12 @@ pagination et les filtres internes travaillent sur les éléments déjà chargé
 ils ne remplacent pas une pagination serveur. Les libellés de colonne sont
 rendus en HTML : ils doivent provenir du code de confiance.
 
+Pour déplier un détail sous une ligne, combiner `clickable-row`,
+`on-click-open-row` et le slot `nested_row` ; la prop `openedRows` permet
+d'ouvrir une ligne depuis un bouton et l'événement `update:row-opened` signale
+la ligne ouverte. Le contenu du détail reste à charger par l'écran, qui doit
+ignorer une réponse si la ligne ouverte a changé entre-temps.
+
 ### Couleurs du texte enrichi
 
 Toutes les instances de `rich_text_editor` utilisent la palette native TinyMCE

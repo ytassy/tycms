@@ -17,7 +17,7 @@ final readonly class AutomationRunRequest
     /**
      * @param array<mixed> $input
      * @param object $scenario ligne automation_scenarios
-     * @param object $version ligne automation_versions publiée
+     * @param object $version ligne automation_versions (publiée, ou brouillon pour un run manuel explicite)
      */
     public function __construct(
         public object $scenario,

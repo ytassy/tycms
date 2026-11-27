@@ -844,7 +844,8 @@ La configuration et les exemples sont dans [Google Agenda](../../GOOGLE_CALENDAR
 - Le scénario est parsé et validé à l'enregistrement ou à la publication.
 - La source, l'AST/IR, la version de schéma et la version de grammaire sont
   stockés.
-- Les runs sont épinglés à une version publiée : modifier un scénario ne change
+- Les runs déclenchés sont épinglés à une version publiée ; un run manuel de
+  brouillon est épinglé à la version brouillon. Modifier un scénario ne change
   pas un run en cours.
 - Les états sont brouillon, publié, archivé.
 - L'IR est validé aussi à la lecture : un client pourrait poster un AST forgé
@@ -1025,8 +1026,14 @@ la session HTTP ne s'appliquent pas à l'exécution interne.
 - Le run n'est jamais rejoué automatiquement.
 - La notification d'échec est best-effort, après persistance du statut.
 - Le run manuel passe par `POST administrator/api/automation/run`, route
-  `#[NoTransaction]` : le WF vérifie `RUN`, puis l'exécuteur persiste le run et
-  ses étapes. Le mode `author` utilise l'Application isolée sans routes.
+  `#[NoTransaction]`. Sans `draft`, le WF vérifie `RUN` et l'exécuteur persiste
+  un run sur la version publiée. Avec `draft`, il exécute la version brouillon
+  enregistrée : le WF exige en plus `EDIT`, et `PUBLISH` lorsque le mode est
+  `author`. Le brouillon s'exécute toujours avec l'identité et les droits de
+  l'utilisateur courant, jamais avec ceux de l'auteur publié : les ACL des
+  actions restent celles de l'exécutant. Un brouillon qui ne compile pas est
+  refusé avec ses diagnostics, sans créer de run. Le mode `author` utilise
+  l'Application isolée sans routes pour les runs publiés et déclenchés.
 
 ### Journal et déterminisme
 
@@ -1050,7 +1057,8 @@ Permissions :
 - `PUBLISH` : publier et archiver. Un éditeur qui possède aussi `PUBLISH` peut
   modifier le mode ou le déclencheur d'un scénario déjà publié ; un éditeur seul
   ne le peut pas.
-- `RUN` : exécuter la version publiée depuis l'écran.
+- `RUN` : exécuter un run manuel, sur la version publiée ou sur le brouillon
+  enregistré.
 - `RUN_AS_AUTHOR` : publier un scénario dont le mode est `author`.
 - `ADMIN` : configurer les comptes de service Google, les canaux de
   notification et la rétention. Elle n'est pas exposée à l'édition des rôles ;
@@ -1062,8 +1070,15 @@ n'existe pas de brouillon distinct. Enregistrer ne crée une nouvelle version
 que si la source a changé ; une modification des métadonnées seules ne gonfle
 pas l'historique. La publication compile le brouillon enregistré, vérifie les
 permissions de chaque action réellement appelée, fixe l'auteur au publieur en
-mode `author`, puis pointe `published_version_id` sur ce brouillon. Un run
-manuel exécute la version publiée, jamais les modifications en cours.
+mode `author`, puis pointe `published_version_id` sur ce brouillon.
+
+Le bouton **Enregistrer et exécuter** enregistre d'abord les modifications
+visibles, puis lance un run manuel sur ce brouillon. Il permet donc de tester un
+scénario jamais publié ou une modification sans changer la version live. Un
+brouillon qui ne compile pas n'est pas exécuté : l'écran affiche les diagnostics
+de compilation. `EDIT` est donc requis en plus de `RUN` ; en mode `author`,
+`PUBLISH` est également exigé. Le run utilise toujours les droits de
+l'utilisateur courant, jamais ceux de l'auteur publié.
 
 Pour un webhook, l'éditeur affiche le mode d'authentification, le mode de
 réponse (`accepted` ou `result`), l'URL, la méthode, le type de contenu, un
@@ -1103,7 +1118,8 @@ versions, runs et étapes. Les endpoints sont sous
 `publish`, `archive`, `runs`, `run/detail`, `dry-run`, `reference`,
 `scenario-choices`, `webhook-secret`, `maintenance`,
 `maintenance/recover-event`, `maintenance/fail-event`,
-`maintenance/fail-run`, `rerun` et `run`. Le contrôleur est exempté du WAF parce qu'il
+`maintenance/fail-run`, `rerun` et `run` (paramètre `draft` facultatif). Le
+contrôleur est exempté du WAF parce qu'il
 reçoit du code et des charges utiles de scénario ; le CSRF, la validation de
 schéma et les contrôles du WF restent actifs. La route publique
 `/automation/webhook/{scenarioId}` est sans CSRF et s'authentifie par le secret
@@ -1128,8 +1144,9 @@ Actions :
   mise à jour conditionnelle évite un double traitement et la notification
   d’échec configurée est envoyée une seule fois.
 - **Relancer un run en échec ou arrêté** : réexécute la **version publiée
-  actuelle** avec l’entrée du run d’origine. Le brouillon n’est jamais exécuté.
-  La permission `RUN_MANAGE` est requise pour rejouer l’entrée d’un run.
+  actuelle** avec l’entrée du run d’origine. Contrairement au bouton
+  **Enregistrer et exécuter**, le brouillon n’est jamais exécuté. La permission
+  `RUN_MANAGE` est requise pour rejouer l’entrée d’un run.
 - **Nettoyer maintenant** : supprime les événements `processed`/`failed` plus
   vieux que la rétention d'événements et les runs terminés plus vieux que la
   rétention de runs. Les étapes suivent la cascade des runs. Les statuts

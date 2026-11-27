@@ -250,8 +250,9 @@
                                 <i class="fa-solid fa-flask me-1" aria-hidden="true" />Vérifier
                             </button>
                             <button type="button" class="btn btn-outline-success"
-                                :disabled="!canRun || saving || running" :title="runHint" @click="run">
-                                <i class="fa-solid fa-play me-1" aria-hidden="true" />Exécuter
+                                :disabled="!canSaveAndRun || !canRunDraft || saving || running"
+                                :title="runHint" @click="saveAndRun">
+                                <i class="fa-solid fa-play me-1" aria-hidden="true" />Enregistrer et exécuter
                             </button>
                             <button v-if="detail?.can_archive" type="button" class="btn btn-outline-danger ms-auto"
                                 :disabled="saving" @click="archive">
@@ -412,7 +413,7 @@
 
                 <section v-if="result" class="card mt-3">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <h3 class="h5 mb-0">{{ result.kind === 'dry' ? 'Simulation' : `Run #${result.run_id}` }}</h3>
+                        <h3 class="h5 mb-0">{{ resultTitle }}</h3>
                         <span :class="['badge', statusClass(result.status)]">{{ statusLabel(result.status) }}</span>
                     </div>
                     <div class="card-body">
@@ -429,6 +430,9 @@
                         </div>
                         <p v-if="result.kind === 'dry'" class="form-text mb-0">
                             La simulation n’enregistre ni run ni étape. Les actions d’écriture et les envois externes sont refusés.
+                        </p>
+                        <p v-else-if="result.kind === 'run' && result.draft" class="form-text mb-0">
+                            Ce run a exécuté le dernier brouillon enregistré, pas la version publiée.
                         </p>
                     </div>
                 </section>
@@ -926,7 +930,18 @@ export default {
             return this.isNew ? !!this.selectedSpace?.can_publish : !!this.detail?.can_publish
         },
         canRun() {
-            return !!this.detail?.can_run
+            return this.isNew ? !!this.selectedSpace?.can_run : !!this.detail?.can_run
+        },
+        canSaveAndRun() {
+            if (!this.canRun) return false
+
+            return this.isNew ? this.canPersist : this.canSave
+        },
+        canRunDraft() {
+            // En mode Auteur, le brouillon reste réservé aux personnes
+            // autorisées à publier ce type de scénario. Le run s'exécute avec
+            // les droits de l'utilisateur courant, jamais ceux de l'auteur.
+            return this.form.principal_mode !== 'author' || this.canPublish
         },
         isDirty() {
             return this.snapshot() !== this.savedSnapshot
@@ -949,12 +964,28 @@ export default {
                 ? 'Le scénario s’exécute avec les droits du publieur. La permission RUN_AS_AUTHOR est requise à la publication.'
                 : 'Le scénario s’exécute avec l’identité de l’utilisateur qui déclenche. Un déclenchement système sans utilisateur est ignoré.'
         },
+        resultTitle() {
+            if (!this.result) return ''
+            if (this.result.kind === 'dry') return 'Simulation'
+            if (this.result.kind === 'invalid') return 'Exécution refusée'
+
+            return `Run #${this.result.run_id}`
+        },
         runHint() {
-            if (!this.detail?.published) return 'Publiez une version avant de lancer le scénario.'
-            if (this.detail.is_dirty || this.isDirty) {
-                return `La version publiée v${this.detail.published.version_number} sera exécutée ; les modifications non publiées sont ignorées.`
+            if (!this.canRun) return 'La permission RUN est requise pour exécuter ce scénario.'
+            if (!this.isNew && !this.canSave) {
+                return 'La permission EDIT est requise pour enregistrer le brouillon avant de l’exécuter.'
             }
-            return 'Exécute la version publiée avec l’entrée de test.'
+            if (this.form.principal_mode === 'author' && !this.canPublish) {
+                return 'L’exécution du brouillon en mode Auteur requiert la permission PUBLISH.'
+            }
+            if (this.isNew && !this.canPersist) {
+                return 'Renseignez le nom, la clé et le déclencheur avant d’exécuter.'
+            }
+
+            return this.isDirty
+                ? 'Enregistre le brouillon puis l’exécute avec l’entrée de test.'
+                : 'Exécute le dernier brouillon enregistré avec l’entrée de test.'
         },
     },
 
@@ -1272,19 +1303,49 @@ export default {
             }
         },
 
-        async run() {
-            if (this.saving || this.running || !this.canRun) return
+        async saveAndRun() {
+            if (this.saving || this.running || !this.canSaveAndRun || !this.canRunDraft) return
+
+            // Valider l'entrée avant toute écriture : un run refusé ne doit pas
+            // laisser un brouillon enregistré sans exécution demandée.
             const input = this.parseInput()
             if (input === null) return
 
-            this.running = true
             this.error = ''
+            this.notice = ''
             this.result = null
+            this.saving = true
 
             try {
+                // 1. Enregistrer la source visible : le run portera exactement
+                //    sur le dernier brouillon enregistré.
+                if (this.isNew || this.isDirty) {
+                    const saved = await this.persist(true)
+                    if (!saved) return
+                }
+
+                // 2. Un brouillon qui ne compile pas n'est pas exécuté : les
+                //    diagnostics remplacent le panneau de résultat.
+                if (this.detail?.draft?.compile_status !== 'ok') {
+                    this.result = {
+                        kind: 'invalid',
+                        status: 'invalid',
+                        output: null,
+                        message: 'Le brouillon contient des erreurs de compilation. Corrigez-les avant de l’exécuter.',
+                        diagnostics: this.detail?.draft?.diagnostics ?? [],
+                        steps: 0,
+                        action_calls: 0,
+                        duration_ms: 0,
+                        draft: true,
+                    }
+                    return
+                }
+
+                this.running = true
                 const response = await this.api.post('/administrator/api/automation/run', {
                     scenarioId: this.currentId,
                     input,
+                    draft: true,
                 })
                 this.result = { kind: 'run', ...response }
                 this.$refs.history?.reload()
@@ -1293,12 +1354,13 @@ export default {
                 // reste affiché plus bas dans la page.
                 if (response.status === 'success') {
                     const runLabel = response.run_id ? `Run #${response.run_id}` : 'Le run'
-                    this.showModaleInfo(`${runLabel} exécuté avec succès. Le détail s’affiche plus bas.`)
+                    this.showModaleInfo(`${runLabel} exécuté avec succès depuis le brouillon. Le détail s’affiche plus bas.`)
                 }
             } catch (error) {
-                this.error = error?.message ?? 'L’exécution a échoué.'
+                this.error = error?.message ?? 'L’exécution du brouillon a échoué.'
             } finally {
                 this.running = false
+                this.saving = false
             }
         },
 

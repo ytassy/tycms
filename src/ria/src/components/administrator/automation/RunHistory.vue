@@ -13,37 +13,123 @@
             <div v-else-if="!runs.length" class="text-body-secondary">Aucun run enregistré pour ce scénario.</div>
 
             <template v-else>
-                <div class="table-responsive">
-                    <table class="table table-sm table-hover align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">#</th>
-                                <th scope="col">Statut</th>
-                                <th scope="col">Déclencheur</th>
-                                <th scope="col">Début</th>
-                                <th scope="col">Durée</th>
-                                <th scope="col">Étapes</th>
-                                <th scope="col" class="text-end">Détails</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="run in runs" :key="run.id">
-                                <td>{{ run.id }}</td>
-                                <td><span :class="['badge', statusClass(run.status)]">{{ statusLabel(run.status) }}</span></td>
-                                <td><code class="small">{{ run.trigger_id || '—' }}</code></td>
-                                <td class="small text-nowrap">{{ formatDate(run.started_at || run.created) }}</td>
-                                <td class="small text-nowrap">{{ run.duration_ms === null ? '—' : `${run.duration_ms} ms` }}</td>
-                                <td class="small">{{ run.steps_count }}</td>
-                                <td class="text-end text-nowrap">
-                                    <button v-if="canRerun(run)" type="button" class="btn btn-outline-primary btn-sm me-1"
-                                        :disabled="rerunningId === run.id" @click="rerun(run)">Relancer</button>
-                                    <button type="button" class="btn btn-outline-primary btn-sm"
-                                        :disabled="loadingDetail" @click="openRun(run)">Voir</button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+                <data-table
+                    ref="table"
+                    :fields="fields"
+                    :items="runs"
+                    :opened-rows="openedRuns"
+                    :clickable-row="true"
+                    :on-click-open-row="true"
+                    :row-hover="true"
+                    :counter-enabled="false"
+                    table-class="table-sm table-hover align-middle"
+                    @update:row-opened="handleRowsOpened"
+                >
+                    <template #cell_status="{ item }">
+                        <span :class="['badge', statusClass(item.status)]">{{ statusLabel(item.status) }}</span>
+                    </template>
+                    <template #cell_trigger_id="{ item }">
+                        <code class="small">{{ item.trigger_id || '—' }}</code>
+                    </template>
+                    <template #cell_started_at="{ item }">
+                        <span class="small text-nowrap">{{ formatDate(item.started_at || item.created) }}</span>
+                    </template>
+                    <template #cell_duration_ms="{ item }">
+                        <span class="small text-nowrap">
+                            {{ item.duration_ms === null ? '—' : `${item.duration_ms} ms` }}
+                        </span>
+                    </template>
+                    <template #cell_steps_count="{ item }">{{ item.steps_count }}</template>
+                    <template #cell_actions="{ item }">
+                        <button v-if="canRerun(item)" type="button" class="btn btn-outline-primary btn-sm me-1"
+                            :disabled="rerunningId === item.id" @click.stop="rerun(item)">Relancer</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm"
+                            :disabled="loadingDetailId === item.id" @click.stop="showRun(item)">Voir</button>
+                    </template>
+
+                    <template #nested_row="{ item }">
+                        <div class="automation-run-detail">
+                            <div v-if="loadingDetailId === item.id" class="py-3 text-center"><spinner /></div>
+
+                            <template v-else-if="selectedRun && selectedRun.id === item.id">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                    <h3 class="h6 mb-0">Run #{{ selectedRun.id }}</h3>
+                                    <button type="button" class="btn-close" aria-label="Fermer le détail"
+                                        @click="closeAll" />
+                                </div>
+
+                                <div class="row g-2 small mb-3">
+                                    <div class="col-md-3"><span class="text-body-secondary">Statut :</span>
+                                        <span :class="['badge', statusClass(selectedRun.status)]">
+                                            {{ statusLabel(selectedRun.status) }}
+                                        </span>
+                                    </div>
+                                    <div class="col-md-3"><span class="text-body-secondary">Déclencheur :</span>
+                                        <code>{{ selectedRun.trigger_id || '—' }}</code>
+                                    </div>
+                                    <div class="col-md-3"><span class="text-body-secondary">Durée :</span>
+                                        {{ selectedRun.duration_ms === null ? '—' : `${selectedRun.duration_ms} ms` }}
+                                    </div>
+                                    <div class="col-md-3"><span class="text-body-secondary">Actions :</span>
+                                        {{ selectedRun.action_calls }}
+                                    </div>
+                                </div>
+
+                                <div v-if="selectedRun.error_code || selectedRun.error_message"
+                                    class="alert alert-danger py-2 small">
+                                    <strong>{{ selectedRun.error_code || 'Erreur' }}</strong>
+                                    <span v-if="selectedRun.error_message"> — {{ selectedRun.error_message }}</span>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-lg-6">
+                                        <label class="form-label small fw-semibold">Entrée</label>
+                                        <pre class="automation-json">{{ prettyJson(selectedRun.input) || '—' }}</pre>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <label class="form-label small fw-semibold">Sortie</label>
+                                        <pre class="automation-json">{{ prettyJson(selectedRun.output) || '—' }}</pre>
+                                    </div>
+                                </div>
+
+                                <div v-if="steps.length" class="table-responsive">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">#</th>
+                                                <th scope="col">Type</th>
+                                                <th scope="col">Élément</th>
+                                                <th scope="col">Statut</th>
+                                                <th scope="col">Erreur</th>
+                                                <th scope="col">Ligne</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr v-for="step in steps" :key="step.sequence">
+                                                <td>{{ step.sequence }}</td>
+                                                <td><code class="small">{{ step.kind }}</code></td>
+                                                <td><code class="small">{{ step.identifier }}</code></td>
+                                                <td>
+                                                    <span :class="['badge', statusClass(step.status)]">
+                                                        {{ statusLabel(step.status) }}
+                                                    </span>
+                                                </td>
+                                                <td class="small">
+                                                    <span v-if="step.error_code">{{ step.error_code }}</span>
+                                                    <span v-if="step.error_message"> — {{ step.error_message }}</span>
+                                                    <span v-if="!step.error_code && !step.error_message"
+                                                        class="text-body-secondary">—</span>
+                                                </td>
+                                                <td class="small">{{ step.span_start_line ?? '—' }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div v-else class="text-body-secondary small">Aucune étape enregistrée.</div>
+                            </template>
+                        </div>
+                    </template>
+                </data-table>
 
                 <div v-if="total > perPage" class="d-flex align-items-center justify-content-between gap-2 mt-3">
                     <span class="small text-body-secondary">{{ total }} run(s) — page {{ page }} / {{ pageCount }}</span>
@@ -55,72 +141,6 @@
                     </div>
                 </div>
             </template>
-
-            <div v-if="selectedRun" class="automation-run-detail mt-4">
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                    <h3 class="h6 mb-0">Run #{{ selectedRun.id }}</h3>
-                    <button type="button" class="btn-close" aria-label="Fermer le détail" @click="closeDetail" />
-                </div>
-
-                <div class="row g-2 small mb-3">
-                    <div class="col-md-3"><span class="text-body-secondary">Statut :</span>
-                        <span :class="['badge', statusClass(selectedRun.status)]">{{ statusLabel(selectedRun.status) }}</span>
-                    </div>
-                    <div class="col-md-3"><span class="text-body-secondary">Déclencheur :</span>
-                        <code>{{ selectedRun.trigger_id || '—' }}</code>
-                    </div>
-                    <div class="col-md-3"><span class="text-body-secondary">Durée :</span>
-                        {{ selectedRun.duration_ms === null ? '—' : `${selectedRun.duration_ms} ms` }}
-                    </div>
-                    <div class="col-md-3"><span class="text-body-secondary">Actions :</span> {{ selectedRun.action_calls }}</div>
-                </div>
-
-                <div v-if="selectedRun.error_code || selectedRun.error_message" class="alert alert-danger py-2 small">
-                    <strong>{{ selectedRun.error_code || 'Erreur' }}</strong>
-                    <span v-if="selectedRun.error_message"> — {{ selectedRun.error_message }}</span>
-                </div>
-
-                <div class="row g-3 mb-3">
-                    <div class="col-lg-6">
-                        <label class="form-label small fw-semibold">Entrée</label>
-                        <pre class="automation-json">{{ prettyJson(selectedRun.input) || '—' }}</pre>
-                    </div>
-                    <div class="col-lg-6">
-                        <label class="form-label small fw-semibold">Sortie</label>
-                        <pre class="automation-json">{{ prettyJson(selectedRun.output) || '—' }}</pre>
-                    </div>
-                </div>
-
-                <div v-if="steps.length" class="table-responsive">
-                    <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">#</th>
-                                <th scope="col">Type</th>
-                                <th scope="col">Élément</th>
-                                <th scope="col">Statut</th>
-                                <th scope="col">Erreur</th>
-                                <th scope="col">Ligne</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="step in steps" :key="step.sequence">
-                                <td>{{ step.sequence }}</td>
-                                <td><code class="small">{{ step.kind }}</code></td>
-                                <td><code class="small">{{ step.identifier }}</code></td>
-                                <td><span :class="['badge', statusClass(step.status)]">{{ statusLabel(step.status) }}</span></td>
-                                <td class="small">
-                                    <span v-if="step.error_code">{{ step.error_code }}</span>
-                                    <span v-if="step.error_message"> — {{ step.error_message }}</span>
-                                    <span v-if="!step.error_code && !step.error_message" class="text-body-secondary">—</span>
-                                </td>
-                                <td class="small">{{ step.span_start_line ?? '—' }}</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div v-else class="text-body-secondary small">Aucune étape enregistrée.</div>
-            </div>
         </div>
     </section>
 </template>
@@ -142,10 +162,21 @@ export default {
             page: 1,
             perPage: 20,
             loading: false,
-            loadingDetail: false,
+            loadingDetailId: null,
             rerunningId: null,
             error: '',
             selectedRun: null,
+            openedRuns: [],
+            activeRunId: null,
+            fields: [
+                { key: 'id', label: '#', sortable: true },
+                { key: 'status', label: 'Statut', sortable: true },
+                { key: 'trigger_id', label: 'Déclencheur', sortable: true },
+                { key: 'started_at', label: 'Début', sortable: true },
+                { key: 'duration_ms', label: 'Durée' },
+                { key: 'steps_count', label: 'Étapes' },
+                { key: 'actions', label: 'Détails', head_class: 'text-end', class: 'text-end text-nowrap' },
+            ],
         }
     },
 
@@ -168,16 +199,14 @@ export default {
     methods: {
         async reload() {
             this.page = 1
-            this.selectedRun = null
-            this.steps = []
             await this.load()
         },
 
         async load() {
             this.loading = true
             this.error = ''
-            this.selectedRun = null
-            this.steps = []
+            this.closeDetail()
+            this.openedRuns = []
 
             try {
                 const response = await this.api.get('/administrator/api/automation/runs', {
@@ -220,26 +249,61 @@ export default {
             }
         },
 
-        async openRun(run) {
-            if (this.loadingDetail) return
+        showRun(run) {
+            // La prop ouvre la ligne dans le DataTable (une seule à la fois).
+            this.activeRunId = run.id
+            this.openedRuns = [run]
 
-            this.loadingDetail = true
+            if (this.selectedRun?.id !== run.id && this.loadingDetailId !== run.id) {
+                this.loadDetail(run)
+            }
+        },
+
+        handleRowsOpened(items) {
+            const run = items[0] ?? null
+            this.activeRunId = run?.id ?? null
+
+            if (!run) {
+                this.closeDetail()
+                return
+            }
+
+            if (this.loadingDetailId === run.id || this.selectedRun?.id === run.id) return
+
+            this.loadDetail(run)
+        },
+
+        async loadDetail(run) {
+            this.loadingDetailId = run.id
             this.error = ''
 
             try {
                 const response = await this.api.get('/administrator/api/automation/run/detail', { runId: run.id })
+
+                // Ignorer une réponse si la ligne ouverte a changé entre-temps.
+                if (this.activeRunId !== run.id) return
+
                 this.selectedRun = response.run
                 this.steps = response.steps ?? []
             } catch (error) {
-                this.error = error?.message ?? 'Impossible de charger ce run.'
+                if (this.activeRunId === run.id) {
+                    this.error = error?.message ?? 'Impossible de charger ce run.'
+                }
             } finally {
-                this.loadingDetail = false
+                if (this.loadingDetailId === run.id) this.loadingDetailId = null
             }
+        },
+
+        closeAll() {
+            this.openedRuns = []
+            this.$refs.table?.closeAll()
+            this.closeDetail()
         },
 
         closeDetail() {
             this.selectedRun = null
             this.steps = []
+            this.activeRunId = null
         },
 
         async previous() {

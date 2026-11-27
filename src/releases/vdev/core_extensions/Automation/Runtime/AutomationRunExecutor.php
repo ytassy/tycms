@@ -28,10 +28,18 @@ final class AutomationRunExecutor extends BaseHelper
     use TraitAutomationHelpers;
 
     /**
+     * Exécute un scénario à la demande depuis l'écran d'administration.
+     *
+     * Sans version explicite, le run est épinglé à la version publiée. Le WF
+     * peut passer la version brouillon enregistrée : elle est alors exécutée
+     * sans être publiée. Le WF a déjà contrôlé les permissions, l'existence du
+     * brouillon et sa compilation.
+     *
      * @param array<mixed> $input
+     * @param object|null $version version brouillon à exécuter, ou null pour la version publiée
      * @return array<string, mixed>
      */
-    public function runManual(int $scenarioId, array $input, int $userId): array
+    public function runManual(int $scenarioId, array $input, int $userId, ?object $version = null): array
     {
         if ($userId <= 0) {
             throw new \RuntimeException('Principal utilisateur requis.');
@@ -47,13 +55,17 @@ final class AutomationRunExecutor extends BaseHelper
             throw new \RuntimeException('Scénario inactif.');
         }
 
-        $version = $this->automationRepository->findPublishedVersion($scenarioId);
+        $isDraft = $version !== null;
 
-        if ($version === null) {
-            throw new \RuntimeException('Aucune version publiée.');
+        if (!$isDraft) {
+            $version = $this->automationRepository->findPublishedVersion($scenarioId);
+
+            if ($version === null) {
+                throw new \RuntimeException('Aucune version publiée.');
+            }
         }
 
-        [$executionApp, $principalId] = $this->resolveManualExecution($scenario, $userId);
+        [$executionApp, $principalId] = $this->resolveManualExecution($scenario, $userId, $isDraft);
 
         return $this->execute(new AutomationRunRequest(
             scenario: $scenario,
@@ -290,10 +302,26 @@ final class AutomationRunExecutor extends BaseHelper
     }
 
     /** @return array{0: Application, 1: int} */
-    private function resolveManualExecution(object $scenario, int $userId): array
+    private function resolveManualExecution(object $scenario, int $userId, bool $draft = false): array
     {
         $spaceId = (int) $scenario->space_id;
         $principalMode = (string) $scenario->principal_mode;
+
+        if ($principalMode === AutomationPrincipalMode::SERVICE) {
+            throw new \RuntimeException('Mode service non disponible.');
+        }
+
+        if ($principalMode !== AutomationPrincipalMode::AUTHOR
+            && $principalMode !== AutomationPrincipalMode::TRIGGER) {
+            throw new \RuntimeException('Mode de principal invalide.');
+        }
+
+        if ($draft) {
+            // Un brouillon s'exécute toujours avec l'identité de l'utilisateur
+            // courant, jamais avec celle de l'auteur publié : pas d'usurpation
+            // et les ACL des actions restent celles de l'exécutant.
+            return [$this->app, $userId];
+        }
 
         if ($principalMode === AutomationPrincipalMode::AUTHOR) {
             $authorId = (int) ($scenario->execution_user_id ?? 0);
@@ -303,14 +331,6 @@ final class AutomationRunExecutor extends BaseHelper
             }
 
             return [$this->createRunApplication($authorId, $spaceId), $authorId];
-        }
-
-        if ($principalMode === AutomationPrincipalMode::SERVICE) {
-            throw new \RuntimeException('Mode service non disponible.');
-        }
-
-        if ($principalMode !== AutomationPrincipalMode::TRIGGER) {
-            throw new \RuntimeException('Mode de principal invalide.');
         }
 
         return [$this->app, $userId];

@@ -177,11 +177,20 @@ final class AutomationController extends BaseController
         return new ApiResponse($this->wfAutomation->dryRun($data));
     }
 
+    /**
+     * Lance un run manuel.
+     *
+     * Sans `draft`, le run exécute la version publiée. Avec `draft`, il exécute
+     * le dernier brouillon enregistré avec l'identité de l'appelant ; le WF
+     * exige alors EDIT en plus de RUN, et PUBLISH lorsque le mode d'exécution
+     * est Auteur.
+     */
     #[ControllerMethod(name: 'run', path: 'run', methods: [RequestMethod::POST])]
     #[ControllerParam1(name: 'scenarioId', required: true, varType: VarType::INT)]
     #[ControllerParam2(name: 'input', required: true, varType: VarType::JSON)]
+    #[ControllerParam3(name: 'draft', required: false, varType: VarType::BOOL)]
     #[NoTransaction]
-    public function run(int $scenarioId, object $input): ApiResponse
+    public function run(int $scenarioId, object $input, ?bool $draft = null): ApiResponse
     {
         $decoded = json_decode(
             json_encode($input, JSON_THROW_ON_ERROR),
@@ -194,7 +203,7 @@ final class AutomationController extends BaseController
             ExceptionResponse::throwWarning('Entrée de scénario invalide.');
         }
 
-        $result = $this->wfAutomation->runManual($scenarioId, $decoded);
+        $result = $this->wfAutomation->runManual($scenarioId, $decoded, $draft === true);
         $result['output'] = json_decode(AutomationValueJson::encode($result['output']), true);
 
         return new ApiResponse($result);

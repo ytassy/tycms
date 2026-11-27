@@ -63,10 +63,18 @@ TXT;
     private const MAX_SOURCE_BYTES = 65536;
 
     /**
+     * Exécute un scénario à la demande.
+     *
+     * Par défaut, le run est épinglé à la version publiée. Avec $draft, le
+     * dernier brouillon enregistré est exécuté : EDIT est alors requis en plus
+     * de RUN, et PUBLISH en mode Auteur. Le brouillon s'exécute toujours avec
+     * l'identité de l'utilisateur courant. Un brouillon invalide est refusé
+     * avant tout run.
+     *
      * @param array<mixed> $input
      * @return array<string, mixed>
      */
-    public function runManual(int $scenarioId, array $input): array
+    public function runManual(int $scenarioId, array $input, bool $draft = false): array
     {
         $scenario = $this->automationRepository->findScenarioById($scenarioId);
 
@@ -90,7 +98,71 @@ TXT;
             ExceptionResponse::throwWarning('L’entrée du scénario doit être une map JSON.');
         }
 
-        return $this->automationRunExecutor->runManual($scenarioId, $input, $userId);
+        $version = null;
+
+        if ($draft) {
+            // Le brouillon n'a pas passé le contrôle de publication : un
+            // éditeur ne peut l'exécuter qu'avec le droit d'édition du Space.
+            if (!$this->can(Permissions::EDIT, $spaceId)) {
+                ExceptionResponse::throwDanger('Vous ne pouvez pas exécuter le brouillon de ce scénario.');
+            }
+
+            // En mode Auteur, le brouillon reste réservé aux personnes
+            // autorisées à publier ce type de scénario. Le run n'emprunte pas
+            // l'identité de l'auteur : il utilise les droits de l'exécutant.
+            if ((string) $scenario->principal_mode === AutomationPrincipalMode::AUTHOR
+                && !$this->can(Permissions::PUBLISH, $spaceId)) {
+                ExceptionResponse::throwDanger(
+                    'L’exécution du brouillon d’un scénario en mode Auteur requiert la permission PUBLISH.',
+                );
+            }
+
+            $version = $scenario->draft_version_id !== null
+                ? $this->automationRepository->findVersion((int) $scenario->draft_version_id)
+                : null;
+
+            if ($version === null) {
+                ExceptionResponse::throwWarning('Aucun brouillon enregistré à exécuter.');
+            }
+
+            // Un brouillon invalide peut être enregistré, mais il n'est pas
+            // exécuté : cela évite un run en échec pour une erreur évidente.
+            $compiled = $this->compileSource((string) $version->source);
+
+            if (!$compiled->isSuccessful() || $compiled->program === null) {
+                return [
+                    'run_id' => null,
+                    'status' => 'invalid',
+                    'output' => null,
+                    'message' => 'Le brouillon contient des erreurs de compilation. Corrigez-les avant de l’exécuter.',
+                    'diagnostics' => $this->presentDiagnostics($compiled->diagnostics),
+                    'steps' => 0,
+                    'action_calls' => 0,
+                    'duration_ms' => 0,
+                    'draft' => true,
+                ];
+            }
+        }
+
+        $result = $this->automationRunExecutor->runManual($scenarioId, $input, $userId, $version);
+        $result['draft'] = $draft;
+
+        if ($draft) {
+            $this->logInfo(
+                'Run manuel du brouillon enregistré.',
+                [
+                    'space_id' => $spaceId,
+                    'scenario_id' => $scenarioId,
+                    'version_id' => (int) $version->id,
+                    'run_id' => $result['run_id'] ?? null,
+                    'status' => $result['status'] ?? null,
+                ],
+                'AUTOMATION_RUN_DRAFT',
+                'automation',
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -258,7 +330,7 @@ TXT;
                 : null,
             'can_edit' => $this->can(Permissions::EDIT, $spaceId),
             'can_publish' => $this->can(Permissions::PUBLISH, $spaceId),
-            'can_run' => $this->can(Permissions::RUN, $spaceId) && $published !== null,
+            'can_run' => $this->can(Permissions::RUN, $spaceId),
             'can_manage_runs' => $this->can(Permissions::RUN_MANAGE, $spaceId),
             'can_archive' => $this->can(Permissions::PUBLISH, $spaceId),
             'template' => self::DEFAULT_SOURCE,
@@ -1258,7 +1330,7 @@ TXT;
             'last_run_at' => isset($row->last_run_at) ? (string) $row->last_run_at : null,
             'can_edit' => $this->can(Permissions::EDIT, $spaceId),
             'can_publish' => $this->can(Permissions::PUBLISH, $spaceId),
-            'can_run' => $this->can(Permissions::RUN, $spaceId) && $row->published_version_id !== null,
+            'can_run' => $this->can(Permissions::RUN, $spaceId),
             'can_archive' => $this->can(Permissions::PUBLISH, $spaceId),
         ];
     }
