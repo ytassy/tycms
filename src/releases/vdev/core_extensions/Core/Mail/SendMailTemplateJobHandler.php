@@ -60,6 +60,8 @@ final class SendMailTemplateJobHandler extends BaseJobHandler
             $to,
             $vars,
             $context->spaceId,
+            jobId: $context->jobId,
+            userId: $context->execUserId,
         );
 
         return $sent

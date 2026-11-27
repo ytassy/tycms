@@ -5,6 +5,7 @@ import { useMyAccountStore } from '../stores/my_account'
 import { useSpaceSwitchStore } from '../stores/space_switch'
 import { useAdminJobsStore } from '../stores/admin_jobs'
 import { useAdminLogsStore } from '../stores/admin_logs'
+import { useAdminMailLogsStore } from '../stores/admin_mail_logs'
 import { useAdminSystemUpdatesStore } from '../stores/admin_system_updates'
 import { useAdminFontsStore } from '../stores/admin_fonts'
 import { useAdminUserAssignmentsStore } from '../stores/admin_user_assignments'
@@ -33,6 +34,7 @@ export function registerStores(vueApp, application, extraStores = {}) {
 		useAdminSystemUpdatesStore: useAdminSystemUpdatesStore.get(vueApp, application),
 		useAdminJobsStore: useAdminJobsStore.get(vueApp, application),
 		useAdminLogsStore: useAdminLogsStore.get(vueApp, application),
+		useAdminMailLogsStore: useAdminMailLogsStore.get(vueApp, application),
 		useAdminFontsStore: useAdminFontsStore.get(vueApp, application),
 		useAdminUserAssignmentsStore: useAdminUserAssignmentsStore.get(vueApp, application),
 		useAppStore: useAppStore.get(vueApp, application),

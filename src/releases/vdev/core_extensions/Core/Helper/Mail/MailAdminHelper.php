@@ -63,6 +63,13 @@ class MailAdminHelper extends MailHelper
             'Test d’envoi de mail — ' . $space->title,
             '<p>Ce message confirme que l’envoi de mail fonctionne pour l’espace <strong>' . $spaceTitle . '</strong>.</p>',
             $params,
+            logContext: [
+                'space_id' => $space->id,
+                'kind' => MailLogHelper::KIND_TEST,
+                'template_key' => null,
+                'locale' => null,
+                'secrets' => [],
+            ],
         );
     }
 
@@ -87,6 +94,13 @@ class MailAdminHelper extends MailHelper
             'Test du modèle e-mail ' . $mode . ' — ' . $space->title,
             $renderedHtml,
             $params,
+            logContext: [
+                'space_id' => $space->id,
+                'kind' => MailLogHelper::KIND_TEST,
+                'template_key' => null,
+                'locale' => null,
+                'secrets' => [],
+            ],
         );
     }
 }

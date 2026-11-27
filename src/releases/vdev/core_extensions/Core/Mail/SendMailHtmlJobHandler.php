@@ -78,6 +78,8 @@ final class SendMailHtmlJobHandler extends BaseJobHandler
             $subject,
             $purified,
             sourceSpace: $context->spaceId,
+            jobId: $context->jobId,
+            userId: $context->execUserId,
         );
 
         return $sent

@@ -12,6 +12,7 @@ use YTassy\Tycms\BaseApplicationItem;
 use YTassy\Tycms\CoreExts\Core\Helper\Crypt\CryptHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailLogHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Space\SpaceHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Template\TemplateHelper;
 use YTassy\Tycms\CoreExts\Core\Models\Config;
@@ -316,6 +317,115 @@ final class MailHelperTest extends FrameworkTestCase
         $helper->sendHtml('to@example.test', 'Sujet', '<p>HTML</p>', renderMode: 'unknown');
     }
 
+    public function testSuccessfulSendCreatesProcessingThenDoneLog(): void
+    {
+        $app = $this->createMailApplication();
+        $space = $this->space($app, 1);
+        $mailer = new RecordingMailer();
+        $logHelper = new RecordingMailLogHelper($app);
+        $helper = $this->helper($app, $space, [1 => $space], $mailer, null, $logHelper);
+
+        self::assertTrue($helper->sendRawHtml(
+            ['to@example.test' => 'Destinataire'],
+            'Sujet',
+            '<p>HTML</p>',
+            secrets: ['secret-value'],
+        ));
+
+        self::assertCount(1, $logHelper->added);
+        self::assertSame(1, $logHelper->added[0]['space_id']);
+        self::assertSame(MailLogHelper::KIND_HTML, $logHelper->added[0]['kind']);
+        self::assertSame(['secret-value'], $logHelper->added[0]['secrets']);
+        self::assertSame('source@example.test', $logHelper->added[0]['from_email']);
+        self::assertCount(1, $logHelper->done);
+        self::assertSame(1, $logHelper->done[0]['logId']);
+        self::assertSame([], $logHelper->failed);
+    }
+
+    public function testRefusedTransportMarksTheLogAndReturnsFalse(): void
+    {
+        $app = $this->createMailApplication();
+        $space = $this->space($app, 1);
+        $mailer = new class extends PHPMailer {
+            public function __construct()
+            {
+                parent::__construct(true);
+            }
+
+            public function send(): bool
+            {
+                return false;
+            }
+        };
+        $logHelper = new RecordingMailLogHelper($app);
+        $helper = $this->helper($app, $space, [1 => $space], $mailer, null, $logHelper);
+
+        self::assertFalse($helper->sendRawHtml('to@example.test', 'Sujet', '<p>HTML</p>'));
+        self::assertCount(1, $logHelper->failed);
+        self::assertSame('SMTP_NOT_ACCEPTED', $logHelper->failed[0]['errorCode']);
+        self::assertSame([], $logHelper->done);
+    }
+
+    public function testTransportExceptionMarksTheLogAndIsRethrown(): void
+    {
+        $app = $this->createMailApplication();
+        $space = $this->space($app, 1);
+        $mailer = new class extends PHPMailer {
+            public function __construct()
+            {
+                parent::__construct(true);
+            }
+
+            public function send(): bool
+            {
+                throw new \PHPMailer\PHPMailer\Exception('550 refusé');
+            }
+        };
+        $logHelper = new RecordingMailLogHelper($app);
+        $helper = $this->helper($app, $space, [1 => $space], $mailer, null, $logHelper);
+
+        try {
+            $helper->sendRawHtml('to@example.test', 'Sujet', '<p>HTML</p>');
+            self::fail('Une exception SMTP doit remonter.');
+        } catch (\PHPMailer\PHPMailer\Exception $exception) {
+            self::assertSame('550 refusé', $exception->getMessage());
+        }
+
+        self::assertCount(1, $logHelper->failed);
+        self::assertSame('SMTP_SEND_FAILED', $logHelper->failed[0]['errorCode']);
+        self::assertSame('550 refusé', $logHelper->failed[0]['errorMessage']);
+    }
+
+    public function testJournalFailureDoesNotBlockTheSend(): void
+    {
+        $app = $this->createMailApplication();
+        $space = $this->space($app, 1);
+        $logHelper = new RecordingMailLogHelper($app);
+        $logHelper->addFailure = new \RuntimeException('db down');
+        $helper = $this->helper($app, $space, [1 => $space], new RecordingMailer(), null, $logHelper);
+
+        self::assertTrue($helper->sendRawHtml('to@example.test', 'Sujet', '<p>HTML</p>'));
+        self::assertSame([], $logHelper->added);
+        self::assertSame([], $logHelper->done);
+    }
+
+    public function testKnownSensitiveVariablesAreCollectedForMasking(): void
+    {
+        self::assertSame(
+            ['mot-de-passe', 'https://example.test/reset/jeton'],
+            MailHelper::sensitiveVariableValues([
+                'initial_password' => 'mot-de-passe',
+                'reset_url' => 'https://example.test/reset/jeton',
+                'first_name' => 'Alice',
+            ]),
+        );
+
+        self::assertSame([], MailHelper::sensitiveVariableValues([
+            'initial_password' => '',
+            'reset_url' => null,
+        ]));
+    }
+
     private function createMailApplication(): Application
     {
         $app = $this->createApplication();
@@ -347,8 +457,8 @@ final class MailHelperTest extends FrameworkTestCase
 
     /** @param array<int, Space> $spaces */
     private function helper(
-        Application $app, Space $current, array $spaces, RecordingMailer $mailer,
-        ?TemplateHelper $templateHelper = null,
+        Application $app, Space $current, array $spaces, PHPMailer $mailer,
+        ?TemplateHelper $templateHelper = null, ?MailLogHelper $logHelper = null,
     ): MailHelper
     {
         $spaceHelper = $this->createStub(SpaceHelper::class);
@@ -358,14 +468,16 @@ final class MailHelperTest extends FrameworkTestCase
         );
 
         $cryptHelper = new CryptHelper($app);
+        $logHelper ??= new RecordingMailLogHelper($app);
 
-        return new class($app, $spaceHelper, $cryptHelper, $mailer, $templateHelper) extends MailHelper {
+        return new class($app, $spaceHelper, $cryptHelper, $mailer, $templateHelper, $logHelper) extends MailHelper {
             public function __construct(
                 Application $app,
                 private SpaceHelper $spaceHelper,
                 private CryptHelper $cryptHelper,
-                private RecordingMailer $mailer,
+                private PHPMailer $mailer,
                 private ?TemplateHelper $templateHelper,
+                private MailLogHelper $logHelper,
             ) {
                 parent::__construct($app);
             }
@@ -374,6 +486,7 @@ final class MailHelperTest extends FrameworkTestCase
             {
                 return match ($className) {
                     CryptHelper::class => $this->cryptHelper,
+                    MailLogHelper::class => $this->logHelper,
                     TemplateHelper::class => $this->templateHelper ?? throw new \LogicException('TemplateHelper non simulé.'),
                     default => $this->spaceHelper,
                 };
@@ -386,11 +499,16 @@ final class MailHelperTest extends FrameworkTestCase
         };
     }
 
-    private function adminHelper(Application $app, RecordingMailer $mailer, ?TemplateHelper $templateHelper = null): MailAdminHelper
+    private function adminHelper(Application $app, PHPMailer $mailer, ?TemplateHelper $templateHelper = null): MailAdminHelper
     {
-        return new class($app, $mailer, $templateHelper) extends MailAdminHelper {
+        $logHelper = new RecordingMailLogHelper($app);
+
+        return new class($app, $mailer, $templateHelper, $logHelper) extends MailAdminHelper {
             public function __construct(
-                Application $app, private RecordingMailer $mailer, private ?TemplateHelper $templateHelper,
+                Application $app,
+                private PHPMailer $mailer,
+                private ?TemplateHelper $templateHelper,
+                private MailLogHelper $logHelper,
             )
             {
                 parent::__construct($app);
@@ -398,9 +516,12 @@ final class MailHelperTest extends FrameworkTestCase
 
             public function getSharedExtensionsClass(string $className): BaseApplicationItem
             {
-                return $className === TemplateHelper::class && $this->templateHelper !== null
-                    ? $this->templateHelper
-                    : parent::getSharedExtensionsClass($className);
+                return match ($className) {
+                    MailLogHelper::class => $this->logHelper,
+                    TemplateHelper::class => $this->templateHelper
+                        ?? throw new \LogicException('TemplateHelper non simulé.'),
+                    default => parent::getSharedExtensionsClass($className),
+                };
             }
 
             protected function createMailer(): PHPMailer
@@ -425,5 +546,95 @@ final class RecordingMailer extends PHPMailer
         $this->sent = true;
 
         return true;
+    }
+}
+
+/**
+ * Journal en mémoire : les tests vérifient le contrat de MailHelper sans base.
+ */
+final class RecordingMailLogHelper extends MailLogHelper
+{
+    public bool $enabled = true;
+
+    public ?\Throwable $addFailure = null;
+
+    /** @var list<array<string, mixed>> */
+    public array $added = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $done = [];
+
+    /** @var list<array<string, mixed>> */
+    public array $failed = [];
+
+    public function isEnabled(): bool
+    {
+        return $this->enabled;
+    }
+
+    public function add(
+        ?int $spaceId,
+        string $kind,
+        string|array $to,
+        string $subject,
+        string $bodyHtml,
+        string|array $cc = [],
+        string|array $bcc = [],
+        array $attachments = [],
+        ?string $templateKey = null,
+        ?string $locale = null,
+        array $secrets = [],
+        ?int $jobId = null,
+        ?int $userId = null,
+        ?string $fromEmail = null,
+        ?string $fromName = null,
+    ): ?int {
+        if ($this->addFailure !== null) {
+            throw $this->addFailure;
+        }
+
+        $this->added[] = [
+            'space_id' => $spaceId,
+            'kind' => $kind,
+            'to' => $to,
+            'subject' => $subject,
+            'body_html' => $bodyHtml,
+            'cc' => $cc,
+            'bcc' => $bcc,
+            'attachments' => $attachments,
+            'template_key' => $templateKey,
+            'locale' => $locale,
+            'secrets' => $secrets,
+            'job_id' => $jobId,
+            'user_id' => $userId,
+            'from_email' => $fromEmail,
+            'from_name' => $fromName,
+        ];
+
+        return count($this->added);
+    }
+
+    public function markDone(
+        int $logId,
+        ?string $messageId,
+        ?string $bodyText,
+        array $secrets,
+        int $durationMs,
+    ): void {
+        $this->done[] = compact('logId', 'messageId', 'bodyText', 'secrets', 'durationMs');
+    }
+
+    public function markFailed(
+        int $logId,
+        string $errorCode,
+        ?string $errorClass,
+        ?string $errorMessage,
+        ?string $bodyText,
+        array $secrets,
+        int $durationMs,
+    ): void {
+        $this->failed[] = compact(
+            'logId', 'errorCode', 'errorClass', 'errorMessage', 'bodyText', 'secrets', 'durationMs',
+        );
     }
 }

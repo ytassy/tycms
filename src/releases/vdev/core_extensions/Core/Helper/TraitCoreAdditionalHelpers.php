@@ -20,6 +20,7 @@ use YTassy\Tycms\CoreExts\Core\JobQueue\JobAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageButtonHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Page\PageButtonToken;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailAdminHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailLogHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\UserWelcomeMailHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Language\LanguageOverrideAdminHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Space\SpaceAdminHelper;
@@ -92,6 +93,10 @@ trait TraitCoreAdditionalHelpers
     }
     protected MailAdminHelper $coreMailAdminHelper {
         get { return $this->getSharedExtensionsClass(MailAdminHelper::class); }
+    }
+
+    protected MailLogHelper $coreMailLogHelper {
+        get { return $this->getSharedExtensionsClass(MailLogHelper::class); }
     }
 
     protected MenuRouteHelper $coreMenuRouteHelper {

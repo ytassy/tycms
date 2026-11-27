@@ -41,11 +41,22 @@ final class UserWelcomeMailHelper extends BaseHelper
         return $this->send(
             self::TEMPLATE_ADMIN, $space, $email, $locale,
             ['space_title' => $space->title, 'first_name' => $firstName, 'initial_password' => $password],
+            [$password],
         );
     }
 
-    /** @param array<string,string> $values */
-    private function send(string $key, Space $space, string $email, ?string $locale, array $values): bool
+    /**
+     * @param array<string,string> $values
+     * @param list<string> $secrets
+     */
+    private function send(
+        string $key,
+        Space $space,
+        string $email,
+        ?string $locale,
+        array $values,
+        array $secrets = [],
+    ): bool
     {
         // La clé vient des trois méthodes métier ci-dessus, jamais du contenu du message.
         $context = ['space_id' => $space->id, 'kind' => $key];
@@ -60,7 +71,9 @@ final class UserWelcomeMailHelper extends BaseHelper
                 $locale = $this->coreSpaceLanguageHelper->getDefaultLocale($space->id);
             }
 
-            if ($this->coreMailHelper->sendTemplate($key, $email, $values, $space, $locale)) {
+            if ($this->coreMailHelper->sendTemplate(
+                $key, $email, $values, $space, $locale, secrets: $secrets,
+            )) {
                 return true;
             }
 

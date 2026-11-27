@@ -4,14 +4,27 @@ namespace YTassy\Tycms\CoreExts\Core\Helper\Mail;
 
 use InvalidArgumentException;
 use PHPMailer\PHPMailer\PHPMailer;
+use Throwable;
 use YTassy\Tycms\Exceptions\ApplicationException;
 use YTassy\Tycms\Extensions\BaseTemplate;
 use YTassy\Tycms\Extensions\EmailRenderContext;
 use YTassy\Tycms\CoreExts\Core\Models\Space;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\TraitCoreAdditionalHelpers;
+use YTassy\Tycms\Logging\LogEventException;
 
 class MailHelper extends BaseHelper
 {
+    use TraitCoreAdditionalHelpers;
+
+    /**
+     * Variables dont la valeur ne doit jamais apparaître dans le journal.
+     *
+     * Le masquage explicite de l'appelant reste prioritaire ; cette liste est
+     * un filet de sécurité pour les deux modèles Core qui portent un secret.
+     */
+    private const SENSITIVE_VARIABLE_NAMES = ['initial_password', 'reset_url'];
+
     /**
      * Send an HTML email immediately through the source Space's SMTP server.
      *
@@ -21,7 +34,8 @@ class MailHelper extends BaseHelper
      * mail_online is disabled. Configuration and transport errors are exceptions.
      * The source Space selects its template; renderMode is default, blank or raw.
      * In default and blank modes, relative /medias/ image sources become absolute
-     * URLs; raw mode transmits the HTML unchanged.
+     * URLs; raw mode transmits the HTML unchanged. Values listed in $secrets are
+     * masked in the mail journal only; the sent message keeps them unchanged.
      *
      * @param string|array<int|string, string> $to
      * @param string|array<int|string, string> $cc
@@ -40,6 +54,9 @@ class MailHelper extends BaseHelper
         array $attachments = [],
         string $renderMode = 'default',
         ?string $emailLocale = null,
+        array $secrets = [],
+        ?int $jobId = null,
+        ?int $userId = null,
     ): bool {
         if ($this->app->getConf()->mailonline === false) {
             return false;
@@ -51,19 +68,32 @@ class MailHelper extends BaseHelper
             return false;
         }
 
-        // Les images des médias restent relatives dans un contenu libre. Un
-        // client de messagerie ne sait pas les résoudre : les modes avec
-        // habillage reçoivent donc une URL absolue. Le mode raw reste intact.
-        if ($renderMode !== 'raw') {
-            $html = $this->absoluteMediaUrls($html, $space);
-        }
-
-        $html = $this->prepareHtml($html, $space, $renderMode, $emailLocale);
-
-        return $this->sendHtmlWithParams($to, $subject, $html, $params, $cc, $bcc, $replyTo, $attachments);
+        return $this->sendPreparedHtml(
+            to: $to,
+            subject: $subject,
+            html: $html,
+            space: $space,
+            params: $params,
+            cc: $cc,
+            bcc: $bcc,
+            replyTo: $replyTo,
+            attachments: $attachments,
+            renderMode: $renderMode,
+            emailLocale: $emailLocale,
+            kind: MailLogHelper::KIND_HTML,
+            templateKey: null,
+            secrets: $secrets,
+            jobId: $jobId,
+            userId: $userId,
+        );
     }
 
-    /** Envoie un modèle métier avec l'habillage du Space source. */
+    /**
+     * Envoie un modèle métier avec l'habillage du Space source.
+     *
+     * Les valeurs de `$secrets`, ainsi que celles des variables sensibles
+     * connues (`initial_password`, `reset_url`), sont masquées dans le journal.
+     */
     public function sendTemplate(
         string $key,
         string|array $to,
@@ -74,6 +104,9 @@ class MailHelper extends BaseHelper
         string|array $bcc = [],
         string|array $replyTo = [],
         array $attachments = [],
+        array $secrets = [],
+        ?int $jobId = null,
+        ?int $userId = null,
     ): bool {
         if ($this->app->getConf()->mailonline === false) {
             return false;
@@ -88,14 +121,30 @@ class MailHelper extends BaseHelper
         $locale ??= $this->coreSpaceLanguageHelper->getDefaultLocale($space->id);
         $message = $this->coreEmailTemplateHelper->prepare($key, $space->id, $locale, $values);
 
-        return $this->sendHtml(
-            $to, $message['subject'], $this->absoluteMediaUrls($message['bodyHtml'], $space), $space,
+        // Filet de sécurité : les variables sensibles connues sont masquées
+        // même si l'appelant a oublié de les ajouter à $secrets.
+        $secrets = array_values(array_unique(array_filter(
+            [...$secrets, ...self::sensitiveVariableValues($values)],
+            static fn (mixed $value): bool => is_string($value) && $value !== '',
+        )));
+
+        return $this->sendPreparedHtml(
+            to: $to,
+            subject: $message['subject'],
+            html: $message['bodyHtml'],
+            space: $space,
+            params: $params,
             cc: $cc,
             bcc: $bcc,
             replyTo: $replyTo,
             attachments: $attachments,
             renderMode: $message['renderMode'],
             emailLocale: $message['locale'],
+            kind: MailLogHelper::KIND_TEMPLATE,
+            templateKey: $key,
+            secrets: $secrets,
+            jobId: $jobId,
+            userId: $userId,
         );
     }
 
@@ -123,24 +172,110 @@ class MailHelper extends BaseHelper
     public function sendDefaultHtml(
         string|array $to, string $subject, string $html, Space|int|null $sourceSpace = null,
         string|array $cc = [], string|array $bcc = [], string|array $replyTo = [], array $attachments = [],
+        array $secrets = [],
     ): bool {
-        return $this->sendHtml($to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments, 'default');
+        return $this->sendHtml(
+            $to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments,
+            renderMode: 'default',
+            secrets: $secrets,
+        );
     }
 
     /** Send through the source Space's template with its simple layout. */
     public function sendBlankHtml(
         string|array $to, string $subject, string $html, Space|int|null $sourceSpace = null,
         string|array $cc = [], string|array $bcc = [], string|array $replyTo = [], array $attachments = [],
+        array $secrets = [],
     ): bool {
-        return $this->sendHtml($to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments, 'blank');
+        return $this->sendHtml(
+            $to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments,
+            renderMode: 'blank',
+            secrets: $secrets,
+        );
     }
 
     /** Send trusted HTML exactly as supplied, without a template. */
     public function sendRawHtml(
         string|array $to, string $subject, string $html, Space|int|null $sourceSpace = null,
         string|array $cc = [], string|array $bcc = [], string|array $replyTo = [], array $attachments = [],
+        array $secrets = [],
     ): bool {
-        return $this->sendHtml($to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments, 'raw');
+        return $this->sendHtml(
+            $to, $subject, $html, $sourceSpace, $cc, $bcc, $replyTo, $attachments,
+            renderMode: 'raw',
+            secrets: $secrets,
+        );
+    }
+
+    /**
+     * Prépare et envoie le message déjà résolu, en transmettant le contexte du journal.
+     *
+     * @param array<string, mixed> $params
+     * @param string|array<int|string, string> $to
+     * @param string|array<int|string, string> $cc
+     * @param string|array<int|string, string> $bcc
+     * @param string|array<int|string, string> $replyTo
+     * @param array<int, string|array{path:string, name?:string}> $attachments
+     * @param list<string> $secrets
+     */
+    private function sendPreparedHtml(
+        string|array $to,
+        string $subject,
+        string $html,
+        Space $space,
+        array $params,
+        string|array $cc,
+        string|array $bcc,
+        string|array $replyTo,
+        array $attachments,
+        string $renderMode,
+        ?string $emailLocale,
+        string $kind,
+        ?string $templateKey,
+        array $secrets,
+        ?int $jobId,
+        ?int $userId,
+    ): bool {
+        // Les images des médias restent relatives dans un contenu libre. Un
+        // client de messagerie ne sait pas les résoudre : les modes avec
+        // habillage reçoivent donc une URL absolue. Le mode raw reste intact.
+        if ($renderMode !== 'raw') {
+            $html = $this->absoluteMediaUrls($html, $space);
+        }
+
+        $html = $this->prepareHtml($html, $space, $renderMode, $emailLocale);
+
+        return $this->sendHtmlWithParams(
+            $to, $subject, $html, $params, $cc, $bcc, $replyTo, $attachments,
+            [
+                'space_id' => $space->id,
+                'kind' => $kind,
+                'template_key' => $templateKey,
+                'locale' => $emailLocale,
+                'secrets' => $secrets,
+                'job_id' => $jobId,
+                'user_id' => $userId,
+            ],
+        );
+    }
+
+    /**
+     * Valeurs des variables de modèle qui ne doivent jamais être stockées.
+     *
+     * @param array<string, mixed> $values
+     * @return list<string>
+     */
+    public static function sensitiveVariableValues(array $values): array
+    {
+        $secrets = [];
+        foreach (self::SENSITIVE_VARIABLE_NAMES as $name) {
+            $value = $values[$name] ?? null;
+            if (is_string($value) && $value !== '') {
+                $secrets[] = $value;
+            }
+        }
+
+        return $secrets;
     }
 
     private function prepareHtml(string $html, Space $space, string $renderMode, ?string $emailLocale = null): string
@@ -204,6 +339,7 @@ class MailHelper extends BaseHelper
      * @param string|array<int|string, string> $bcc
      * @param string|array<int|string, string> $replyTo
      * @param array<int, string|array{path:string, name?:string}> $attachments
+     * @param array<string, mixed> $logContext
      */
     protected function sendHtmlWithParams(
         string|array $to,
@@ -214,58 +350,269 @@ class MailHelper extends BaseHelper
         string|array $bcc = [],
         string|array $replyTo = [],
         array $attachments = [],
+        array $logContext = [],
     ): bool {
         if ($this->app->getConf()->mailonline === false || !($params['mail_online'] ?? true)) {
             return false;
         }
-        if (($params['mailer'] ?? 'smtp') !== 'smtp') {
-            throw new ApplicationException('Transport e-mail non pris en charge pour cet espace.');
-        }
 
-        $host = trim((string) ($params['mail_smtp_host'] ?? ''));
-        $from = trim((string) ($params['mail_from'] ?? ''));
-        $port = filter_var($params['mail_smtp_port'] ?? null, FILTER_VALIDATE_INT);
-        $secure = (string) ($params['mail_smtp_secure'] ?? 'ssl');
-        if ($host === '' || $from === '' || $port === false || $port < 1 || $port > 65535
-            || !in_array($secure, ['ssl', 'tls', ''], true)) {
-            throw new ApplicationException('Configuration SMTP incomplète ou invalide pour cet espace.');
-        }
+        $spaceId = isset($logContext['space_id']) && (int) $logContext['space_id'] > 0
+            ? (int) $logContext['space_id']
+            : null;
+        $secrets = is_array($logContext['secrets'] ?? null) ? $logContext['secrets'] : [];
 
-        $mailer = $this->createMailer();
-        $mailer->isSMTP();
-        $mailer->Host = $host;
-        $mailer->Port = $port;
-        $mailer->Timeout = 4;
-        $mailer->SMTPAuth = (bool) ($params['mail_smtp_auth'] ?? true);
-        $mailer->Username = (string) ($params['mail_smtp_user'] ?? '');
-        $mailer->Password = $this->smtpPassword($params);
-        $mailer->SMTPSecure = match ($secure) {
-            'ssl' => PHPMailer::ENCRYPTION_SMTPS,
-            'tls' => PHPMailer::ENCRYPTION_STARTTLS,
-            default => '',
-        };
-        $mailer->SMTPAutoTLS = false;
-        $mailer->CharSet = PHPMailer::CHARSET_UTF8;
-        $mailer->setFrom($from, (string) ($params['mail_from_name'] ?? ''));
+        // La ligne naît avant toute connexion SMTP, y compris pour une
+        // configuration invalide : le journal doit montrer la tentative.
+        $logId = $this->startMailLog($to, $subject, $html, $params, $cc, $bcc, $attachments, $logContext);
 
-        $this->addAddresses($mailer, $to, 'to');
-        $this->addAddresses($mailer, $cc, 'cc');
-        $this->addAddresses($mailer, $bcc, 'bcc');
-        $this->addAddresses($mailer, $replyTo, 'replyTo');
-        foreach ($attachments as $attachment) {
-            if (is_string($attachment)) {
-                $mailer->addAttachment($attachment);
-            } else {
-                $mailer->addAttachment($attachment['path'], $attachment['name'] ?? '');
+        $startedAt = microtime(true);
+        $altBody = null;
+        $secretsForLog = $secrets;
+
+        try {
+            if (($params['mailer'] ?? 'smtp') !== 'smtp') {
+                throw new ApplicationException('Transport e-mail non pris en charge pour cet espace.');
             }
+
+            $host = trim((string) ($params['mail_smtp_host'] ?? ''));
+            $from = trim((string) ($params['mail_from'] ?? ''));
+            $port = filter_var($params['mail_smtp_port'] ?? null, FILTER_VALIDATE_INT);
+            $secure = (string) ($params['mail_smtp_secure'] ?? 'ssl');
+            if ($host === '' || $from === '' || $port === false || $port < 1 || $port > 65535
+                || !in_array($secure, ['ssl', 'tls', ''], true)) {
+                throw new ApplicationException('Configuration SMTP incomplète ou invalide pour cet espace.');
+            }
+
+            $mailer = $this->createMailer();
+            $mailer->isSMTP();
+            $mailer->Host = $host;
+            $mailer->Port = $port;
+            $mailer->Timeout = 4;
+            $mailer->SMTPAuth = (bool) ($params['mail_smtp_auth'] ?? true);
+            $mailer->Username = (string) ($params['mail_smtp_user'] ?? '');
+            $mailer->Password = $this->smtpPassword($params);
+            $mailer->SMTPSecure = match ($secure) {
+                'ssl' => PHPMailer::ENCRYPTION_SMTPS,
+                'tls' => PHPMailer::ENCRYPTION_STARTTLS,
+                default => '',
+            };
+            $mailer->SMTPAutoTLS = false;
+            $mailer->CharSet = PHPMailer::CHARSET_UTF8;
+            $mailer->setFrom($from, (string) ($params['mail_from_name'] ?? ''));
+
+            // Le mot de passe SMTP ne doit jamais ressortir dans un message
+            // d'erreur conservé par le journal.
+            if ($mailer->Password !== '') {
+                $secretsForLog[] = $mailer->Password;
+            }
+
+            $this->addAddresses($mailer, $to, 'to');
+            $this->addAddresses($mailer, $cc, 'cc');
+            $this->addAddresses($mailer, $bcc, 'bcc');
+            $this->addAddresses($mailer, $replyTo, 'replyTo');
+            foreach ($attachments as $attachment) {
+                if (is_string($attachment)) {
+                    $mailer->addAttachment($attachment);
+                } else {
+                    $mailer->addAttachment($attachment['path'], $attachment['name'] ?? '');
+                }
+            }
+
+            $mailer->isHTML(true);
+            $mailer->Subject = $subject;
+            $mailer->Body = $html;
+            $mailer->AltBody = $mailer->html2text($html);
+            $altBody = $mailer->AltBody;
+
+            if ($mailer->send()) {
+                $this->finishMailLogDone($logId, $mailer, $altBody, $secretsForLog, $startedAt, $spaceId);
+                return true;
+            }
+
+            $this->finishMailLogFailed(
+                $logId,
+                'SMTP_NOT_ACCEPTED',
+                null,
+                'Le serveur SMTP n’a pas accepté le message.',
+                $altBody,
+                $secretsForLog,
+                $startedAt,
+                $spaceId,
+            );
+
+            return false;
+        } catch (Throwable $exception) {
+            $this->finishMailLogFailed(
+                $logId,
+                $this->mailErrorCode($exception),
+                $exception::class,
+                $exception->getMessage(),
+                $altBody,
+                $secretsForLog,
+                $startedAt,
+                $spaceId,
+            );
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * Insère la ligne `processing`, sans jamais empêcher l'envoi si le journal échoue.
+     *
+     * @param string|array<int|string, string> $to
+     * @param string|array<int|string, string> $cc
+     * @param string|array<int|string, string> $bcc
+     * @param array<int, string|array{path:string, name?:string}> $attachments
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $logContext
+     */
+    private function startMailLog(
+        string|array $to,
+        string $subject,
+        string $html,
+        array $params,
+        string|array $cc,
+        string|array $bcc,
+        array $attachments,
+        array $logContext,
+    ): ?int {
+        if (!$this->coreMailLogHelper->isEnabled()) {
+            return null;
         }
 
-        $mailer->isHTML(true);
-        $mailer->Subject = $subject;
-        $mailer->Body = $html;
-        $mailer->AltBody = $mailer->html2text($html);
+        $spaceId = isset($logContext['space_id']) && (int) $logContext['space_id'] > 0
+            ? (int) $logContext['space_id']
+            : null;
+        $kind = is_string($logContext['kind'] ?? null) ? $logContext['kind'] : MailLogHelper::KIND_HTML;
 
-        return $mailer->send();
+        try {
+            return $this->coreMailLogHelper->add(
+                spaceId: $spaceId,
+                kind: $kind,
+                to: $to,
+                subject: $subject,
+                bodyHtml: $html,
+                cc: $cc,
+                bcc: $bcc,
+                attachments: $attachments,
+                templateKey: is_string($logContext['template_key'] ?? null) ? $logContext['template_key'] : null,
+                locale: is_string($logContext['locale'] ?? null) ? $logContext['locale'] : null,
+                secrets: is_array($logContext['secrets'] ?? null) ? $logContext['secrets'] : [],
+                jobId: isset($logContext['job_id']) && (int) $logContext['job_id'] > 0
+                    ? (int) $logContext['job_id'] : null,
+                userId: isset($logContext['user_id']) && (int) $logContext['user_id'] > 0
+                    ? (int) $logContext['user_id'] : null,
+                fromEmail: isset($params['mail_from']) ? (string) $params['mail_from'] : null,
+                fromName: isset($params['mail_from_name']) ? (string) $params['mail_from_name'] : null,
+            );
+        } catch (Throwable $exception) {
+            // Le journal est un diagnostic : une panne d'écriture ne doit pas
+            // empêcher un reset de mot de passe ou une bienvenue de partir.
+            $this->logException(new LogEventException(
+                'MAIL_LOG_FAILED',
+                'Le journal des e-mails n’a pas pu être écrit.',
+                'mail',
+                ['space_id' => $spaceId, 'kind' => $kind],
+                'WARNING',
+                $exception,
+            ));
+
+            return null;
+        }
+    }
+
+    /** @param list<string> $secrets */
+    private function finishMailLogDone(
+        ?int $logId,
+        PHPMailer $mailer,
+        ?string $bodyText,
+        array $secrets,
+        float $startedAt,
+        ?int $spaceId,
+    ): void {
+        if ($logId === null) {
+            return;
+        }
+
+        try {
+            $messageId = $mailer->getLastMessageID();
+            $this->coreMailLogHelper->markDone(
+                $logId,
+                is_string($messageId) && $messageId !== '' ? $messageId : null,
+                $bodyText,
+                $secrets,
+                self::durationMs($startedAt),
+            );
+        } catch (Throwable $exception) {
+            $this->logMailLogUpdateFailure($exception, $spaceId);
+        }
+    }
+
+    /** @param list<string> $secrets */
+    private function finishMailLogFailed(
+        ?int $logId,
+        string $errorCode,
+        ?string $errorClass,
+        ?string $errorMessage,
+        ?string $bodyText,
+        array $secrets,
+        float $startedAt,
+        ?int $spaceId,
+    ): void {
+        if ($logId === null) {
+            return;
+        }
+
+        try {
+            $this->coreMailLogHelper->markFailed(
+                $logId,
+                $errorCode,
+                $errorClass,
+                $errorMessage,
+                $bodyText,
+                $secrets,
+                self::durationMs($startedAt),
+            );
+        } catch (Throwable $exception) {
+            $this->logMailLogUpdateFailure($exception, $spaceId);
+        }
+    }
+
+    private function logMailLogUpdateFailure(Throwable $exception, ?int $spaceId): void
+    {
+        $this->logException(new LogEventException(
+            'MAIL_LOG_UPDATE_FAILED',
+            'Le journal des e-mails n’a pas pu être mis à jour.',
+            'mail',
+            ['space_id' => $spaceId],
+            'WARNING',
+            $exception,
+        ));
+    }
+
+    private static function durationMs(float $startedAt): int
+    {
+        return max(0, (int) round((microtime(true) - $startedAt) * 1000));
+    }
+
+    private function mailErrorCode(Throwable $exception): string
+    {
+        if ($exception instanceof InvalidArgumentException) {
+            return 'MAIL_ADDRESS_INVALID';
+        }
+
+        if ($exception instanceof ApplicationException) {
+            return str_contains($exception->getMessage(), 'Transport e-mail')
+                ? 'SMTP_TRANSPORT_UNSUPPORTED'
+                : 'SMTP_CONFIG';
+        }
+
+        if ($exception instanceof \PHPMailer\PHPMailer\Exception) {
+            return 'SMTP_SEND_FAILED';
+        }
+
+        return 'SMTP_SEND_FAILED';
     }
 
     protected function createMailer(): PHPMailer

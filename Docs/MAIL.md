@@ -383,3 +383,64 @@ les exigences concernant `Configuration.secret`.
 Le réglage `logo_email` appartient à la configuration par Space de la Template
 MainTemplate. Il utilise `core.media_file` en mode image, dans sa section e-mail
 `default` ; il ne fait plus partie de `spaces.params`.
+
+## Journal des e-mails
+
+`MailHelper::sendHtmlWithParams()` écrit une ligne dans `mail_logs` avant
+d'ouvrir la connexion SMTP, puis la passe en `done` si le transport accepte le
+message ou en `failed` sur retour `false` ou exception. La ligne naît en
+`processing` : le journal montre donc aussi une configuration SMTP invalide ou
+un arrêt brutal du processus. Les envois désactivés par `mailonline` ou
+`mail_online` ne créent aucune ligne, et les erreurs de préparation survenant
+avant SMTP (modèle inconnu, variable invalide, domaine absent) restent dans les
+logs applicatifs et le statut du job.
+
+Chaque tentative SMTP a sa ligne. Un job réessayé crée donc une nouvelle ligne,
+et les essais administratifs SMTP ou d'habillage sont conservés avec
+`kind = test`. Le journal contient le Space, la clé de modèle et la langue
+éventuelles, les destinataires `to`/`cc`/`bcc`, l'objet, le corps HTML, la
+version texte, le nom et la taille des pièces jointes (jamais leur contenu ni
+leur chemin serveur), l'expéditeur, le `Message-ID`, le job et l'utilisateur
+d'exécution éventuels, le code, la classe et le message borné de l'erreur, ainsi
+que la durée. Les adresses et les corps sont des données personnelles : l'accès
+à l'écran est réservé à ROOT et la rétention limite leur conservation.
+
+Les secrets sont masqués avant l'écriture. `MailLogHelper::add(..., $secrets)`
+remplace chaque valeur par `[SECRET]`, y compris sa variante échappée par
+`htmlspecialchars()`, dans l'objet, le corps HTML, la version texte et le
+message d'erreur. Une valeur vide ou de moins de quatre caractères est ignorée
+pour ne pas masquer des mots ordinaires. `sendTemplate()` ajoute aussi
+automatiquement les valeurs des variables `initial_password` et `reset_url` :
+un appelant qui oublie `$secrets` ne fait pas fuiter le mot de passe initial ni
+le jeton de réinitialisation. Le mot de passe SMTP est ajouté aux valeurs
+masquées lors de la mise à jour de la ligne.
+
+Le journal est un diagnostic d'exploitation, distinct des
+[journaux applicatifs](LOGGING.md) : ces derniers continuent de refuser
+adresses, jetons, corps de messages et secrets. Une panne d'écriture du journal
+ne bloque jamais l'envoi ; elle produit `MAIL_LOG_FAILED` (WARNING) et l'envoi
+continue. Un échec de mise à jour après l'envoi produit
+`MAIL_LOG_UPDATE_FAILED`, et la ligne peut rester en `processing`.
+
+Deux options de `configuration.php` pilotent le dispositif, avec leurs valeurs
+par défaut dans `configuration.base.php` :
+
+- `mail_log_enabled` (booléen, `true` par défaut) : couper le stockage sans
+  supprimer l'écran ni les purges ;
+- `mail_log_retention_days` (entier, `90` par défaut, borné de 1 à 3650) :
+  durée appliquée par la purge horaire du CRON.
+
+L'onglet **Mails** de l'écran **Système** affiche l'état, la rétention, la
+période conservée et trois purges manuelles : tout, plus d'une semaine
+(7 jours), plus d'un mois (30 jours). L'API
+`/administrator/api/mail-logs` est réservée à ROOT sur le Space 1. La purge
+supprime par lots de 500 lignes, avec au plus 20 lots par passage : un
+historique très volumineux peut demander un second clic, et la purge horaire
+poursuit la rétention. Les corps ne sont pas chiffrés au repos ; la protection
+repose sur l'accès SQL, l'écran ROOT et la rétention.
+
+Un envoi peut avoir lieu dans une transaction de l'appelant. La ligne suit
+cette transaction : si elle est annulée après l'envoi, la trace peut
+disparaître. C'est le cas rare déjà signalé pour les envois immédiats ; les
+parcours qui doivent survivre à un rollback passent par la
+[file de jobs](JOBS.md), qui écrit après le commit.

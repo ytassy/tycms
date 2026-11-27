@@ -12,6 +12,10 @@ class Configuration extends ConfigurationBase
     public $site_name = 'Mon site';
     public $mailonline = true;
 
+    // Journal des e-mails : activé par défaut, rétention de 90 jours.
+    // public bool $mail_log_enabled = true;
+    // public int $mail_log_retention_days = 90;
+
     // Afficher toutes les erreurs PHP en développement ; la production garde display_errors à false.
     public bool $display_errors = true;
     public int $error_reporting_level = E_ALL;

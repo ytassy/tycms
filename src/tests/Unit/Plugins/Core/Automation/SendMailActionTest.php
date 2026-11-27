@@ -138,6 +138,9 @@ final class SendMailActionTest extends FrameworkTestCase
                 array $attachments = [],
                 string $renderMode = 'default',
                 ?string $emailLocale = null,
+                array $secrets = [],
+                ?int $jobId = null,
+                ?int $userId = null,
             ): bool {
                 $this->messages[] = [
                     'to' => $to,

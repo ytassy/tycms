@@ -46,6 +46,7 @@ class WFPasswordReset extends BaseWF
 
             if ($this->coreMailHelper->sendTemplate(
                 'plg_core__password_reset', $user->email, ['reset_url' => $url], $space, $locale,
+                secrets: [$url],
             )) {
                 return;
             }

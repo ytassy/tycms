@@ -100,6 +100,12 @@ class Configuration extends ConfigurationBase
     // Autoriser l'envoi des e-mails ; la configuration SMTP se règle dans l'administration.
     // public $mailonline = false;
 
+    // Journal des e-mails sortants dans la table mail_logs.
+    // Le désactiver pour ne rien stocker ; la purge manuelle reste disponible.
+    // public bool $mail_log_enabled = true;
+    // Rétention appliquée par la purge horaire du CRON, en jours (1 à 3650).
+    // public int $mail_log_retention_days = 90;
+
     // Mises à jour : serveurs HTTPS ordonnés et clés publiques Ed25519 reconnues.
     // Conserver les valeurs héritées sauf besoin explicite de changer de distribution.
     // Une clé publique n'est pas un secret ; ne jamais placer ici de clé privée.

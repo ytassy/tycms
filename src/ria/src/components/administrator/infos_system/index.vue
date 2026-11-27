@@ -34,6 +34,11 @@
 					<logs :active="active" />
 				</template>
 			</tab>
+			<tab label="Mails" icon="fa-solid fa-envelope">
+				<template #default="{ active }">
+					<mail_logs :active="active" />
+				</template>
+			</tab>
 		</tabs>
 	</section>
 </template>
@@ -43,6 +48,7 @@
 import documentation from './documentation.vue'
 import jobs from './jobs.vue'
 import logs from '../logs/index.vue'
+import mail_logs from './mail_logs.vue'
 import php from './php.vue'
 import routes from './routes.vue'
 import security from './security.vue'
@@ -50,7 +56,7 @@ import system_updates from '../system_updates/index.vue'
 
 export default {
 
-	components: { documentation, jobs, logs, php, routes, security, system_updates },
+	components: { documentation, jobs, logs, mail_logs, php, routes, security, system_updates },
 
 	data() {
 		return {

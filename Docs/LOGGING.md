@@ -5,6 +5,13 @@ la configuration PHP, avant SQL et sans session ni extension. Core expose
 sa consultation dans « Administration du site → Journaux », uniquement pour
 la permission ROOT sur le Space racine 1.
 
+Les e-mails sortants disposent d'un journal distinct dans la table `mail_logs`,
+avec ses propres statuts, sa rétention et son écran ROOT. Il conserve des
+adresses et des corps après masquage des secrets, ce que ces journaux
+applicatifs ne font jamais. Ses règles sont décrites dans [E-mails](MAIL.md).
+Une panne de ce journal produit `MAIL_LOG_FAILED` ou `MAIL_LOG_UPDATE_FAILED`
+dans le canal `mail`.
+
 ## Configuration et stockage
 
 `Configuration.log_path` donne la racine privée, par défaut `APP_ROOT/logs`.

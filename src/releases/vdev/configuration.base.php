@@ -105,6 +105,12 @@ class ConfigurationBase
 
 	public $mailonline = false;
 
+	/** Journaliser les e-mails sortants dans la table `mail_logs`. */
+	public bool $mail_log_enabled = true;
+
+	/** Durée de conservation du journal des e-mails, en jours (1 à 3650). */
+	public int $mail_log_retention_days = 90;
+
 	/** Chemin disque des médias ; garder le défaut public pour servir les URL /medias/. */
 	public string $medias_root = APP_ROOT . '/public/medias';
 

@@ -115,6 +115,10 @@ chaque extension chargée qui possède la méthode. Une exception dans un hook e
 journalisée (`CRON_PROVIDER_FAILED`) et n'empêche pas les autres hooks de
 tourner.
 
+Core utilise `onCronHour` pour la purge du journal des e-mails : elle applique
+`mail_log_retention_days` et journalise `MAIL_LOG_AUTO_PURGE` lorsqu'elle
+supprime des lignes. Voir [E-mails](MAIL.md) et [Journaux](LOGGING.md).
+
 ## Réponse
 
 ```json

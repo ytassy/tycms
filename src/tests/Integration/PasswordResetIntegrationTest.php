@@ -266,7 +266,8 @@ final class PasswordResetIntegrationTest extends TestCase
 
             public function sendTemplate(string $key, string|array $to, array $values,
                 Space|int|null $sourceSpace = null, ?string $locale = null, string|array $cc = [],
-                string|array $bcc = [], string|array $replyTo = [], array $attachments = []): bool
+                string|array $bcc = [], string|array $replyTo = [], array $attachments = [],
+                array $secrets = [], ?int $jobId = null, ?int $userId = null): bool
             {
                 ($this->record)($key, $to, $values);
                 return $this->sent;

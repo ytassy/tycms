@@ -34,6 +34,7 @@ use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminRoleController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminUserGroupController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminJobsController;
+use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminMailLogController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminLanguageController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminSsoProviderController;
 use YTassy\Tycms\CoreExts\Core\Controllers\Admin\AdminServiceAccountController;
@@ -69,6 +70,7 @@ use YTassy\Tycms\CoreExts\Core\Mail\SendMailTemplateJobHandler;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_12;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_13;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_14;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
@@ -78,6 +80,9 @@ use YTassy\Tycms\CoreExts\Core\Mail\CoreEmailTemplates;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\BasePermissions;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\IExtensionEvents;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\ICronProvider;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Traits\TraitCronProvider;
+use YTassy\Tycms\CoreExts\Core\Cron\CronTick;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Menu\MenuItemDef;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationActionRegistry;
 use YTassy\Tycms\CoreExts\Automation\ExtensionApi\AutomationTriggerRegistry;
@@ -91,9 +96,10 @@ use YTassy\Tycms\Routing\Controller\BaseController;
 use YTassy\Tycms\Routing\Route;
 use YTassy\Tycms\Routing\Router;
 
-class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider, IJobProvider
+class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider, IJobProvider, ICronProvider
 {
     use TraitAllHelpers;
+    use TraitCronProvider;
 
     public function getName(): string
     {
@@ -163,8 +169,37 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.11' => [Mig_1_1_11::class],
             '1.1.12' => [Mig_1_1_12::class],
             '1.1.13' => [Mig_1_1_13::class],
+            '1.1.14' => [Mig_1_1_14::class],
         ];
 	}
+
+    /**
+     * Purge horaire du journal des e-mails selon la rétention configurée.
+     *
+     * Le hook est déjà appelé hors transaction ; le dispatcher isole et
+     * journalise une éventuelle erreur sans bloquer les autres hooks.
+     *
+     * @return array{mail_log_purged:int}
+     */
+    public function onCronHour(CronTick $tick): array
+    {
+        if (!$this->coreMailLogHelper->isEnabled()) {
+            return ['mail_log_purged' => 0];
+        }
+
+        $deleted = $this->coreMailLogHelper->purge($this->coreMailLogHelper->retentionDays());
+
+        if ($deleted > 0) {
+            $this->logInfo(
+                'Purge automatique du journal des e-mails.',
+                ['deleted' => $deleted],
+                'MAIL_LOG_AUTO_PURGE',
+                'mail',
+            );
+        }
+
+        return ['mail_log_purged' => $deleted];
+    }
 
     public function getControllers(): array
     {
@@ -199,6 +234,7 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             new AdminUserGroupController($this),
             new AdminLanguageController($this),
             new AdminJobsController($this),
+            new AdminMailLogController($this),
             new AdminSsoProviderController($this),
             new AdminServiceAccountController($this),
             new AdminAiController($this),
