@@ -2,393 +2,306 @@
 
 Conception du journal d’activité centralisé et du système de notifications de
 TyCMS. Ce document fixe le périmètre, les frontières avec les mécanismes
-existants, le modèle de données et les points restant à arbitrer. Il ne décrit
-pas une fonctionnalité livrée : aucune table ni aucun code de production n’est
-créé par ce document.
+existants, le modèle de données, les arbitrages actés et les points restant à
+préciser. Il ne décrit pas une fonctionnalité livrée : aucune table ni aucun
+code de production n’est créé par ce document.
 
-## État et objet du chantier
+## Objectif
 
-Objectif : permettre aux workflows métier du Core, des extensions et de
-l’automatisation d’émettre des **événements de domaine** durables, puis de
-notifier les utilisateurs concernés par les canaux UI, email, Telegram, Slack
-et Discord.
+Permettre aux workflows métier du Core, des extensions et de l’automatisation
+d’émettre des **événements**, puis :
 
-Le chantier doit répondre à quatre besoins distincts, souvent confondus :
+1. de les historiser dans un journal métier durable ;
+2. de notifier les utilisateurs concernés dans l’interface ;
+3. de livrer certaines notifications par email, Telegram, Slack ou Discord ;
+4. de laisser les extensions brancher du code sur ces événements.
 
-1. **Définir** les types d’événements, de façon déclarative, dans le code.
-2. **Historiser** les occurrences dans un journal métier durable.
-3. **Notifier** un ou plusieurs destinataires, avec un état personnel
-   « vue / non vue » et « traitée / non traitée ».
-4. **Livrer** les notifications vers des canaux externes, de façon asynchrone,
-   avec tentatives et journal d’envoi.
+L’émission est explicite dans chaque workflow. L’automatisation n’a pas de
+traitement particulier : lorsqu’une action d’automatisation appelle un workflow
+métier, ce workflow émet l’événement comme s’il était appelé depuis
+l’interface. Si cela duplique des appels `emit()` dans plusieurs workflows,
+c’est accepté : la lisibilité et la simplicité priment sur la factorisation.
 
-La séparation entre ces quatre objets est la décision structurante du chantier.
+## Décisions actées
 
-## Décisions recommandées, à confirmer
-
-Les points suivants sont les arbitrages qui changent le schéma ou le
-comportement. Ils sont volontairement listés avant l’architecture.
-
-| Sujet | Recommandation | Conséquence si l’on choisit autrement |
-| --- | --- | --- |
-| Format des identifiants | `namespace.entité.action`, de 2 à 5 segments (`core.page.published`) | Un format strict `extension.action` serait incompatible avec `core.user.created` et `core.page.button.clicked` de l’automatisation |
-| Canaux par défaut | UI toujours ; email par défaut seulement pour les événements transactionnels ou importants ; opt-in pour le reste | Un email par défaut sur tout événement produit du bruit et sature la file |
-| Telegram | Bot configuré au niveau de l’installation ou du Space racine ; l’utilisateur ne fournit que son `chat_id` | Un bot token par utilisateur est irréaliste et multiplie les secrets sensibles |
-| Sémantique d’audience | Droit **effectif** : global, type d’objet, instance, héritage des Spaces et des groupes ; acteur exclu par défaut | Un mode « exact » peut être ajouté par option, mais ne doit pas être le défaut implicite |
-| Boîte de réception | Boîte unique pour tous les Spaces, avec badge du Space ; cloche comptant toutes les non-lues | Une boîte par Space exige des index supplémentaires et une UX différente |
-| Rétention | 90 jours pour `event_log`, 180 jours pour `notifications`, 90 jours pour `notification_deliveries`, purge horaire par lots | Une rétention trop longue fait grossir la base d’un mutualisé sans intérêt métier |
+| Sujet | Décision |
+| --- | --- |
+| Nom du service | Pas de « Domain ». `Core\Event\EventEmitter`, `EventDispatcher`, `Event` |
+| Journal | L’écriture du journal fait partie de la transaction métier. Le système doit fonctionner, pas seulement « best effort » |
+| Automatisation | Aucun pont dédié. Les workflows appelés par l’automatisation émettent normalement |
+| Rejeu | Aucun système de relance, ni automatique métier, ni manuel dans l’administration |
+| `dedup_key` | Supprimé : pas de rejeu et émetteurs de confiance |
+| Rétention | Configurable par Space dans la configuration de `plg_core` ; `0` = aucune limite, on conserve tout |
+| Capacité | Plafond global de destinataires dans `configuration.php` : `notification_max_recipients = 2000` |
+| Dépassement | Journaliser et ne pas notifier ; jamais de troncature silencieuse |
+| ACL inverses | Nouveaux helpers dédiés, algorithme SQL + PHP optimisé, index revus pendant l’implémentation |
+| Interface | Cloche montée en composant global, sans page dédiée ni type de menu ; activée par défaut |
+| Boîte de réception | Toutes les notifications de l’utilisateur, tous Spaces confondus, avec badge du Space |
+| Email | Aucun email par défaut ; opt-in au cas par cas dans la définition |
+| Menu | Aucun type de menu « notifications » ; la cloche est un composant global |
+| Préférences | Nouveau composant de l’éditeur de page, distinct de « Mon compte » |
+| Validation des payloads | Pas de système `payloadFields` : tout est en code dur |
+| Textes | Deux corps distincts : action de l’utilisateur lui-même, action des autres |
+| Dispatcher | Oui, minimal : le journal et les notifications sont des écouteurs ; les extensions peuvent aussi s’y brancher |
+| Écouteurs | Critiques par défaut : un écouteur qui échoue annule la transaction ; `critical: false` possible pour un effet accessoire |
+| Vue / traité | `seen_date` pour « vu », `handled_date` pour « traité ». Bouton « Tout marquer comme traité » |
+| Acteur | Inclus ou non selon la définition de l’événement ; l’utilisateur peut choisir « mes actions » / « actions des autres » pour les canaux externes |
+| Admin | Page dédiée « Journal » ; `SYS_EVENT_READ` **par Space**, ajoutée au rôle Root par migration, pas de relance |
+| Connexions | Telegram : bot d’installation (jeton chiffré dans `plg_core` du Space racine) ou jeton utilisateur, les deux en option |
+| Classes de notification | Transport et canaux déplacés dans `plg_core` ; déclarations d’actions conservées dans `plg_automation` |
 
 ## Frontières avec l’existant
 
 ### Ce qu’il ne faut pas recréer
 
-| Mécanisme existant | Rôle actuel | Décision pour ce chantier |
+| Mécanisme existant | Rôle actuel | Décision |
 | --- | --- | --- |
-| [`automation_events`](../../IA/CurrentWorks/AUTOMATION.md) et `AutomationEventBuffer` | Outbox des déclencheurs d’automatisation, drainée après le commit | Ne pas l’utiliser comme journal métier : l’extension Automation est optionnelle et sa rétention est liée aux runs |
-| `AutomationNotificationSender` | Alertes d’échec et de scénario, canaux configurés par Space, envoi synchrone | Le conserver pour l’exploitation ; ne pas migrer ses configurations dans ce chantier |
-| [`mail_logs`](../../MAIL.md) et `MailHelper` | Envoi SMTP, modèles, habillage, journal des tentatives | Réutiliser pour le canal email ; ne pas créer un second journal d’envoi email |
-| [File de jobs](../../JOBS.md) | Exécution différée, reprise, backoff, worker unique | Toute livraison externe passe par un job ; aucun worker parallèle |
-| [ACL et rôles](../../ROLES.md) | Permissions globales, rôles, droits de type et d’instance, héritage | S’appuyer dessus pour calculer les destinataires ; ne pas réinventer les règles |
-| [Menus](../../ARCHITECTURE.md) | Types de menu, routes, visibilité par rôle | Le centre de notifications est un type de menu ; la cloche est un composant de header séparé |
-| [RiaView](../../CONTROLLERS.md) et frontend Vue | Pages RIA montées depuis `src/ria/src/pages` | Le centre de notifications est une page RIA classique |
-| [`CryptHelper`](../../CRYPTO.md) | Chiffrement AES-GCM avec usage stable | Chiffrer les secrets des connexions utilisateur |
-| [Journaux applicatifs](../../LOGGING.md) | Diagnostic technique, codes stables, fichiers | Le journal d’événements est un historique métier, pas un journal de diagnostic |
+| [`automation_events`](../../IA/CurrentWorks/AUTOMATION.md) et `AutomationEventBuffer` | Outbox des déclencheurs d’automatisation, drainée après le commit | Ne pas l’utiliser comme journal métier. Aucun pont : les workflows appellent l’émetteur |
+| `AutomationNotificationSender` | Alertes d’échec et de scénario, canaux par Space, envoi synchrone | Le conserver pour l’exploitation ; ne pas migrer ses configurations |
+| [`mail_logs`](../../MAIL.md) et `MailHelper` | Envoi SMTP, modèles, habillage, journal des tentatives | Réutiliser pour le canal email |
+| [File de jobs](../../JOBS.md) | Exécution différée, priorité, worker unique | Toute livraison externe passe par un job |
+| [ACL et rôles](../../ROLES.md) | Permissions, rôles, droits de type et d’instance, héritage | S’appuyer dessus ; ajouter les helpers inverses |
+| [Menus](../../ARCHITECTURE.md) | Types de menu et routes | Ne pas créer de type de menu « notifications » |
+| [RiaView](../../CONTROLLERS.md) et Vue | Pages RIA et composants globaux | La cloche est un composant global monté par un module JS, pas une page |
+| [`CryptHelper`](../../CRYPTO.md) | Chiffrement AES-GCM | Chiffrer les secrets des connexions |
+| [Journaux applicatifs](../../LOGGING.md) | Diagnostic technique | Le journal d’événements est un historique métier |
 
 ### Trois historiques différents
 
-Il faut conserver trois historiques séparés, avec des responsabilités claires :
+- **Journaux applicatifs** : diagnostic, erreurs, décisions techniques.
+- **`automation_events`** : déclencheurs de scénarios, avec leur statut propre.
+- **`event_log`** : historique métier durable, source des notifications.
 
-- **Journaux applicatifs** : diagnostic, erreurs, décisions techniques. Ils
-  restent dans les fichiers et suivent [`LOGGING.md`](../../LOGGING.md).
-- **`automation_events`** : déclencheurs de scénarios, avec un statut de
-  traitement propre à l’automatisation.
-- **`event_log`** : historique métier durable, lisible par des humains, servant
-  de source aux notifications et à l’écran d’administration.
-
-Un événement métier peut alimenter les deux derniers, mais une seule fois, via
-un point d’émission commun.
+L’événement métier peut alimenter `event_log` et, si un workflow d’automatisation
+le décide, appeler l’outbox d’automatisation. Il n’y a pas de synchronisation
+automatique entre les deux.
 
 ## Architecture
 
 ```text
 WF / service métier
-      │  (dans la transaction de la route)
+      │  emit() dans la transaction
       ▼
-DomainEventEmitter
-      ├── event_log                     (1 ligne par occurrence)
-      ├── notifications                 (1 ligne par destinataire, UI)
-      ├── notification_deliveries       (1 ligne par canal externe)
-      ├── jobs                          (1 job par livraison externe)
-      └── pont optionnel vers Automation (automation_events)
+EventEmitter
+      │
+      ▼
+EventDispatcher
+      ├── EventJournalListener     (priorité 10, critique)
+      ├── NotificationListener     (priorité 20, critique)
+      └── écouteurs d’extensions   (priorité 50, critiques par défaut)
+                                      │
+                                      ▼
+                              notifications + livraisons
+                                      │
+                                      ▼
+                              jobs (priorité basse)
                                       │
                                       ▼
                               Job worker existant
-                                      │
-                    email / telegram / slack / discord
 ```
 
-### Un seul point d’émission
+### Émission
 
-Un service `Core\Event\DomainEventEmitter` est appelé par les workflows après
-les écritures métier et avant le commit. Il :
+Un workflow appelle `EventEmitter::emit()` après ses écritures métier et avant
+le commit. L’émetteur :
 
-1. résout la définition de l’événement dans le registre ;
-2. valide la charge utile contre les champs déclarés ;
-3. écrit `event_log` ;
-4. résout l’audience ;
-5. crée les notifications UI et les livraisons externes ;
-6. enfile un job par livraison externe ;
-7. signale au pont Automation, si l’extension est chargée, qu’un événement de
-   domaine a été émis.
+1. résout la définition dans le registre ;
+2. construit un objet `Event` (type, Space, acteur, données, date) ;
+3. passe l’événement au dispatcher ;
+4. laisse les écouteurs écrire le journal, créer les notifications et enfiler
+   les livraisons.
 
-Le point d’émission reste dans la transaction du métier. Un événement émis dans
-une transaction annulée ne laisse ni journal, ni notification, ni job.
+Tous les écouteurs sont **critiques par défaut** : si l’un d’eux échoue,
+l’exception remonte et la transaction métier est annulée. C’est le contrat
+demandé : le journal doit produire une trace fiable, et un écouteur qui s’est
+branché sur un événement est nécessaire à la bonne exécution de l’extension.
 
-### Deux régimes d’échec
+Le `EventJournalListener` et le `NotificationListener` sont critiques : les
+lignes de journal, les notifications, les livraisons et les jobs sont écrits
+dans la même transaction que le métier. Si cette écriture échoue, le métier
+échoue aussi.
 
-| Type d’événement | Écriture du journal | Fan-out des notifications |
-| --- | --- | --- |
-| Métier / audit | Forte : une erreur annule le métier | Best effort : une erreur est journalisée mais n’annule pas le métier |
-| Technique / diagnostic | Best effort : une erreur est journalisée | Best effort, généralement sans notification utilisateur |
+Une définition d’écouteur peut porter `critical: false` pour un effet
+strictement accessoire. Ce n’est pas le défaut, et aucun écouteur Core ne
+l’utilise.
 
-Cette distinction évite qu’une panne du journal fasse échouer une publication,
-tout en garantissant qu’un événement d’audit déclaré critique ne disparaisse pas
-silencieusement.
+L’envoi externe est asynchrone : une fois le job enfilé, un échec SMTP ou HTTP
+ne remonte pas à la transaction métier. Il est enregistré dans
+`notification_deliveries` et dans les journaux, sans rejeu.
 
-### Pont avec l’automatisation
+### Dispatcher et écouteurs
 
-Core ne doit pas dépendre de `plg_automation`, qui est optionnelle. Le pont
-recommandé est une petite interface Core, par exemple `DomainEventSink`,
-implémentée par Automation et enregistrée au démarrage. Sans implémentation,
-le journal et les notifications fonctionnent seuls.
+Le dispatcher est volontairement minimal :
 
-À moyen terme, les `AutomationTriggerDefinition` peuvent être générées à partir
-du registre d’événements Core pour éviter deux catalogues. Ce n’est pas un
-prérequis du premier lot.
+- exécution synchrone, dans la transaction de l’appelant ;
+- ordre par priorité croissante ;
+- liste explicite des types écoutés, pas de joker ;
+- profondeur maximale de 8 pour les événements émis par un écouteur ;
+- aucune écoute asynchrone : un écouteur qui veut un effet différé enfile un
+  job.
+
+La profondeur ne compte pas le nombre d’écouteurs. Elle compte la **longueur
+de la chaîne** : un écouteur qui émet un événement crée un enfant de profondeur
++1. Si A déclenche B, B déclenche C, et ainsi de suite, on s’arrête au huitième
+niveau. Cela évite qu’un écouteur qui réémet le même type boucle indéfiniment.
+Un enchaînement métier normal utilise rarement plus de deux ou trois niveaux.
+Au-delà, l’émission enfant est refusée et `EVENT_DEPTH_EXCEEDED` est journalisé.
+
+Contrats proposés :
+
+```php
+interface IEventProvider
+{
+    public function coreOnRegisterEventTypes(EventDefinitionRegistry $registry): void;
+}
+
+interface IEventListenerProvider
+{
+    public function coreOnRegisterEventListeners(EventListenerRegistry $registry): void;
+}
+
+interface IEventListener
+{
+    public function handle(Event $event): void;
+}
+```
+
+`EventListenerDefinition` porte : identifiant, types écoutés, classe du
+listener, priorité. Le registre refuse un doublon ou un type d’événement
+inconnu après l’enregistrement de toutes les définitions.
+
+Écouteurs Core du premier lot :
+
+| Écouteur | Priorité | Critique | Rôle |
+| --- | --- | --- | --- |
+| `EventJournalListener` | 10 | Oui | Écrit `event_log`, affecte `Event::$logId` |
+| `NotificationListener` | 20 | Oui | Crée les notifications, livraisons et jobs |
+| Écouteurs d’extensions | 50 | Oui (défaut) | Déclenchent du code métier ; `critical: false` possible |
+
+Le listener de notification ne fait rien si `Event::$logId` est `null`. Une
+définition `notifiable = true` exige donc `log = true` ; c’est validé à
+l’enregistrement.
+
+Un événement `log = false` reste dispatché aux écouteurs d’extensions. C’est le
+cas d’usage « dispatcher » demandé : les extensions peuvent réagir sans écrire
+au journal. Il ne produit ni notification ni livraison.
+
+### Pas de pont Automation
+
+Il n’y a pas de `DomainEventSink`, pas de synchronisation automatique avec
+`automation_events`, pas de règle « si ça vient de l’automatisation, on ne
+notifie pas ». Les actions d’automatisation qui créent un compte, attribuent un
+rôle ou publient une page appellent les mêmes workflows que l’interface. Ces
+workflows émettent l’événement. Le comportement est identique.
 
 ## Déclarations d’événements
 
 ### Registre
 
-Les définitions vivent dans le code, comme les types de jobs, les types de menu
-ou les déclencheurs d’automatisation. Une table de définitions serait une
-duplication à synchroniser.
-
-Le registre suit le modèle de `JobTypeRegistry` :
+Les définitions vivent dans le code, comme les types de jobs ou les types de
+composants de page. Une table de définitions serait une duplication.
 
 - interface `Core\ExtensionApi\Event\IEventProvider` ;
 - méthode `coreOnRegisterEventTypes(EventDefinitionRegistry $registry)` ;
-- enregistrement pendant `onPrepareExtensions`, une fois toutes les extensions
-  chargées et avant les routes ;
-- identifiant unique, propriétaire réel, refus des doublons ;
-- validation à l’enregistrement, jamais à l’exécution.
+- enregistrement pendant `onPrepareExtensions` ;
+- propriétaire réel, refus des doublons ;
+- validation à l’enregistrement.
 
 ### Identifiant
 
-Format recommandé :
+Format retenu :
 
 ```text
 ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,4}$
 ```
 
-Exemples : `core.user.created`, `core.page.published`,
-`catalog.entry.published`, `automation.run.failed`.
+Exemples : `core.user.role.assigned`, `core.page.published`,
+`catalog.entry.published`.
 
 Le premier segment est un **namespace** déclaré par l’extension, pas
 l’identifiant technique `plg_core`. L’identifiant est stable : le renommer casse
-les préférences et l’historique. Les anciens événements d’un type supprimé
-restent lisibles avec un libellé de repli.
+les préférences et l’historique.
 
 ### Métadonnées
-
-Une définition porte au minimum :
 
 | Champ | Rôle |
 | --- | --- |
 | `id` | Identifiant stable |
-| `label` | Libellé lisible dans l’administration |
+| `label` | Libellé lisible |
 | `description` | Explication du déclenchement |
 | `category` | `user` ou `technical` |
 | `severity` | `info`, `warning`, `error` |
-| `payloadFields` | Champs attendus, types et obligation |
-| `notifiable` | Autorise la création de notifications |
-| `defaultChannels` | Canaux proposés par défaut, par exemple `[ui]` |
-| `notificationTitle` | Gabarit du titre, avec des variables `{...}` |
-| `notificationBody` | Gabarit du corps, texte court |
-| `routeName` / `routeParams` | Lien interne et correspondance avec la charge utile |
-| `defaultAudience` | Audience proposée si l’émetteur n’en fournit pas |
-| `log` | Autorise ou non l’écriture dans le journal |
+| `log` | Écriture dans `event_log` |
+| `notifiable` | Autorise les notifications ; exige `log = true` |
+| `notifyActor` | Inclut ou non l’acteur dans l’audience |
+| `defaultChannels` | Canaux proposés par défaut, UI seulement au départ |
+| `title` | Titre commun |
+| `bodySelf` | Corps pour l’utilisateur qui a fait l’action |
+| `bodyOthers` | Corps pour les autres destinataires |
+| `link` | Callable qui retourne un chemin interne, ou `null` |
 
-`notifiable` vaut `false` par défaut. Une définition notifiable sans titre ni
-route est refusée à l’enregistrement. Les variables du titre et du corps
-doivent correspondre à des champs déclarés : une faute de frappe doit échouer
-au démarrage, pas produire une notification vide en production.
+Pas de `payloadFields`. Les données sont un tableau PHP écrit en dur dans le
+workflow. L’émetteur vérifie seulement que les données forment une map bornée
+et ne contiennent pas de clé manifestement sensible.
 
-### Catégories
+`notifiable = true` exige `log = true`, `title`, `bodySelf`, `bodyOthers` et
+`link`. Une définition incomplète échoue au démarrage.
 
-- `user` : événement métier visible dans l’historique et éventuellement
-  notifiable. Rétention normale.
-- `technical` : événement d’exploitation, réservé aux administrateurs, plutôt
-  non notifiable. Rétention courte possible.
+`log` vaut `true` par défaut. `notifiable` vaut `false` par défaut.
+`notifyActor` vaut `true` par défaut : l’utilisateur doit retrouver la trace de
+ses propres actions dans l’interface.
 
-La catégorie et la sévérité sont recopiées dans l’occurrence pour permettre le
-filtrage sans charger la définition.
+### Textes self / others
+
+Le titre est commun. Le corps dépend du destinataire :
+
+```php
+bodySelf:   'Vous avez attribué le rôle {role.name} à {user.name}.'
+bodyOthers: '{actor.name} a attribué le rôle {role.name} à {user.name}.'
+```
+
+Le rendu est fait à l’émission, avec les valeurs de `Event::$data`. Les
+variables manquantes deviennent une chaîne vide ; il n’y a pas de validation
+de schéma. La notification stocke le corps déjà rendu.
+
+### Lien
+
+Le lien est calculé par un callable de la définition, au moment de l’émission,
+quand le routeur est disponible :
+
+```php
+link: fn (Event $event): ?string => $this->url(
+    'core_user_edit',
+    ['id' => $event->data['user']['id']],
+)
+```
+
+Le résultat est un chemin relatif validé, stocké dans `notifications.url_path`.
+Il ne doit contenir ni schéma, ni hôte, ni `//`, ni antislash, ni caractère de
+contrôle.
+
+Ce calcul ne peut pas être fait dans le job : l’Application d’un job est
+initialisée sans routes. Le chemin est donc figé avant l’enfilement.
 
 ## Journal d’événements
 
-### Ce qui est écrit
+### Contenu
 
 Une ligne `event_log` décrit une occurrence :
 
-- le Space réel de l’événement ;
-- le type d’événement ;
-- l’acteur, son type et éventuellement l’objet concerné ;
-- une charge utile JSON bornée ;
-- une clé de déduplication facultative ;
-- la date UTC.
+- Space réel ;
+- type d’événement ;
+- acteur et type d’acteur ;
+- objet concerné, facultatif ;
+- charge utile JSON ;
+- date UTC.
 
-La charge utile contient des **références et des libellés courts**, pas des
-copies d’entités ni des secrets. Elle ne doit pas contenir :
+La charge utile contient des références et des libellés courts. Elle ne doit
+pas contenir de mot de passe, jeton, cookie, corps d’email, réponse distante,
+objet PHP ou structure récursive. Une garde applicative borne la taille et la
+profondeur.
 
-- mot de passe, jeton, cookie, clé d’API ;
-- corps d’email ou de message distant ;
-- adresse email ou donnée personnelle qui n’est pas nécessaire au libellé ;
-- objet PHP, ressource, closure ou structure récursive.
-
-Une garde applicative refuse les clés sensibles et borne la taille et la
-profondeur. Un événement dont la charge utile est invalide est refusé avant
-l’écriture.
-
-### Relations
-
-`event_log` référence `spaces` et `users`. La suppression d’un Space supprime
-son journal. La suppression d’un utilisateur met `actor_id` à `NULL` : le
-libellé de l’acteur devient « compte supprimé », ce qui respecte la suppression
-sans perdre la trace de l’action.
-
-Le type d’événement n’a pas de clé étrangère : les définitions sont du code.
-L’administration résout le libellé avec le registre et retombe sur l’identifiant
-brut si le fournisseur n’est plus chargé.
-
-## Notifications
-
-### Une notification par destinataire
-
-Une occurrence d’événement peut produire plusieurs notifications, une par
-destinataire. La notification porte :
-
-- le lien vers l’événement (`event_id`, facultatif après purge) ;
-- le destinataire et le Space ;
-- le type d’événement, la catégorie et la sévérité ;
-- le titre, le corps et le chemin interne figés à l’émission ;
-- `view_date` et `done_date`.
-
-`view_date IS NULL` signifie « non vue ». `done_date IS NULL` signifie « non
-traitée ». Les deux colonnes sont indépendantes, comme demandé.
-
-### Pourquoi figer le contenu
-
-Le titre, le corps et le lien sont calculés au moment de l’émission, puis
-stockés. Trois raisons :
-
-1. un plugin peut être désactivé ou renommé après coup ;
-2. une définition peut évoluer sans réécrire l’historique ;
-3. le handler d’un job est exécuté dans une Application **sans routes**
-   (`initialiseOrThrow(..., registerRoutes: false)`), donc il ne peut pas
-   résoudre un nom de route. Le chemin doit être calculé avant l’enfilement.
-
-Le chemin est relatif, commence par `/`, ne contient ni `//`, ni schéma, ni
-hôte, ni antislash, ni caractère de contrôle. Il est construit par le routeur
-au moment de l’émission, jamais concaténé depuis une valeur non fiable.
-
-### État dans l’interface
-
-- Le compteur de la cloche utilise `COUNT(*) WHERE user_id = ? AND view_date IS NULL`.
-- Ouvrir un élément ou cliquer dessus renseigne `view_date`.
-- « Traiter » renseigne `done_date` et, si nécessaire, `view_date`.
-- « Tout marquer comme lu » ou « tout traiter » utilise une mise à jour
-  groupée, jamais une boucle par ligne.
-
-## Résolution des destinataires
-
-### Méthodes demandées
-
-L’émetteur peut fournir une ou plusieurs audiences :
-
-| Méthode | Signification retenue |
-| --- | --- |
-| Liste d’IDs | Utilisateurs explicitement désignés, validés et restreints au Space |
-| Permission globale + Space | Utilisateurs ayant effectivement la permission sur ce Space ou un ancêtre |
-| Permission sur objet | Permission effective : globale, sur le type d’objet ou sur l’instance |
-| Rôle + Space | Utilisateurs ayant effectivement ce rôle sur ce Space ou un ancêtre |
-| Rôle local sur objet | Rôle effectif sur le type ou l’instance, selon le mode retenu |
-
-Les audiences sont réunies, dédupliquées, puis filtrées :
-
-- acteur exclu par défaut ;
-- comptes bloqués exclus ;
-- comptes de service exclus ;
-- utilisateurs sans adresse email valide écartés du canal email ;
-- plafond de destinataires, par exemple 500, avec journalisation si dépassé ;
-- intersection avec `MEMBER` pour une liste d’IDs fournie par l’émetteur.
-
-Cette dernière règle est importante : sans elle, un plugin ou un futur scénario
-pourrait notifier un utilisateur d’un autre Space et lui faire fuiter un titre
-ou un lien.
-
-### Requête de permission globale
-
-Exemple pour « permission globale sur un Space » :
-
-```sql
-WITH RECURSIVE groupes_beneficiaires (group_id) AS (
-    SELECT DISTINCT m.group_id
-    FROM acl_map m
-    INNER JOIN acl_permissions p ON p.role_id = m.role_id
-    WHERE m.space_id IN (/* espace + ancêtres, via FormatIn */)
-      AND m.acl_object_id IS NULL
-      AND m.object_id IS NULL
-      AND p.extension = 'plg_core'
-      AND p.name = 'PAGE_READ'
-
-    UNION
-
-    -- Un rôle accordé à un groupe parent profite aux membres des groupes enfants.
-    SELECT g.id
-    FROM user_groups g
-    INNER JOIN groupes_beneficiaires b ON g.parent_id = b.group_id
-)
-SELECT DISTINCT gm.user_id
-FROM user_groups_map gm
-INNER JOIN groupes_beneficiaires b ON b.group_id = gm.group_id
-INNER JOIN users u ON u.id = gm.user_id
-WHERE u.blocked = 0
-  AND u.type = 'user';
-```
-
-Points d’attention :
-
-- `UNION` (distinct) évite les boucles de groupes ;
-- les Spaces ancêtres sont calculés en PHP, comme dans `AclHelper`, puis passés
-  avec `FormatIn` ;
-- la permission se lit dans `acl_permissions` (extension + nom), pas dans le
-  rôle ;
-- les lignes globales de `acl_map` ont `acl_object_id` et `object_id` à `NULL` ;
-- les index existants suffisent en principe, mais chaque requête doit être
-  vérifiée avec `EXPLAIN` sur une base représentative.
-
-### Variantes
-
-**Permission sur objet** : réunir deux branches, car `AclHelper::hasPermissionOn()`
-considère les droits globaux, les droits sur le type (`object_id IS NULL`) et
-les droits sur l’instance. Ne prendre que l’instance oublierait les
-administrateurs qui ont la permission globalement.
-
-**Rôle + Space** : même requête avec `m.role_id = ?` et
-`m.acl_object_id IS NULL` / `m.object_id IS NULL`. Le mode par défaut inclut
-l’héritage des Spaces ancêtres. Un mode « exact » peut être ajouté par option.
-
-**Rôle local sur objet** : restreindre aux rôles de type local ou mixte
-(`acl_roles.type IN (1, 2)`) et au bon Space, puis filtrer `acl_object_id` et
-`object_id`.
-
-### Index à réutiliser
-
-`acl_map` possède déjà onze index. Il ne faut pas en ajouter un douzième sans
-mesure.
-
-| Requête | Index existant |
-| --- | --- |
-| Permission globale | `acl_map.idx_acl_map4 (space_id, acl_object_id, role_id, group_id)` |
-| Permission sur type ou instance | `acl_map.idx_acl_map3 (space_id, acl_object_id, object_id, role_id, group_id)` |
-| Rôle + Space | `acl_map.idx_acl_map1 (space_id, role_id, group_id, acl_object_id, object_id)` |
-| Permission → rôle | `acl_permissions.idx_acl_permissions1 (extension, name)` |
-| Descente des groupes | `user_groups.idx_user_groups_parent1 (parent_id, type, name)` |
-| Appartenance | `user_groups_map` unique `(group_id, user_id)` |
-
-`AclHelper` ne fournit pas de méthode d’énumération des utilisateurs. Il faut
-un resolver dédié, avec un cache par requête pour éviter de recalculer la même
-audience plusieurs fois.
-
-## Modèle de données
-
-Cinq tables principales. Une sixième table de réglages globaux est facultative.
-
-| Table | Cardinalité | Rôle |
-| --- | --- | --- |
-| `event_log` | 1 ligne par occurrence | Journal métier durable |
-| `notifications` | 1 ligne par (événement, destinataire) | Boîte de réception UI |
-| `notification_deliveries` | 1 ligne par (notification, canal, connexion) | Journal des envois externes |
-| `user_notification_channels` | 1 ligne par connexion utilisateur | Telegram, Slack, Discord personnels |
-| `notification_preferences` | 1 ligne par préférence explicite | Association événement → canal |
-| `notification_settings` | 1 ligne par utilisateur | Réglages globaux, facultatif |
-
-La spec parle de `notifications_channels`. Le nom est ambigu : il désigne à la
-fois la configuration d’une connexion et le journal d’un envoi. Le schéma
-proposé sépare `user_notification_channels` (configuration) et
-`notification_deliveries` (journal), pour éviter de mélanger deux cycles de vie.
-
-### `event_log`
+### Table `event_log`
 
 ```sql
 CREATE TABLE `event_log` (
@@ -401,12 +314,10 @@ CREATE TABLE `event_log` (
   `actor_type` varchar(16) NOT NULL DEFAULT 'user',
   `subject_type` varchar(100) NULL DEFAULT NULL,
   `subject_id` bigint unsigned NULL DEFAULT NULL,
-  `dedup_key` varchar(120) NULL DEFAULT NULL,
   `data` json NOT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
 
   PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_event_log_dedup` (`space_id`, `event_type`, `dedup_key`),
   KEY `idx_event_log_space_created` (`space_id`, `created_at`),
   KEY `idx_event_log_space_type_created` (`space_id`, `event_type`, `created_at`),
   KEY `idx_event_log_actor_created` (`actor_id`, `created_at`),
@@ -419,16 +330,36 @@ CREATE TABLE `event_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-Notes :
+Pas de `dedup_key`, pas de clé unique d’occurrence. Un double appel de workflow
+produit deux événements ; c’est accepté.
 
-- `dedup_key` est facultative ; la clé unique avec `NULL` autorise plusieurs
-  événements sans clé.
-- `subject_type` / `subject_id` servent au filtrage et au contrôle d’accès sur
-  le détail. Pas d’index au premier lot.
-- `created_at` est en UTC, comme le reste du schéma.
-- La charge utile est bornée côté application ; MariaDB ne la borne pas.
+## Notifications
 
-### `notifications`
+### Une notification par destinataire
+
+Une occurrence peut produire plusieurs notifications, une par destinataire.
+La notification porte :
+
+- `event_id` (facultatif après purge du journal) ;
+- `user_id`, `space_id` ;
+- type, catégorie, sévérité ;
+- titre, corps rendu, chemin interne ;
+- `seen_date`, `handled_date` ;
+- date de création.
+
+### Nommage des états
+
+La spec utilisait `view_date` / `done_date`. Noms retenus :
+
+- **`seen_date`** : la notification a été affichée dans le panneau. `NULL` =
+  pas encore vue.
+- **`handled_date`** : l’utilisateur a cliqué sur la notification ou a utilisé
+  « tout marquer comme traité ». `NULL` = pas encore traitée.
+
+`handled_date` est plus précis que `done_date` : la notification n’est pas une
+tâche « terminée », elle est prise en compte.
+
+### Table `notifications`
 
 ```sql
 CREATE TABLE `notifications` (
@@ -442,16 +373,16 @@ CREATE TABLE `notifications` (
   `title` varchar(255) NOT NULL,
   `body` text NULL,
   `url_path` varchar(500) NULL,
-  `view_date` datetime NULL DEFAULT NULL,
-  `done_date` datetime NULL DEFAULT NULL,
+  `seen_date` datetime NULL DEFAULT NULL,
+  `handled_date` datetime NULL DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
 
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_notifications_event_user` (`event_id`, `user_id`),
   KEY `idx_notifications_user_created` (`user_id`, `created_at`),
-  KEY `idx_notifications_user_unread` (`user_id`, `view_date`, `created_at`),
-  KEY `idx_notifications_user_todo` (`user_id`, `done_date`, `created_at`),
-  KEY `idx_notifications_space` (`space_id`),
+  KEY `idx_notifications_user_unseen` (`user_id`, `seen_date`, `created_at`),
+  KEY `idx_notifications_user_unhandled` (`user_id`, `handled_date`, `created_at`),
+  KEY `idx_notifications_space_created` (`space_id`, `created_at`),
   KEY `idx_notifications_created` (`created_at`),
 
   CONSTRAINT `fk_notifications_event` FOREIGN KEY (`event_id`)
@@ -465,19 +396,39 @@ CREATE TABLE `notifications` (
 
 Notes :
 
-- `UNIQUE (event_id, user_id)` garantit une notification par destinataire et
-  par événement, même si deux règles d’audience se recoupent.
+- `UNIQUE (event_id, user_id)` évite les doublons quand plusieurs règles
+  d’audience se recoupent. Ce n’est pas un mécanisme de rejeu.
 - `event_id` passe à `NULL` lors de la purge du journal : la notification garde
-  son titre, son corps et son lien.
-- Le corps est du texte, jamais du HTML brut. Il est borné côté application.
-- `url_path` est un chemin interne validé.
+  son contenu.
+- `space_id` est dénormalisé pour la purge par Space et les filtres
+  d’administration.
+- Le corps est du texte, jamais du HTML brut.
 
-### `notification_deliveries`
+### Affichage et actions
+
+- À l’ouverture du panneau, les notifications affichées passent à
+  `seen_date = now()`.
+- Un clic sur une notification, ou le bouton « Tout marquer comme traité »,
+  renseigne `handled_date`. `seen_date` est renseigné aussi si nécessaire.
+- Le badge de la cloche compte les `seen_date IS NULL`.
+- Un second indicateur peut compter les `handled_date IS NULL` ; il ne doit pas
+  être confondu avec le badge.
+- Les boutons sont nommés « Tout marquer comme traité », pas « Tout marquer
+  comme lu », puisque l’action renseigne `handled_date`.
+
+## Livraisons
+
+### Table `notification_deliveries`
+
+C’est le journal des envois externes. La spec l’appelait
+`notifications_channels` ; le nom est ambigu, car il mélange configuration et
+historique. Le schéma sépare les deux.
 
 ```sql
 CREATE TABLE `notification_deliveries` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `notification_id` bigint unsigned NOT NULL,
+  `space_id` bigint unsigned NOT NULL,
   `channel` varchar(32) NOT NULL,
   `channel_id` bigint unsigned NOT NULL DEFAULT 0,
   `status` varchar(16) NOT NULL DEFAULT 'pending',
@@ -493,10 +444,13 @@ CREATE TABLE `notification_deliveries` (
     (`notification_id`, `channel`, `channel_id`),
   KEY `idx_deliveries_status_created` (`status`, `created_at`),
   KEY `idx_deliveries_channel_status` (`channel`, `status`, `created_at`),
+  KEY `idx_deliveries_space_created` (`space_id`, `created_at`),
   KEY `idx_deliveries_job` (`job_id`),
 
   CONSTRAINT `fk_deliveries_notification` FOREIGN KEY (`notification_id`)
     REFERENCES `notifications` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_deliveries_space` FOREIGN KEY (`space_id`)
+    REFERENCES `spaces` (`id`) ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT `fk_deliveries_job` FOREIGN KEY (`job_id`)
     REFERENCES `jobs` (`id`) ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -505,16 +459,36 @@ CREATE TABLE `notification_deliveries` (
 Notes :
 
 - `channel_id = 0` désigne un canal intégré, aujourd’hui l’email. Une valeur
-  positive référence `user_notification_channels.id`.
-- Pas de clé étrangère sur `channel_id` : une livraison est un historique. Si
-  l’utilisateur supprime sa connexion, la trace de l’envoi passé reste lisible.
-- `data` ne contient jamais de secret, de webhook, de corps de réponse distant
-  ou d’adresse complète. Pour l’email, il contient `mail_log_id` et
-  éventuellement `http_status` ; pour les canaux HTTP, un code et un identifiant
-  de message.
-- Les statuts sont `pending`, `processing`, `sent`, `failed`, `skipped`.
+  positive référence `user_notification_channels.id`, sans clé étrangère :
+  une livraison est un historique, elle doit survivre à la suppression de la
+  connexion.
+- `space_id` est dénormalisé pour la purge et le monitoring par Space.
+- `attempts` est conservée pour le diagnostic. Aucun système de rejeu ne
+  l’utilise.
+- `data` contient un code, un `http_status`, un identifiant de message ou
+  `mail_log_id`. Jamais de secret, de webhook, de corps de réponse ou d’adresse
+  complète.
+- Statuts : `pending`, `processing`, `sent`, `failed`, `skipped`.
 
-### `user_notification_channels`
+### Pas de relance
+
+Décision actée : un échec est un échec. Il n’y a :
+
+- ni bouton « Relancer » dans l’administration ;
+- ni ré-enfilement automatique d’une livraison échouée ;
+- ni nouvelle tentative métier après un échec.
+
+Le job de livraison est déclaré avec **un seul essai**
+(`JOB_MAX_ATTEMPTS = 1`). La colonne `attempts` et le statut `failed` restent
+pour le diagnostic.
+
+La file de jobs peut néanmoins rejouer un job après un crash de worker, car
+elle livre au moins une fois. Le handler doit donc rester idempotent : une
+livraison déjà `sent` ne renvoie pas.
+
+## Connexions utilisateur
+
+### Table `user_notification_channels`
 
 ```sql
 CREATE TABLE `user_notification_channels` (
@@ -540,20 +514,47 @@ CREATE TABLE `user_notification_channels` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-Notes :
+Le secret est chiffré avec `CryptHelper`, usage stable
+`notification:channel:v1`. L’API ne renvoie jamais ce champ.
 
-- `config` contient les données non secrètes : `chat_id`, espace de travail,
-  libellé du canal.
-- `secret` contient la charge chiffrée avec `CryptHelper`, usage stable
-  `notification:channel:v1`. L’API ne renvoie jamais ce champ.
-- Pour Telegram, le token du bot reste une configuration d’installation ; la
-  connexion utilisateur ne porte que le `chat_id`. Un bot token par utilisateur
-  est déconseillé.
-- Pour Slack et Discord, le webhook entrant est un secret personnel : il reste
-  dans `secret`.
-- `last_error_code` est un code stable, jamais la réponse brute du fournisseur.
+### Telegram : deux modes
 
-### `notification_preferences`
+Le mode est porté par `config.auth_mode` :
+
+| Mode | Contenu |
+| --- | --- |
+| `site` | Bot configuré au niveau de l’installation ou du Space racine. La connexion utilisateur ne porte que `chat_id` |
+| `user` | L’utilisateur fournit son propre jeton de bot, chiffré dans `secret`, et son `chat_id` |
+
+Le mode `site` est le mode recommandé. Le jeton du bot de site est un réglage
+d’installation stocké **chiffré** dans la configuration de `plg_core` du Space
+racine (Space 1), sous un champ du type `notification_telegram_bot_token`. Il
+est lu par le service de notification quel que soit le Space de l’événement.
+Les autres Spaces ne peuvent ni le lire ni le modifier ; le champ n’est rendu
+que dans la configuration du Space racine, masqué, et n’est jamais renvoyé par
+l’API.
+
+Le chiffrement utilise `CryptHelper` avec un usage stable, par exemple
+`notification:telegram:site:v1`. Un changement de `Configuration.secret` rend
+le jeton illisible : le canal passe alors en erreur `secret_invalid` et
+l’administrateur doit le ressaisir.
+
+Le mode `user` reste possible pour les installations qui le souhaitent :
+l’utilisateur fournit son propre jeton de bot, chiffré dans `secret`, et son
+`chat_id`. Il ne doit jamais être stocké dans la configuration du site.
+
+Si un jour plusieurs bots par Space sont nécessaires, il faudra introduire une
+table de fournisseurs par Space ; ce n’est pas le modèle retenu aujourd’hui.
+
+### Slack et Discord
+
+Le webhook entrant est un secret personnel : il reste dans `secret`. Les URL
+sont limitées aux hôtes officiels, sans redirection, avec timeout et taille de
+réponse bornée.
+
+## Préférences
+
+### Table `notification_preferences`
 
 ```sql
 CREATE TABLE `notification_preferences` (
@@ -563,6 +564,8 @@ CREATE TABLE `notification_preferences` (
   `channel` varchar(32) NOT NULL,
   `channel_id` bigint unsigned NOT NULL DEFAULT 0,
   `enabled` tinyint(1) NOT NULL DEFAULT 1,
+  `include_self` tinyint(1) NOT NULL DEFAULT 0,
+  `include_others` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` datetime NOT NULL DEFAULT current_timestamp(),
   `updated_at` datetime NULL DEFAULT NULL,
 
@@ -576,62 +579,154 @@ CREATE TABLE `notification_preferences` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-Sémantique recommandée :
+Sémantique :
 
-- aucune ligne : la valeur par défaut de la définition s’applique ;
-- `enabled = 0` : l’utilisateur désactive ce canal pour cet événement ;
-- `enabled = 1` avec `channel_id` : l’utilisateur choisit une connexion précise ;
-- UI toujours active, même sans ligne ;
-- canaux externes désactivés par défaut ;
-- email activé par défaut seulement si la définition le déclare.
+- aucune ligne : valeurs par défaut de la définition ;
+- `enabled = 0` : canal désactivé pour cet événement ;
+- `include_self` : recevoir les notifications de ses propres actions ;
+- `include_others` : recevoir les notifications des actions des autres ;
+- UI : pas de préférence, l’utilisateur doit garder la trace de ses actions si
+  la définition autorise l’acteur ;
+- email et canaux externes : `include_self = 0` et `include_others = 1` par
+  défaut ;
+- `notifyActor = false` dans la définition retire l’acteur de l’audience avant
+  même d’appliquer les préférences.
 
-### `notification_settings` (facultatif)
+Pas de table `notification_settings`, pas d’interrupteur global, pas de données
+dans `users.params` pour l’instant.
 
-Pour les interrupteurs globaux, deux options :
+## Résolution des destinataires
 
-- une table `notification_settings (user_id PK, email_enabled, digest, ...)` ;
-- ou le JSON `users.params`, qui existe déjà.
+### Méthodes
 
-La table est plus lisible et plus simple à administrer. Le per-event suffit
-cependant au premier lot.
+| Méthode | Signification |
+| --- | --- |
+| Liste d’IDs | Utilisateurs explicitement désignés par l’émetteur |
+| Permission globale + Space | Droit effectif sur ce Space ou un ancêtre |
+| Permission sur objet | Droit effectif : global, type d’objet ou instance |
+| Rôle + Space | Rôle effectif sur ce Space ou un ancêtre |
+| Rôle local sur objet | Rôle effectif sur le type ou l’instance |
+
+L’audience est toujours le **droit effectif**. Pas de mode « exact ».
+
+Une liste d’IDs fournie par l’émetteur est acceptée telle quelle : on fait
+confiance aux workflows et extensions, qui sont du code de l’installation. On
+ne l’intersecte pas avec `MEMBER`. Un ROOT d’un Space parent doit pouvoir
+recevoir la notification. Les comptes bloqués et les comptes de service sont
+tout de même écartés.
+
+### Helpers inverses
+
+Il n’existe pas aujourd’hui de méthode `AclHelper` pour énumérer les
+utilisateurs. `getSpacesHavingGlobalPermission()` raisonne sur la session, pas
+sur tous les comptes. Il faut un helper dédié, par exemple
+`Core\Helper\Acl\AclUserResolver`, avec :
+
+- `usersWithGlobalPermission(string $permission, int $spaceId): array`
+- `usersWithPermissionOnObject(string $permission, string $extension, string $object, int $objectId, int $spaceId): array`
+- `usersWithGlobalRole(int $roleId, int $spaceId): array`
+- `usersWithRoleOnObject(int $roleId, string $extension, string $object, int $objectId, int $spaceId): array`
+
+### Algorithme SQL + PHP
+
+L’objectif est d’éviter une boucle « un utilisateur = un contrôle ACL ». Le
+calcul se fait en quatre étapes, avec des ensembles en PHP entre les requêtes.
+
+1. **Espaces** : charger l’espace et ses ancêtres une fois par requête
+   (`SpaceHelper::getSpaceIdsWithParents`).
+2. **Rôles** : pour une permission, lire les `role_id` dans `acl_permissions`
+   (`extension`, `name`). Pour un rôle, partir directement de son ID.
+3. **Groupes** : lire les `group_id` dans `acl_map` pour ces rôles, les espaces
+   ancêtres et, si besoin, le type/objet. Pour un droit sur objet, réunir les
+   affectations globales, celles du type (`object_id IS NULL`) et celles de
+   l’instance : `AclHelper::hasPermissionOn()` fait de même. Utiliser les index
+   existants.
+4. **Utilisateurs** : charger une fois l’arbre des groupes
+   (`id => parent_id`), calculer en PHP la fermeture descendante des groupes
+   bénéficiaires (un rôle sur un groupe parent profite aux enfants), puis lire
+   `user_groups_map` par lots de `group_id` avec `FormatIn`.
+
+Filtres finaux : comptes bloqués, comptes de service, déduplication, acteur
+selon `notifyActor`, préférences.
+
+Points d’optimisation :
+
+- cacher l’arbre des groupes et les ancêtres de Space pour la requête ;
+- cacher le résultat par `(méthode, paramètres, spaceId)` ;
+- utiliser `array<int, true>` pour les ensembles ;
+- borner et découper les `IN` (par exemple 1 000 IDs) ;
+- ne jamais charger tous les utilisateurs pour tester leurs droits un par un.
+
+### Index à examiner
+
+`acl_map` possède déjà onze index. Il ne faut pas en ajouter sans `EXPLAIN`.
+
+| Requête | Index existant |
+| --- | --- |
+| Permission globale | `acl_map.idx_acl_map4 (space_id, acl_object_id, role_id, group_id)` |
+| Permission sur type ou instance | `acl_map.idx_acl_map3 (space_id, acl_object_id, object_id, role_id, group_id)` |
+| Rôle + Space | `acl_map.idx_acl_map1 (space_id, role_id, group_id, acl_object_id, object_id)` |
+| Permission → rôle | `acl_permissions.idx_acl_permissions1 (extension, name)` |
+| Descente des groupes | `user_groups.idx_user_groups_parent1 (parent_id, type, name)` |
+| Appartenance | `user_groups_map` unique `(group_id, user_id)` |
+
+Candidats à tester pendant l’implémentation, uniquement si `EXPLAIN` montre un
+scan ou un tri coûteux :
+
+- `acl_map (role_id, space_id, acl_object_id, object_id, group_id)` pour le
+  chemin inverse permission → rôle → affectation ;
+- `acl_permissions (role_id, extension, name)` pour le chemin rôle →
+  permissions ;
+- un index de couverture sur `user_groups_map (group_id, user_id)` s’il n’est
+  pas déjà optimal (l’unique actuel le couvre).
+
+Si l’arbre des groupes devient un goulot d’étranglement, la solution scalable
+est une table de fermeture `user_group_ancestors`. Ce n’est pas nécessaire au
+premier lot.
+
+### Plafond
+
+`configuration.php` porte :
+
+```php
+public int $notification_max_recipients = 2000;
+```
+
+Si l’audience dépasse le plafond :
+
+- l’événement est écrit au journal (il est critique) ;
+- aucun fan-out de notification n’est effectué ;
+- un log technique `NOTIFICATION_AUDIENCE_TOO_LARGE` est écrit ;
+- aucun destinataire n’est tronqué silencieusement.
 
 ## Indexation
 
 ### Boîte de réception
 
-Les requêtes réelles sont :
+Requêtes principales :
 
-1. `WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 20` ;
-2. `WHERE user_id = ? AND view_date IS NULL ORDER BY created_at DESC` ;
-3. `SELECT COUNT(*) WHERE user_id = ? AND view_date IS NULL` ;
-4. `WHERE user_id = ? AND done_date IS NULL ORDER BY created_at DESC` ;
-5. `UPDATE ... SET view_date = now() WHERE user_id = ? AND view_date IS NULL` ;
-6. purge `DELETE ... WHERE created_at < ? LIMIT 500`.
+1. liste complète par utilisateur, triée par date ;
+2. non-vues (`seen_date IS NULL`) ;
+3. compteur de non-vues ;
+4. non-traitées (`handled_date IS NULL`) ;
+5. marquage groupé ;
+6. purge par Space et par date.
 
-Index correspondants :
+Index :
 
-| Index | Requêtes servies |
+| Index | Usage |
 | --- | --- |
-| `(user_id, created_at)` | liste complète, tri par date |
-| `(user_id, view_date, created_at)` | non-lues, compteur, marquage groupé |
-| `(user_id, done_date, created_at)` | à traiter, marquage groupé |
-| `(created_at)` | purge |
+| `(user_id, created_at)` | liste complète |
+| `(user_id, seen_date, created_at)` | non-vues, compteur, marquage |
+| `(user_id, handled_date, created_at)` | non-traitées, marquage |
+| `(space_id, created_at)` | purge et administration |
+| `(created_at)` | purge globale éventuelle |
 
-Pourquoi pas un seul index : `view_date` s’intercale entre `user_id` et
-`created_at`, donc `(user_id, view_date, created_at)` ne peut pas servir la
-liste « toutes » triée par date. Inversement, `(user_id, created_at)` ne peut
-pas filtrer efficacement sur `view_date IS NULL`.
+`seen_date IS NULL` et `handled_date IS NULL` sont des intervalles d’index
+utilisables. Le compteur peut être index-only. Pas d’index sur `title` ou
+`body`.
 
-`view_date IS NULL` est un intervalle d’index parfaitement utilisable, et le
-compteur peut être satisfait par l’index seul. Il ne faut pas ajouter d’index
-sur `view_date` seul ni sur `done_date` seul : trop peu sélectifs.
-
-Pas d’index sur `title` ou `body`. Une recherche plein texte serait un
-`FULLTEXT` dédié, pas un `LIKE '%...%'`.
-
-### Pagination
-
-Préférer le keyset :
+Pagination par keyset :
 
 ```sql
 WHERE user_id = ?
@@ -640,61 +735,35 @@ ORDER BY created_at DESC, id DESC
 LIMIT 20
 ```
 
-`OFFSET` devient coûteux quand la boîte grossit. L’index secondaire InnoDB
-contient déjà l’ID primaire, donc `(user_id, created_at)` suffit pour l’ordre
-`created_at, id`.
-
-### Filtre par Space
-
-Si la boîte affiche tous les Spaces avec un badge, aucun index supplémentaire
-n’est nécessaire. Si elle filtre par Space, ajouter :
-
-- `(user_id, space_id, created_at)` ;
-- `(user_id, space_id, view_date, created_at)`.
-
-Ces deux index supplémentaires alourdissent les écritures. La décision doit
-être prise avant la migration.
-
-### Journal d’événements
+### Journal
 
 | Index | Usage |
 | --- | --- |
-| `(space_id, created_at)` | liste d’un Space par date |
-| `(space_id, event_type, created_at)` | filtre type + date dans un Space |
+| `(space_id, created_at)` | liste d’un Space |
+| `(space_id, event_type, created_at)` | filtre type + date |
 | `(actor_id, created_at)` | activité d’un compte |
 | `(created_at)` | purge |
-| unique `(space_id, event_type, dedup_key)` | idempotence |
 
-Pas d’index sur `data`. Le filtre par objet (`subject_type`, `subject_id`) est
-ajouté seulement si l’écran le propose.
+Pas d’index sur `data`. Pas d’index sur `subject_type`/`subject_id` au premier
+lot.
 
 ### Livraisons
 
 | Index | Usage |
 | --- | --- |
 | unique `(notification_id, channel, channel_id)` | lookup et idempotence |
-| `(status, created_at)` | relances et purge |
+| `(status, created_at)` | diagnostic |
 | `(channel, status, created_at)` | monitoring par canal |
-| `(job_id)` | clé étrangère et diagnostic |
+| `(space_id, created_at)` | purge et administration |
+| `(job_id)` | clé étrangère |
 
 Pas d’index sur `data`.
 
-### ACL
-
-Voir la section « Index à réutiliser ». Les index existants de `acl_map`,
-`acl_permissions`, `user_groups` et `user_groups_map` couvrent les requêtes
-principales. Toute nouvelle requête doit être mesurée avec `EXPLAIN` avant
-d’ajouter un index.
-
-Si l’arbre des groupes devient un goulot d’étranglement, la solution scalable
-est une table de fermeture `user_group_ancestors`, maintenue par les workflows
-de groupes. Ce n’est pas nécessaire au premier lot.
-
 ## Traitement asynchrone
 
-### Un job par livraison externe
+### Job de livraison
 
-Un seul type de job suffit :
+Un seul type :
 
 ```php
 final class NotificationDeliveryJobHandler extends BaseJobHandler
@@ -702,255 +771,340 @@ final class NotificationDeliveryJobHandler extends BaseJobHandler
     public const JOB_TYPE = 'core.notification_delivery';
     public const JOB_LABEL = 'Livraison d’une notification';
     public const JOB_MIN_TIME = 2;
-    public const JOB_MAX_ATTEMPTS = 3;
+    public const JOB_MAX_ATTEMPTS = 1;
+    public const JOB_PRIORITY = JobType::PRIORITY_LOW;
 }
 ```
 
+La priorité basse place les emails de notification derrière les traitements
+plus urgents. L’enfilement peut aussi passer `priority` dans les options de
+`JobRequest`, mais la constante du handler est la valeur par défaut du type.
+
 La charge utile ne contient que `delivery_id`. Le handler recharge la
-livraison, la notification, l’utilisateur et la connexion. Le payload ne fait
-jamais autorité.
+livraison, la notification, l’utilisateur et la connexion.
 
-### Déroulé du handler
+### Déroulé
 
-1. Charger la livraison et vérifier qu’elle existe encore.
-2. Vérifier que la notification, l’utilisateur et la préférence sont toujours
-   valides.
-3. Réclamer la livraison de façon conditionnelle (`pending`/`failed` →
-   `processing`).
+1. Charger la livraison ; si elle est déjà `sent`, retourner un succès.
+2. Vérifier la notification, l’utilisateur, la préférence et la connexion.
+3. Réclamer la livraison (`pending` → `processing`).
 4. Envoyer :
    - email : `MailHelper::sendTemplate('plg_core__notification', ...)` avec
      `jobId` et `userId` pour `mail_logs` ;
-   - Telegram, Slack, Discord : transport existant ou partagé, timeout, pas de
-     redirection.
-5. Marquer `sent`, `skipped` ou `failed` avec un code stable.
-6. Retourner un échec de job seulement pour une erreur transitoire.
+   - Telegram, Slack, Discord : transport Core, timeout, pas de redirection.
+5. Marquer `sent`, `skipped` ou `failed`.
+6. Un échec est terminal : pas de nouvelle tentative.
 
-### Idempotence
+Le handler reste idempotent pour le rejeu accidentel de la file après un crash.
 
-La file livre au moins une fois. Le handler doit être rejouable :
-
-- une livraison déjà `sent` retourne un succès sans renvoyer ;
-- une livraison `processing` issue d’un crash doit pouvoir reprendre, en
-  s’appuyant sur `job_id` et `attempts` ;
-- une erreur permanente (canal supprimé, secret illisible, email invalide)
-  donne `skipped` ou `failed` sans retry inutile ;
-- une erreur transitoire (SMTP, HTTP 5xx, timeout) donne un échec de job et
-  consomme une tentative.
-
-La clé de déduplication initiale est `notification-delivery:{deliveryId}`. Une
-relance manuelle doit utiliser une clé qui inclut le numéro de tentative, sinon
-`JobQueue::enqueue()` retournera l’ancien job terminé.
-
-### Enfilement et transaction
+### Enfilement
 
 `JobQueue::enqueue()` écrit dans la transaction de l’appelant. Un métier annulé
-ne laisse donc aucun job orphelin. Si l’enfilement échoue pour une livraison
-(par exemple type de job absent après un déploiement incomplet), la livraison
-est marquée `failed` avec `enqueue_failed` ; l’événement et la notification
-restent, et l’administration peut relancer.
+ne laisse aucun job orphelin. Si l’enfilement échoue, la livraison est marquée
+`failed` avec `enqueue_failed` ; l’événement et la notification restent. Il n’y
+a pas de relance.
 
 ### Débit
 
-Le worker est unique et traite un job à la fois. Un envoi SMTP réel prend
-souvent 1 à 3 secondes, donc environ 10 à 20 emails par minute. Un événement
-destiné à 500 utilisateurs peut prendre 25 à 50 minutes ; 5 000 utilisateurs
-prennent plusieurs heures.
+Le worker est unique. Un envoi SMTP réel prend souvent 1 à 3 secondes, donc
+environ 10 à 20 emails par minute. La priorité basse évite de bloquer les
+traitements urgents, mais ne résout pas le débit.
 
 Conséquences :
 
-- plafonner l’audience par événement ;
-- ne pas activer l’email par défaut pour les événements informatifs ;
-- prévoir un digest ou un fan-out par lots pour les événements de masse ;
-- surveiller la file dans l’onglet Jobs ;
-- ne pas promettre un envoi immédiat.
+- pas d’email par défaut pour les événements informatifs ;
+- plafond de 2 000 destinataires ;
+- pas de promesse d’envoi immédiat ;
+- surveillance de la file dans l’onglet Jobs.
 
 ## Interface
 
-### Cloche
+### Cloche et panneau
 
-- Rendu serveur dans `MainTemplate/base.php`, à droite du menu.
-- Badge = nombre de non-lues, calculé par une requête index-only.
-- Dropdown : dernières non-lues, lien vers le centre, « tout marquer comme lu ».
-- Un clic sur un élément renseigne `view_date` par POST CSRF, puis navigue.
-- Pas de polling. Rafraîchissement à l’ouverture du dropdown et après action.
-- Si aucun menu de type `notifications` n’est configuré, masquer la cloche ou
-  utiliser une route de secours, selon l’arbitrage retenu.
+Pas de page dédiée, pas de type de menu. La cloche est un composant global
+monté dans la page, comme `mountSecureVideos` monte `<sec_video>`.
 
-La cloche ne peut pas être un simple `MenuItem` : un type de menu produit une
-route et une entrée de navigation, pas un composant monté dans le header. Il
-faut un rendu de header séparé, avec un petit module JS ou un micro-montage Vue.
+Fonctionnement :
 
-### Centre de notifications
+- la template affiche un emplacement de cloche si l’option est active et si
+  l’utilisateur est connecté ;
+- un module JS `mountNotificationBell()` monte un petit composant Vue dans cet
+  emplacement, avec le contexte applicatif, le CSRF et le store de
+  notifications ;
+- la cloche affiche un badge de non-vues ;
+- le panneau affiche toutes les notifications de l’utilisateur, tous Spaces
+  confondus, avec un badge indiquant le Space de chaque ligne ;
+- un clic ouvre une modale/panneau avec la liste ;
+- à l’ouverture, les notifications affichées passent à `seen_date` ;
+- un clic sur une notification, ou « Tout marquer comme traité », renseigne
+  `handled_date`.
 
-- Type de menu `plg_core / notifications`, sans paramètres.
-- Contrôleur de page rendant `RiaView('notifications')`, avec session et
-  vérification de `MEMBER` sur le Space courant.
-- Vue `src/ria/src/pages/notifications.vue` et store dédié.
-- Filtres : toutes, non lues, à traiter, traitées.
-- Pagination keyset, badge du Space, lien vers l’objet.
-- Actions : marquer vue, marquer traitée, rouvrir, tout marquer lu/traité.
+Le composant doit fonctionner sur les pages sans racine Vue applicative : c’est
+un montage autonome, pas un composant du page component principal.
 
-Le contrôleur peut suivre le modèle de `PageController` : pas d’attributs de
-route, passage par `MenuItemDef` avec `['GET' => 'index']`. La route est alors
-construite à partir des alias du menu, donc localisée.
+### Options de template
 
-### Mon compte
+Ajouter dans la configuration de MainTemplate :
 
-- Section « Notifications » dans le composant Mon compte.
-- Matrice événements × canaux : UI, email, puis les connexions Telegram, Slack
-  et Discord.
-- CRUD des connexions avec les modales communes, test d’envoi asynchrone,
-  secret masqué, état de vérification.
-- Réutiliser le mixin global, les stores, les modales, `ctrl-s` et `esc`.
+| Champ | Type | Défaut | Rôle |
+| --- | --- | --- | --- |
+| `notification_bell_enabled` | `core.switch` | `true` | Afficher la cloche |
+| `notification_bell_icon` | `core.icon-picker` | `fa-solid fa-bell` | Icône de la cloche |
+
+La version du formulaire de configuration de la template est incrémentée. Les
+Spaces existants reçoivent la cloche activée par défaut après la mise à jour ;
+l’administrateur peut la masquer dans la configuration de la template.
+
+### Préférences utilisateur
+
+Nouveau composant de l’éditeur de page, distinct de « Mon compte » :
+
+- classe `Core\PageComponents\NotificationPreferences` ;
+- identifiant `core.notification-preferences` ;
+- libellé « Préférences de notifications », catégorie « Compte » ;
+- composant public Vue `core/notification-preferences` ;
+- rendu : pour un visiteur non connecté, rien ou invitation à se connecter ;
+- contenu : matrice événements × canaux, CRUD des connexions Telegram, Slack et
+  Discord, cases « mes actions » / « actions des autres », test d’envoi.
+
+Le composant est inséré dans une page par l’éditeur. Il n’est pas ajouté à
+« Mon compte ».
 
 ### Administration
 
-- Onglet **Événements** dans l’écran Système : liste filtrée par Space, type,
-  catégorie, acteur et date ; détail en lecture seule ; catalogue des
-  définitions ; purge.
-- Onglet **Livraisons** : états, erreurs, relance, purge, connexions en erreur.
-  Réservé à ROOT ou à une permission dédiée, sans contenu personnel.
-- Les préférences ne sont pas administrées par un tiers : un administrateur ne
-  doit pas lire les webhooks ni les notifications d’un utilisateur.
+Pour rester simple, la consultation est une **page d’administration dédiée
+« Journal »**, et non un nouvel onglet du shell Système. Le shell Système reste
+réservé à ROOT et n’est pas modifié.
+
+La page contient deux onglets :
+
+- **Événements** : liste filtrée par Space, type, catégorie, acteur et date ;
+  détail en lecture seule ; catalogue des définitions.
+- **Livraisons** : liste filtrée par Space, canal, statut et date ; détail des
+  erreurs ; aucune relance.
+
+Permission : `SYS_EVENT_READ` **sur le Space concerné**. Elle couvre la
+consultation du journal, le détail d’un événement et le monitoring des
+livraisons de ce Space. L’héritage normal des Spaces s’applique : la permission
+accordée sur un Space parent vaut pour ses descendants. L’utilisateur ne voit
+que les Spaces où il possède effectivement cette permission.
+
+Le détail ne recharge pas l’objet référencé pour un contrôle ACL
+supplémentaire : `SYS_EVENT_READ` fait foi, conformément à la décision.
+
+`SYS_EVENT_READ` est réservée à ROOT. Une migration de données l’ajoute au rôle
+Root système ; elle n’est pas `RoleCrudManageable` et aucun autre rôle n’est
+modifié automatiquement. C’est une permission de consultation sensible, car
+elle donne accès aux charges utiles du journal.
+
+La page est accessible depuis le menu d’administration si l’utilisateur possède
+`SYS_EVENT_READ` sur au moins un Space. Aujourd’hui, la migration ne l’accorde
+qu’au rôle Root : la page est donc en pratique réservée à ROOT. Les API et les
+filtres sont néanmoins écrits par Space, pour rester corrects si l’attribution
+évolue. Le WF vérifie la permission sur le Space demandé. Aucun onglet ROOT du
+shell Système n’est exposé par cette page.
+
+Ce lot ne change pas le schéma.
 
 ## Sécurité et vie privée
 
-### Contrôle d’accès
-
-- Les notifications personnelles sont lues uniquement avec le `user_id` de la
-  session, jamais avec un identifiant fourni par le client.
+- Les notifications personnelles sont lues avec le `user_id` de la session,
+  jamais avec un identifiant fourni par le client.
 - Chaque mutation vérifie l’appartenance de la notification à l’utilisateur.
-- Le journal est réservé à ROOT ou à une permission dédiée sur le Space.
-- Le détail d’un événement recharge l’objet référencé et vérifie le droit sur
-  cet objet avant d’afficher des données sensibles.
-- Le monitoring des livraisons est ROOT ou permission dédiée.
-
-### Données
-
-- Aucun secret, jeton, webhook ou mot de passe dans `event_log.data`,
-  `notification_deliveries.data` ou les logs.
 - Les secrets des connexions sont chiffrés et jamais sérialisés.
 - Les adresses email complètes ne sont pas recopiées dans les livraisons :
   `mail_logs` les porte déjà.
-- La suppression d’un utilisateur supprime ses notifications, ses préférences
-  et ses connexions ; son `actor_id` devient `NULL` dans le journal.
-- La rétention est appliquée par une purge horaire par lots.
-
-### Entrées non fiables
-
+- La suppression d’un utilisateur supprime ses notifications, préférences et
+  connexions ; son `actor_id` devient `NULL` dans le journal.
 - Le titre et le corps sont échappés dans l’UI et dans l’email.
 - Le sujet d’email est mono-ligne, sans CR/LF.
 - Le chemin interne est validé : pas d’URL absolue, pas de `//`, pas de
-  contrôle.
+  caractère de contrôle.
 - Les webhooks Slack et Discord sont limités à leurs hôtes officiels, sans
   redirection, avec timeout et taille de réponse bornée.
 - Telegram utilise l’hôte fixe de l’API.
-- Aucune URL de webhook générique fournie par l’utilisateur n’est acceptée sans
-  protection SSRF.
 - Les routes POST utilisent le jeton CSRF existant.
 - Les tests de canal et les écritures de préférences sont limités par un
   mécanisme de débit par utilisateur.
+- Les émetteurs sont du code de confiance : on ne réintroduit pas de contrôle
+  `MEMBER` sur une liste d’IDs. C’est un choix assumé, documenté.
 
-### Journalisation
+### Transport HTTP partagé
 
-Codes de journal proposés, à préciser dans le guide des journaux :
+Le transport HTTP et les classes d’envoi Telegram/Slack/Discord existent
+aujourd’hui dans `Automation\Notification`. Core ne doit pas en dépendre :
+`plg_automation` est optionnelle. Si le handler de notification Core instancie
+une classe d’Automation, alors :
 
-- `EVENT_LOG_WRITE_FAILED` ;
-- `EVENT_PAYLOAD_INVALID` ;
-- `NOTIFICATION_AUDIENCE_TOO_LARGE` ;
-- `NOTIFICATION_FANOUT_FAILED` ;
-- `NOTIFICATION_CHANNEL_UNAVAILABLE` ;
-- `NOTIFICATION_CHANNEL_SECRET_INVALID` ;
-- `NOTIFICATION_DELIVERY_ENQUEUE_FAILED` ;
-- `NOTIFICATION_DELIVERY_FAILED` ;
-- `NOTIFICATION_PURGE`.
+- la fonctionnalité Core dépend d’une extension qui peut être désactivée ;
+- un job Core peut échouer dans une installation sans Automation ;
+- une évolution d’Automation peut casser les notifications Core.
+
+La solution retenue est de déplacer dans `plg_core` :
+
+- le transport HTTP commun ;
+- les classes d’envoi Telegram, Slack et Discord ;
+- l’exception d’envoi partagée ;
+- le registre des canaux et le handler de livraison des notifications
+  utilisateur.
+
+Emplacement proposé : `Core/Notification/` et
+`Core/Notification/Transport/`. Automation dépend de Core, jamais l’inverse.
+
+Les **déclarations d’actions** d’automatisation (`core::notify`,
+`core::sendTelegram`, `core::sendSlack`, `core::sendDiscord`, etc.) restent
+dans `plg_automation`. Elles appartiennent au langage de scénarios et à son
+registre d’actions. Elles peuvent continuer à utiliser
+`AutomationNotificationSender` pour les alertes de scénario, et celui-ci
+s’appuie désormais sur le transport Core. Les notifications utilisateur
+utilisent directement les primitives Core.
+
+Ainsi :
+
+- `plg_automation` peut être désactivée sans casser les notifications
+  utilisateur ;
+- les actions d’automatisation restent déclarées là où elles ont du sens ;
+- il n’y a qu’un seul transport HTTP à maintenir.
+
+### Codes de journal
+
+- `EVENT_LOG_WRITE_FAILED`
+- `EVENT_PAYLOAD_INVALID`
+- `EVENT_LISTENER_FAILED`
+- `EVENT_DEPTH_EXCEEDED`
+- `NOTIFICATION_AUDIENCE_TOO_LARGE`
+- `NOTIFICATION_FANOUT_FAILED`
+- `NOTIFICATION_CHANNEL_UNAVAILABLE`
+- `NOTIFICATION_CHANNEL_SECRET_INVALID`
+- `NOTIFICATION_DELIVERY_ENQUEUE_FAILED`
+- `NOTIFICATION_DELIVERY_FAILED`
+- `NOTIFICATION_PURGE`
 
 Les contextes contiennent le Space, le type d’événement, le canal et un code,
 jamais le contenu du message ni le secret.
 
-## Rétention et volume
+## Rétention et configuration
 
-Valeurs proposées :
+### Configuration par Space
 
-| Donnée | Rétention | Remarque |
+La rétention est configurable par Space dans la configuration de `plg_core`,
+section `notifications` du formulaire `plugin.core.config` (version 2) :
+
+| Champ | Défaut | Rôle |
 | --- | --- | --- |
-| `event_log` | 90 jours | Les événements techniques peuvent avoir une rétention plus courte |
-| `notifications` | 180 jours | La boîte doit rester utilisable |
-| `notification_deliveries` | 90 jours | Aligné sur `mail_logs` |
-| Canaux inactifs | supprimés avec le compte | Pas de conservation des secrets |
+| `event_log_retention_days` | `0` | Jours de conservation du journal ; `0` = aucune limite |
+| `notification_retention_days` | `0` | Jours de conservation des notifications ; `0` = aucune limite |
+| `notification_delivery_retention_days` | `0` | Jours de conservation des livraisons ; `0` = aucune limite |
 
-La purge est horaire, par lots de 500, avec un nombre de lots borné. Elle est
-idempotente et journalise le nombre de lignes supprimées.
+La valeur par défaut est `0` : on conserve tout. La purge ne s’exécute que si
+la valeur est strictement positive.
 
-Les événements à fort volume, comme les clics de page, ne doivent pas être
-journalisés par défaut. La définition porte un indicateur `log` et une
-catégorie `technical` pour permettre une rétention courte.
+La purge est un hook `onCronHour` du Core :
+
+- boucle sur les Spaces ;
+- lit la configuration du Space ;
+- supprime par lots de 500, avec un nombre de lots borné ;
+- journalise le nombre de lignes supprimées ;
+- ne fait rien si la valeur vaut `0`.
+
+Les index `(space_id, created_at)` de `event_log`, `notifications` et
+`notification_deliveries` servent cette purge.
+
+### Configuration globale
+
+`configuration.php` porte le plafond de destinataires :
+
+```php
+public int $notification_max_recipients = 2000;
+```
+
+Il est documenté dans `configuration.sample.php` et validé à la lecture. Une
+valeur absurde est ramenée à une borne basse de 1.
 
 ## Extensibilité des canaux
 
 Les extensions peuvent déclarer des canaux, mais le handler de livraison reste
 unique. Un canal déclare :
 
-- un identifiant stable ;
-- un libellé ;
-- un formulaire de configuration ;
-- les champs secrets ;
-- un validateur ;
-- une classe d’envoi ;
-- une longueur maximale de message.
+- identifiant stable ;
+- libellé ;
+- formulaire de configuration ;
+- champs secrets ;
+- validateur ;
+- classe d’envoi ;
+- longueur maximale de message.
 
 Registre proposé : `NotificationChannelRegistry` et
-`INotificationChannelProvider::coreOnRegisterNotificationChannels()`. Le
-handler résout la classe d’envoi au moment de l’exécution à partir du
-`channel` stocké. Si le fournisseur n’est plus chargé, la livraison est marquée
-`failed` avec `channel_unavailable`, sans consommer de tentative inutile.
+`INotificationChannelProvider::coreOnRegisterNotificationChannels()`.
+
+Le handler résout la classe d’envoi à l’exécution à partir du `channel` stocké.
+Si le fournisseur n’est plus chargé, la livraison est marquée `failed` avec
+`channel_unavailable`.
 
 Les canaux intégrés (email, Telegram, Slack, Discord) sont déclarés par Core.
-Le transport HTTP existant de l’automatisation est déjà prudent ; il doit être
-déplacé dans Core ou partagé, car Core ne doit pas dépendre d’une extension
-optionnelle.
+Le transport est dans Core, comme expliqué plus haut.
 
 ## Lots proposés
 
 | Lot | Contenu | Dépendances |
 | --- | --- | --- |
-| 0 | Arbitrages, guide `Docs/NOTIFICATIONS.md`, contrats PHP | Aucune |
-| 1 | Registre d’événements, `event_log`, émetteur, purge, onglet Événements | Lot 0 |
-| 2 | `notifications`, resolver d’audience, préférences, cloche, centre, type de menu | Lot 1 |
+| 0 | Contrats PHP, noms des états, emplacements des classes, guide `Docs/NOTIFICATIONS.md` | Aucune |
+| 1 | Registre, dispatcher, `event_log`, `EventJournalListener`, ACL inverses, purge, événement `core.user.role.assigned` | Lot 0 |
+| 2 | `notifications`, `NotificationListener`, préférences, cloche, panneau, composant d’éditeur de page | Lot 1 |
 | 3 | `user_notification_channels`, `notification_deliveries`, job, email, Telegram/Slack/Discord | Lot 2 |
-| 4 | Canaux déclarés par les plugins, pont Automation, monitoring, bilan de sécurité, documentation | Lot 3 |
+| 4 | Page admin « Journal », migration `SYS_EVENT_READ` sur le rôle Root, rétention, monitoring, documentation, tests de sécurité | Lot 3 |
 
-Le lot 2 est le plus risqué : le resolver ACL et les index doivent être validés
-sur une base représentative avant l’interface.
+Le lot 1 est le socle : journal fiable et résolution d’audience. Le lot 2 est
+le plus visible. Le lot 3 est le plus risqué côté exploitation (débit, secrets,
+SSRF).
+
+### Premier événement à instrumenter
+
+`core.user.role.assigned` et, si le changement est dans le même workflow,
+`core.user.role.removed`. L’assignation de rôle est facile à tester avec le
+tableau des attributions et permet de valider :
+
+- l’écriture transactionnelle du journal ;
+- l’audience par permission ou rôle ;
+- les textes self/others ;
+- les préférences UI/email ;
+- l’absence de doublon visuel.
 
 ## Vérifications prévues
 
 ### Unitaires
 
-- registre : identifiants invalides, doublons, propriétaire, métadonnées
+- registre : identifiants invalides, doublons, propriétaire, définitions
   notifiables incomplètes ;
-- rendu : échappement, variables inconnues, sujet mono-ligne, chemin invalide ;
-- validateurs de charge utile : taille, profondeur, clés sensibles.
+- dispatcher : ordre des écouteurs, profondeur, écouteur critique qui annule,
+  écouteur explicitement non critique qui n’annule pas ;
+- rendu : texte self/others, variables manquantes, échappement, chemin invalide,
+  sujet mono-ligne ;
+- préférences : self/others, absence de ligne, canal désactivé.
 
 ### Intégration base
 
 - audience : liste directe, permission globale, permission sur objet, rôle,
-  rôle local, héritage Space, héritage groupe, doublons, acteur exclu ;
-- utilisateurs bloqués, comptes de service, utilisateurs sans email ;
+  rôle local, héritage Space, héritage groupe, doublons, acteur inclus/exclu ;
+- utilisateurs bloqués, comptes de service ;
 - transaction : annulation sans journal, notification ni job ;
-- déduplication : même événement émis deux fois ;
-- purge : événements, notifications, livraisons, `SET NULL`, `CASCADE` ;
+- journal critique : une erreur d’écriture annule le métier ;
+- notification critique : une erreur de fan-out annule le métier ;
+- écouteur d’extension critique : une erreur annule le métier ;
+- écouteur explicitement non critique : une erreur est journalisée sans annuler ;
+- purge : `0` = aucune suppression, valeur positive, par Space, par lots ;
+- migration `SYS_EVENT_READ` : ajoutée au rôle Root uniquement, autres rôles
+  inchangés ;
 - index : `EXPLAIN` des requêtes de boîte et d’audience.
 
 ### Job
 
 - envoi réussi ;
 - SMTP désactivé → `skipped` ;
-- erreur transitoire → retry ;
-- erreur permanente → pas de retry inutile ;
-- job rejoué après succès → pas de double envoi ;
+- erreur SMTP ou HTTP → `failed`, pas de nouvelle tentative ;
+- job rejoué après crash → pas de double envoi ;
 - canal supprimé, secret illisible, préférence désactivée ;
-- relance manuelle.
+- priorité basse respectée.
 
 ### Sécurité
 
@@ -960,54 +1114,56 @@ sur une base représentative avant l’interface.
 - injection d’en-têtes email ;
 - SSRF sur les webhooks ;
 - secrets absents des réponses API et des journaux ;
-- accès au journal limité au Space réel.
+- `SYS_EVENT_READ` requis sur le Space de l’événement ou de la notification, pour le journal et les livraisons ;
+- page « Journal » : un utilisateur ne voit que les Spaces autorisés ; un
+  non-ROOT n’accède à aucun onglet ROOT du shell Système.
 
 ## Documentation à mettre à jour
 
-- Nouveau guide `Docs/NOTIFICATIONS.md` : contrat des événements, des
-  audiences, des canaux, de la rétention et de la sécurité.
-- [`Docs/JOBS.md`](../../JOBS.md) : type `core.notification_delivery`,
-  débit et relance.
+- Nouveau guide `Docs/NOTIFICATIONS.md`.
+- [`Docs/JOBS.md`](../../JOBS.md) : type `core.notification_delivery`, priorité
+  basse, un seul essai.
 - [`Docs/ARCHITECTURE.md`](../../ARCHITECTURE.md) : modules `Core/Event` et
-  `Core/Notification`.
+  `Core/Notification`, registres et dispatcher.
 - [`Docs/LOGGING.md`](../../LOGGING.md) : codes du chantier.
-- [`Docs/FRONTEND.md`](../../FRONTEND.md) : cloche, store, centre.
-- [`Docs/ROLES.md`](../../ROLES.md) : permissions d’administration si elles
-  sont ajoutées.
-- [`version.md`](../../../version.md) : uniquement les changements utiles aux
-  utilisateurs, après livraison.
+- [`Docs/FRONTEND.md`](../../FRONTEND.md) : cloche, montage global, composant
+  d’éditeur de page.
+- [`Docs/ROLES.md`](../../ROLES.md) : `SYS_EVENT_READ`.
+- [`version.md`](../../../version.md) : changements utiles aux utilisateurs,
+  après livraison.
 - [`Docs/IA/ETAT_DU_PROJET.md`](../ETAT_DU_PROJET.md) et
   [`Docs/IA/TRAVAUX_RESTANTS.md`](../TRAVAUX_RESTANTS.md) : état réel après
   livraison. Le second indique aujourd’hui que les notifications restent
-  synchrones ; ce chantier changera cette limite.
+  synchrones ; ce chantier déplacera les envois externes vers la file.
 
-## Écarts constatés
+## Écarts et points de vigilance
 
-- La spec dit `extension.action` ; l’existant utilise `core.user.created` et
-  `core.page.button.clicked`. Le format à 2–5 segments est recommandé.
-- La spec parle de `notifications_channels` pour le journal d’envoi ; le schéma
-  sépare la configuration (`user_notification_channels`) du journal
-  (`notification_deliveries`).
-- La spec demande un `MenuItem` de type Notification « qui importe un fichier
-  Vue » ; un type de menu produit une route, pas un montage dans le header. La
-  cloche et la page sont deux mécanismes distincts.
-- La documentation actuelle indique que les notifications restent synchrones
-  (`Docs/IA/TRAVAUX_RESTANTS.md`, `Docs/IA/ETAT_DU_PROJET.md`) ; ce chantier
-  déplace les envois externes vers la file de jobs.
-- L’automatisation possède déjà un outbox et des notifications par Space. Le
-  chantier ne les remplace pas ; il ajoute un journal métier et des
-  notifications par utilisateur, avec un pont optionnel.
+- La spec disait `extension.action` ; le format retenu est 2 à 5 segments avec
+  namespace, compatible avec `core.user.created`.
+- La spec parlait de `notifications_channels` ; le schéma sépare
+  `user_notification_channels` et `notification_deliveries`.
+- La spec demandait un type de menu « Notification » ; il n’y en a pas. La
+  cloche est un composant global et les préférences sont un composant de page.
+- La spec demandait une relance ; elle est supprimée. Un échec est terminal.
+- La spec prévoyait `payloadFields` ; il n’y en a pas.
+- La documentation actuelle dit que les notifications restent synchrones ;
+  ce chantier déplace les livraisons externes vers la file.
+- Les notifications d’automatisation par Space restent distinctes des
+  notifications utilisateur. Aucun pont n’est prévu.
 
-## Questions ouvertes
+## État du chantier
 
-1. Format des identifiants : 2–5 segments avec namespace, ou format strict
-   `extension.action` ?
-2. Périmètre des événements Core du premier lot : lesquels instrumenter ?
-3. Email par défaut : tous les événements, ou seulement les événements
-   transactionnels et importants ?
-4. Telegram : bot d’installation avec `chat_id`, ou bot token par utilisateur ?
-5. Audience : droit effectif par défaut, ou mode exact pour certains métiers ?
-6. Boîte de réception : tous les Spaces, ou Space courant uniquement ?
-7. Rétention : 90 / 180 / 90 jours, ou valeurs différentes ?
-8. Cloche : menu obligatoire, ou route de secours fixe si aucun menu n’est
-   configuré ?
+Les décisions structurantes sont prises. Le document peut servir de base à
+l’implémentation :
+
+- page d’administration dédiée « Journal », sans modification du shell
+  Système ;
+- `SYS_EVENT_READ` par Space, ajoutée au rôle Root par migration de données ;
+- bot Telegram de site dans la configuration chiffrée de `plg_core` du Space
+  racine ;
+- tous les écouteurs critiques par défaut, avec possibilité explicite de
+  `critical: false` ;
+- aucun rejeu, aucun `dedup_key`, aucune page de notifications dédiée.
+
+Le prochain travail est l’écriture des contrats PHP et de la migration, puis
+les lots 1 à 4 décrits plus haut.
