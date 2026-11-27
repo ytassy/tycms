@@ -21,11 +21,25 @@ use YTassy\Tycms\Routing\Annotation\Doc\ControllerMethod;
 #[Controller(name: 'administrator_api_mail_logs_', isApi: true, path: 'administrator/api/mail-logs')]
 final class AdminMailLogController extends BaseController
 {
+    #[ControllerMethod(name: 'list', path: '', methods: [RequestMethod::GET])]
+    #[Acl(globalPermission: Permissions::ROOT, spaceId: 1)]
+    public function list(): ApiResponse
+    {
+        return new ApiResponse($this->wfMailLog()->list());
+    }
+
     #[ControllerMethod(name: 'status', path: 'status', methods: [RequestMethod::GET])]
     #[Acl(globalPermission: Permissions::ROOT, spaceId: 1)]
     public function status(): ApiResponse
     {
         return new ApiResponse($this->wfMailLog()->status());
+    }
+
+    #[ControllerMethod(name: 'detail', path: '{id}', methods: [RequestMethod::GET], where: ['id' => '\d+'])]
+    #[Acl(globalPermission: Permissions::ROOT, spaceId: 1)]
+    public function detail(int $id): ApiResponse
+    {
+        return new ApiResponse(['item' => $this->wfMailLog()->detail($id)]);
     }
 
     #[ControllerMethod(name: 'purge', path: 'purge', methods: [RequestMethod::POST])]

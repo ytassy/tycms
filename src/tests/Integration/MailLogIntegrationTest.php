@@ -122,6 +122,51 @@ final class MailLogIntegrationTest extends TestCase
         self::assertSame('Refus [SECRET]', $row->error_message);
     }
 
+    public function testListReturnsMetadataOnlyAndDetailDecodesContent(): void
+    {
+        $first = (int) $this->logs->add(
+            spaceId: 1,
+            kind: MailLogHelper::KIND_TEMPLATE,
+            to: ['alice@example.test' => 'Alice', 'bob@example.test'],
+            subject: 'Premier',
+            bodyHtml: '<p>Corps complet</p>',
+            cc: ['copy@example.test'],
+            templateKey: 'plg_core__registration_welcome',
+            locale: 'fr',
+            fromEmail: 'source@example.test',
+            fromName: 'Source',
+        );
+
+        $this->logs->add(
+            spaceId: 1,
+            kind: MailLogHelper::KIND_HTML,
+            to: 'second@example.test',
+            subject: 'Second',
+            bodyHtml: '<p>Second corps</p>',
+        );
+
+        $list = $this->logs->listMetadata(1);
+        self::assertTrue($list['truncated']);
+        self::assertCount(1, $list['items']);
+        self::assertArrayNotHasKey('body_html', $list['items'][0]);
+        self::assertSame('second@example.test', $list['items'][0]['first_to']);
+        self::assertSame(1, $list['items'][0]['to_count']);
+        self::assertSame(1, $list['items'][0]['space_id']);
+        self::assertSame('Second', $list['items'][0]['subject']);
+
+        $detail = $this->logs->detail($first);
+        self::assertNotNull($detail);
+        self::assertSame('<p>Corps complet</p>', $detail['body_html']);
+        self::assertSame('alice@example.test', $detail['to'][0]['email']);
+        self::assertSame('Alice', $detail['to'][0]['name']);
+        self::assertSame('bob@example.test', $detail['to'][1]['email']);
+        self::assertSame('copy@example.test', $detail['cc'][0]['email']);
+        self::assertSame('source@example.test', $detail['from_email']);
+        self::assertSame('Source', $detail['from_name']);
+        self::assertSame('plg_core__registration_welcome', $detail['template_key']);
+        self::assertSame('fr', $detail['locale']);
+    }
+
     public function testPurgeDeletesRowsInBatches(): void
     {
         $this->logs->add(

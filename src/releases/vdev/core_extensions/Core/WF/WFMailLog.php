@@ -31,6 +31,27 @@ final class WFMailLog extends BaseWF
         return $this->coreMailLogHelper->status();
     }
 
+    /** @return array{items: list<array<string, mixed>>, truncated: bool} */
+    public function list(): array
+    {
+        $this->assertRoot();
+
+        return $this->coreMailLogHelper->listMetadata();
+    }
+
+    /** @return array<string, mixed> */
+    public function detail(int $id): array
+    {
+        $this->assertRoot();
+
+        $item = $this->coreMailLogHelper->detail($id);
+        if ($item === null) {
+            ExceptionResponse::throwWarning('E-mail introuvable.');
+        }
+
+        return $item;
+    }
+
     public function purge(int $days): int
     {
         $this->assertRoot();

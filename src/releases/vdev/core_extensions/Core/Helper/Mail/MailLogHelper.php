@@ -48,6 +48,11 @@ class MailLogHelper extends BaseHelper
 
     public const RETENTION_MAX_DAYS = 3650;
 
+    /** Liste d'administration : bornée pour ne pas renvoyer un historique démesuré. */
+    public const LIST_DEFAULT_LIMIT = 2000;
+
+    public const LIST_MAX_LIMIT = 5000;
+
     /** Le stockage peut être coupé sans perdre les boutons de purge. */
     public function isEnabled(): bool
     {
@@ -263,6 +268,170 @@ class MailLogHelper extends BaseHelper
             'oldest' => $row?->oldest === null ? null : (string) $row->oldest,
             'newest' => $row?->newest === null ? null : (string) $row->newest,
         ];
+    }
+
+    /**
+     * Liste les métadonnées seules, sans corps ni message d'erreur.
+     *
+     * La requête ne lit que les colonnes affichées. Le premier destinataire et
+     * son nombre sont extraits en SQL, ce qui évite de transférer `to_json`
+     * entier pour chaque ligne. `LIMIT n+1` détecte l'écrêtage sans `COUNT(*)`.
+     *
+     * @return array{items: list<array<string, mixed>>, truncated: bool}
+     */
+    public function listMetadata(int $limit = self::LIST_DEFAULT_LIMIT): array
+    {
+        $limit = max(1, min(self::LIST_MAX_LIMIT, $limit));
+        $sql = sprintf(<<<'SQL'
+            SELECT m.id, m.created_at, m.status, m.kind, m.template_key, m.space_id,
+                   s.title AS space_title, m.subject, m.error_code, m.duration_ms,
+                   JSON_UNQUOTE(JSON_EXTRACT(m.to_json, '$[0].email')) AS first_to,
+                   JSON_LENGTH(m.to_json) AS to_count
+              FROM mail_logs m
+              LEFT JOIN spaces s ON s.id = m.space_id
+             ORDER BY m.created_at DESC, m.id DESC
+             LIMIT %d
+            SQL, $limit + 1);
+
+        $rows = $this->db->select($sql);
+        $truncated = count($rows) > $limit;
+
+        if ($truncated) {
+            array_pop($rows);
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            $items[] = [
+                'id' => (int) $row->id,
+                'created_at' => (string) $row->created_at,
+                'status' => (string) $row->status,
+                'kind' => (string) $row->kind,
+                'template_key' => $row->template_key === null ? null : (string) $row->template_key,
+                'space_id' => $row->space_id === null ? null : (int) $row->space_id,
+                'space_title' => $row->space_title === null ? null : (string) $row->space_title,
+                'subject' => (string) $row->subject,
+                'error_code' => $row->error_code === null ? null : (string) $row->error_code,
+                'duration_ms' => $row->duration_ms === null ? null : (int) $row->duration_ms,
+                'first_to' => $row->first_to === null ? null : (string) $row->first_to,
+                'to_count' => (int) $row->to_count,
+            ];
+        }
+
+        return ['items' => $items, 'truncated' => $truncated];
+    }
+
+    /**
+     * Détail complet d'une ligne, chargé uniquement à l'ouverture.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function detail(int $id): ?array
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $row = $this->db->selectOneOrNull(<<<'SQL'
+            SELECT m.id, m.space_id, m.status, m.kind, m.template_key, m.locale,
+                   m.to_json, m.cc_json, m.bcc_json, m.subject, m.body_html, m.body_text,
+                   m.attachments, m.from_email, m.from_name, m.message_id,
+                   m.error_code, m.error_class, m.error_message, m.job_id, m.user_id,
+                   m.created_at, m.finished_at, m.duration_ms,
+                   s.title AS space_title
+              FROM mail_logs m
+              LEFT JOIN spaces s ON s.id = m.space_id
+             WHERE m.id = %
+             LIMIT 1
+            SQL, [$id]);
+
+        if ($row === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $row->id,
+            'space_id' => $row->space_id === null ? null : (int) $row->space_id,
+            'space_title' => $row->space_title === null ? null : (string) $row->space_title,
+            'status' => (string) $row->status,
+            'kind' => (string) $row->kind,
+            'template_key' => $row->template_key === null ? null : (string) $row->template_key,
+            'locale' => $row->locale === null ? null : (string) $row->locale,
+            'to' => self::decodeAddresses($row->to_json),
+            'cc' => self::decodeAddresses($row->cc_json),
+            'bcc' => self::decodeAddresses($row->bcc_json),
+            'subject' => (string) $row->subject,
+            'body_html' => (string) $row->body_html,
+            'body_text' => $row->body_text === null ? null : (string) $row->body_text,
+            'attachments' => self::decodeAttachments($row->attachments),
+            'from_email' => $row->from_email === null ? null : (string) $row->from_email,
+            'from_name' => $row->from_name === null ? null : (string) $row->from_name,
+            'message_id' => $row->message_id === null ? null : (string) $row->message_id,
+            'error_code' => $row->error_code === null ? null : (string) $row->error_code,
+            'error_class' => $row->error_class === null ? null : (string) $row->error_class,
+            'error_message' => $row->error_message === null ? null : (string) $row->error_message,
+            'job_id' => $row->job_id === null ? null : (int) $row->job_id,
+            'user_id' => $row->user_id === null ? null : (int) $row->user_id,
+            'created_at' => (string) $row->created_at,
+            'finished_at' => $row->finished_at === null ? null : (string) $row->finished_at,
+            'duration_ms' => $row->duration_ms === null ? null : (int) $row->duration_ms,
+        ];
+    }
+
+    /** @return list<array{email:string, name:string}> */
+    private static function decodeAddresses(mixed $json): array
+    {
+        if (!is_string($json) || $json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $addresses = [];
+        foreach ($decoded as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $email = is_string($row['email'] ?? null) ? $row['email'] : '';
+            if ($email === '') {
+                continue;
+            }
+            $addresses[] = [
+                'email' => $email,
+                'name' => is_string($row['name'] ?? null) ? $row['name'] : '',
+            ];
+        }
+
+        return $addresses;
+    }
+
+    /** @return list<array{name:string, size:?int}> */
+    private static function decodeAttachments(mixed $json): array
+    {
+        if (!is_string($json) || $json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $attachments = [];
+        foreach ($decoded as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $attachments[] = [
+                'name' => is_string($row['name'] ?? null) ? $row['name'] : '',
+                'size' => is_int($row['size'] ?? null) ? $row['size'] : null,
+            ];
+        }
+
+        return $attachments;
     }
 
     /**

@@ -431,10 +431,31 @@ par défaut dans `configuration.base.php` :
   durée appliquée par la purge horaire du CRON.
 
 L'onglet **Mails** de l'écran **Système** affiche l'état, la rétention, la
-période conservée et trois purges manuelles : tout, plus d'une semaine
-(7 jours), plus d'un mois (30 jours). L'API
-`/administrator/api/mail-logs` est réservée à ROOT sur le Space 1. La purge
-supprime par lots de 500 lignes, avec au plus 20 lots par passage : un
+période conservée, la liste des envois et trois purges manuelles : tout, plus
+d'une semaine (7 jours), plus d'un mois (30 jours). L'API
+`/administrator/api/mail-logs` est réservée à ROOT sur le Space 1.
+
+La liste ne lit que les métadonnées affichées (`id`, date, statut, type, Space,
+modèle, premier destinataire et son nombre, objet, code d'erreur, durée). Elle
+n'inclut ni `body_html`, ni `body_text`, ni `error_message`, ni les listes
+`cc`/`bcc`. Le premier destinataire et son nombre sont extraits en SQL avec
+`JSON_EXTRACT` et `JSON_LENGTH` : la réponse ne transfère pas `to_json` entier.
+La requête est bornée aux 2000 lignes les plus récentes ; `LIMIT n+1` signale
+l'écrêtage sans `COUNT(*)`, et l'écran l'indique. Le tri, la recherche
+objet/destinataire, le filtre de statut et la pagination sont faits côté
+DataTable, sans appel supplémentaire.
+
+Ouvrir une ligne appelle `GET /administrator/api/mail-logs/{id}` et charge le
+corps, le texte, les erreurs et les métadonnées complètes pour cette seule
+ligne. L'e-mail est rendu dans une iframe `sandbox` sans script, avec
+`referrerpolicy="no-referrer"` et une CSP qui autorise les images mais bloque
+les scripts et les autres ressources externes. Les images distantes sont affichées
+directement ; l'iframe ne peut ni exécuter de script, ni soumettre de
+formulaire, ni naviguer la page parente. Le panneau d'erreur affiche le code,
+la classe et le message borné déjà masqué ; une ligne encore en `processing`
+est signalée comme en cours ou interrompue.
+
+La purge supprime par lots de 500 lignes, avec au plus 20 lots par passage : un
 historique très volumineux peut demander un second clic, et la purge horaire
 poursuit la rétention. Les corps ne sont pas chiffrés au repos ; la protection
 repose sur l'accès SQL, l'écran ROOT et la rétention.
