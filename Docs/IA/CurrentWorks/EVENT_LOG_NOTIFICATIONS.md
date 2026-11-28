@@ -28,13 +28,14 @@ c’est accepté : la lisibilité et la simplicité priment sur la factorisation
 | --- | --- |
 | Nom du service | Pas de « Domain ». `Core\Event\EventEmitter`, `EventDispatcher`, `Event` |
 | Journal | L’écriture du journal fait partie de la transaction métier. Le système doit fonctionner, pas seulement « best effort » |
+| Génération des notifications | Asynchrone : un listener enfile un job de fan-out dans la transaction métier ; les lignes `notifications` et `notification_deliveries` sont créées après le commit. Un échec du job ne remonte pas au métier |
 | Automatisation | Aucun pont dédié. Les workflows appelés par l’automatisation émettent normalement |
-| Rejeu | Aucun système de relance, ni automatique métier, ni manuel dans l’administration |
-| `dedup_key` | Supprimé : pas de rejeu et émetteurs de confiance |
+| Rejeu | Aucun rejeu métier ni de livraison. Le job de fan-out est rejoué automatiquement par la file (2 tentatives) sur erreur technique et relançable depuis Jobs ; la livraison reste à un seul essai |
+| `dedup_key` | Supprimé : pas de rejeu métier et émetteurs de confiance. La file garde sa propre clé de déduplication pour le job de fan-out |
 | Rétention | Configurable par Space dans la configuration de `plg_core` ; `0` = aucune limite, on conserve tout |
-| Capacité | Plafond global de destinataires dans `configuration.php` : `notification_max_recipients = 2000` |
-| Dépassement | Journaliser et ne pas notifier ; jamais de troncature silencieuse |
-| ACL inverses | Nouveaux helpers dédiés, algorithme SQL + PHP optimisé, index revus pendant l’implémentation |
+| Capacité | Plafond global de destinataires dans `configuration.php` : `notification_max_recipients = 2000`. La résolution d’audience est bornée à `plafond + 1` |
+| Dépassement | Journaliser et ne pas notifier ; jamais de troncature silencieuse. Une audience qui dépasse le plafond n’est pas notifiée |
+| ACL inverses | Nouveaux helpers dédiés, algorithme SQL + PHP optimisé, index revus, `limit` obligatoire sur l’énumération finale des utilisateurs |
 | Interface | Cloche montée en composant global, sans page dédiée ni type de menu ; activée par défaut |
 | Boîte de réception | Toutes les notifications de l’utilisateur, tous Spaces confondus, avec badge du Space |
 | Email | Aucun email par défaut ; opt-in au cas par cas dans la définition |
@@ -42,7 +43,7 @@ c’est accepté : la lisibilité et la simplicité priment sur la factorisation
 | Préférences | Nouveau composant de l’éditeur de page, distinct de « Mon compte » |
 | Validation des payloads | Pas de système `payloadFields` : tout est en code dur |
 | Textes | Deux corps distincts : action de l’utilisateur lui-même, action des autres |
-| Dispatcher | Oui, minimal : le journal et les notifications sont des écouteurs ; les extensions peuvent aussi s’y brancher |
+| Dispatcher | Oui, minimal : le journal et le fan-out sont des écouteurs ; les extensions peuvent aussi s’y brancher |
 | Écouteurs | Critiques par défaut : un écouteur qui échoue annule la transaction ; `critical: false` possible pour un effet accessoire |
 | Vue / traité | `seen_date` pour « vu », `handled_date` pour « traité ». Bouton « Tout marquer comme traité » |
 | Acteur | Inclus ou non selon la définition de l’événement ; l’utilisateur peut choisir « mes actions » / « actions des autres » pour les canaux externes |
@@ -88,18 +89,23 @@ EventEmitter
       │
       ▼
 EventDispatcher
-      ├── EventJournalListener     (priorité 10, critique)
-      ├── NotificationListener     (priorité 20, critique)
-      └── écouteurs d’extensions   (priorité 50, critiques par défaut)
-                                      │
-                                      ▼
-                              notifications + livraisons
-                                      │
-                                      ▼
-                              jobs (priorité basse)
-                                      │
+      ├── EventJournalListener        (priorité 10, critique) → event_log
+      ├── NotificationFanoutListener  (priorité 20, critique) → job de fan-out
+      └── écouteurs d’extensions      (priorité 50, critiques par défaut)
+
+      [transaction métier : ligne de journal + ligne de job de fan-out]
+                                      │ après commit
                                       ▼
                               Job worker existant
+                                      │
+                                      ▼
+                              NotificationFanoutJob
+                                ├── notifications
+                                ├── notification_deliveries
+                                └── jobs de livraison (priorité basse)
+                                      │
+                                      ▼
+                              Job worker existant → envoi externe
 ```
 
 ### Émission
@@ -110,26 +116,30 @@ le commit. L’émetteur :
 1. résout la définition dans le registre ;
 2. construit un objet `Event` (type, Space, acteur, données, date) ;
 3. passe l’événement au dispatcher ;
-4. laisse les écouteurs écrire le journal, créer les notifications et enfiler
-   les livraisons.
+4. laisse les écouteurs écrire le journal et enfiler le job de fan-out.
 
 Tous les écouteurs sont **critiques par défaut** : si l’un d’eux échoue,
 l’exception remonte et la transaction métier est annulée. C’est le contrat
 demandé : le journal doit produire une trace fiable, et un écouteur qui s’est
 branché sur un événement est nécessaire à la bonne exécution de l’extension.
 
-Le `EventJournalListener` et le `NotificationListener` sont critiques : les
-lignes de journal, les notifications, les livraisons et les jobs sont écrits
-dans la même transaction que le métier. Si cette écriture échoue, le métier
-échoue aussi.
+Le `EventJournalListener` et le `NotificationFanoutListener` sont critiques : la
+ligne de journal et la ligne de job de fan-out sont écrites dans la même
+transaction que le métier. Si cette écriture échoue, le métier échoue aussi.
+
+Les notifications, les livraisons et les jobs de livraison sont créés **après le
+commit**, par le job de fan-out. Un échec de ce job ne remonte donc pas au
+métier : l’événement reste au journal, le job est visible et rejouable, et la
+notification peut manquer. C’est le prix de l’asynchrone, accepté et documenté.
 
 Une définition d’écouteur peut porter `critical: false` pour un effet
 strictement accessoire. Ce n’est pas le défaut, et aucun écouteur Core ne
 l’utilise.
 
-L’envoi externe est asynchrone : une fois le job enfilé, un échec SMTP ou HTTP
-ne remonte pas à la transaction métier. Il est enregistré dans
-`notification_deliveries` et dans les journaux, sans rejeu.
+La génération des notifications et l’envoi externe sont asynchrones : une fois
+le job de fan-out enfilé, un échec du fan-out ou d’un envoi SMTP/HTTP ne remonte
+pas à la transaction métier. Il est enregistré dans les journaux et dans
+`notification_deliveries`, sans relance automatique de la livraison.
 
 ### Dispatcher et écouteurs
 
@@ -172,17 +182,24 @@ interface IEventListener
 listener, priorité. Le registre refuse un doublon ou un type d’événement
 inconnu après l’enregistrement de toutes les définitions.
 
-Écouteurs Core du premier lot :
+Écouteurs Core prévus :
 
 | Écouteur | Priorité | Critique | Rôle |
 | --- | --- | --- | --- |
 | `EventJournalListener` | 10 | Oui | Écrit `event_log`, affecte `Event::$logId` |
-| `NotificationListener` | 20 | Oui | Crée les notifications, livraisons et jobs |
+| `NotificationFanoutListener` | 20 | Oui | Vérifie `notifiable`, `logId` et le plafond, puis enfile `core.notification_fanout` |
 | Écouteurs d’extensions | 50 | Oui (défaut) | Déclenchent du code métier ; `critical: false` possible |
 
-Le listener de notification ne fait rien si `Event::$logId` est `null`. Une
-définition `notifiable = true` exige donc `log = true` ; c’est validé à
-l’enregistrement.
+Le job `core.notification_fanout` n’est pas un écouteur : il s’exécute après le
+commit et crée les notifications, les livraisons et les jobs de livraison. Ses
+garanties sont décrites dans
+[Traitement asynchrone](#traitement-asynchrone).
+
+Le `NotificationFanoutListener` ne fait rien si `Event::$logId` est `null`, si
+la définition n’est pas `notifiable`, si l’audience est vide ou si elle dépasse
+le plafond. Une définition `notifiable = true` exige donc `log = true` ; c’est
+validé à l’enregistrement. En cas de dépassement, il journalise
+`NOTIFICATION_AUDIENCE_TOO_LARGE` et n’enfile pas de job.
 
 Un événement `log = false` reste dispatché aux écouteurs d’extensions. C’est le
 cas d’usage « dispatcher » demandé : les extensions peuvent réagir sans écrire
@@ -262,9 +279,15 @@ bodySelf:   'Vous avez attribué le rôle {role.name} à {user.name}.'
 bodyOthers: '{actor.name} a attribué le rôle {role.name} à {user.name}.'
 ```
 
-Le rendu est fait à l’émission, avec les valeurs de `Event::$data`. Les
-variables manquantes deviennent une chaîne vide ; il n’y a pas de validation
-de schéma. La notification stocke le corps déjà rendu.
+Le rendu est fait par le **job de fan-out**, avec les valeurs de
+`event_log.data`. Toutes les variables utilisées par les textes doivent donc
+être présentes dans la charge utile de l’émission : le job ne fait pas de
+lecture métier pour compléter un nom. Les variables manquantes deviennent une
+chaîne vide ; il n’y a pas de validation de schéma. La notification stocke le
+corps déjà rendu.
+
+Une définition modifiée entre l’émission et le job applique le nouveau texte :
+le délai du fan-out est de quelques secondes ou minutes, ce risque est accepté.
 
 ### Lien
 
@@ -278,12 +301,13 @@ link: fn (Event $event): ?string => $this->url(
 )
 ```
 
-Le résultat est un chemin relatif validé, stocké dans `notifications.url_path`.
-Il ne doit contenir ni schéma, ni hôte, ni `//`, ni antislash, ni caractère de
-contrôle.
+Le résultat est un chemin relatif validé, transporté dans le payload du job de
+fan-out, puis copié dans `notifications.url_path`. Il ne doit contenir ni
+schéma, ni hôte, ni `//`, ni antislash, ni caractère de contrôle.
 
 Ce calcul ne peut pas être fait dans le job : l’Application d’un job est
-initialisée sans routes. Le chemin est donc figé avant l’enfilement.
+initialisée sans routes. Le chemin est donc figé à l’émission et transporté par
+le payload, jamais recalculé à l’exécution.
 
 ## Journal d’événements
 
@@ -340,6 +364,7 @@ produit deux événements ; c’est accepté.
 ### Une notification par destinataire
 
 Une occurrence peut produire plusieurs notifications, une par destinataire.
+Les lignes sont créées par le job de fan-out, après le commit du métier.
 La notification porte :
 
 - `event_id` (facultatif après purge du journal) ;
@@ -347,7 +372,8 @@ La notification porte :
 - type, catégorie, sévérité ;
 - titre, corps rendu, chemin interne ;
 - `seen_date`, `handled_date` ;
-- date de création.
+- date de création, qui est celle du fan-out. L’heure de l’événement reste
+  disponible dans `event_log.created_at` tant que la ligne de journal existe.
 
 ### Nommage des états
 
@@ -399,7 +425,8 @@ CREATE TABLE `notifications` (
 Notes :
 
 - `UNIQUE (event_id, user_id)` évite les doublons quand plusieurs règles
-  d’audience se recoupent. Ce n’est pas un mécanisme de rejeu.
+  d’audience se recoupent. Il sert aussi de filet en cas de rejeu technique du
+  job de fan-out, sans être un mécanisme de rejeu métier.
 - `event_id` passe à `NULL` lors de la purge du journal : la notification garde
   son contenu.
 - `space_id` est dénormalisé pour la purge par Space et les filtres
@@ -472,7 +499,7 @@ Notes :
   complète.
 - Statuts : `pending`, `processing`, `sent`, `failed`, `skipped`.
 
-### Pas de relance
+### Pas de relance des livraisons
 
 Décision actée : un échec est un échec. Il n’y a :
 
@@ -483,6 +510,10 @@ Décision actée : un échec est un échec. Il n’y a :
 Le job de livraison est déclaré avec **un seul essai**
 (`JOB_MAX_ATTEMPTS = 1`). La colonne `attempts` et le statut `failed` restent
 pour le diagnostic.
+
+Cette règle concerne les livraisons. Le job de fan-out est distinct : il a deux
+tentatives techniques et ne rejoue pas le métier (voir
+[Traitement asynchrone](#traitement-asynchrone)).
 
 La file de jobs peut néanmoins rejouer un job après un crash de worker, car
 elle livre au moins une fois. Le handler doit donc rester idempotent : une
@@ -634,9 +665,14 @@ dans `users.params` pour l’instant.
 L’audience est résolue par le **workflow émetteur**, pas par le noyau.
 `EventEmitter::emit()` reçoit la liste des `user_id` destinataires déjà calculée :
 liste directe fournie par le métier, ou résultat de `AclUserResolver` pour un
-droit ou un rôle. L’événement porte cette liste ; le `NotificationListener` la
-filtre ensuite (comptes bloqués, comptes de service, acteur selon `notifyActor`,
+droit ou un rôle. L’événement porte cette liste ; le job de fan-out la filtre
+ensuite (comptes bloqués, comptes de service, acteur selon `notifyActor`,
 préférences).
+
+La résolution reste donc **synchrone**, dans la transaction métier : le job ne
+recalcule jamais les droits. Si l’audience est coûteuse, c’est cette étape qui
+coûte, pas la création des notifications. Le resolver est borné (voir plus bas)
+pour que cette étape ne puisse pas durer indéfiniment.
 
 La définition d’événement ne porte donc aucune règle d’audience. Ce choix garde
 les workflows explicites et évite un second langage de sélection dans les
@@ -654,6 +690,28 @@ définitions.
 
 L’audience est toujours le **droit effectif**. Pas de mode « exact ».
 
+### Borne d’énumération
+
+L’énumération finale des utilisateurs est **toujours bornée**. Les quatre
+méthodes du resolver exigent un paramètre `int $limit` : aucun appelant ne peut
+demander une liste non bornée.
+
+- Les requêtes intermédiaires (rôles, `acl_map`, groupes) ne sont **pas**
+  tronquées : les limiter fausserait l’audience en oubliant des bénéficiaires.
+- Seule la requête finale sur `user_groups_map` porte un `LIMIT` et la boucle
+  PHP s’arrête dès que `limit` identifiants sont réunis.
+- L’appelant qui doit distinguer une liste complète d’une liste bornée passe
+  `limit + 1`. Pour les notifications :
+  `notification_max_recipients + 1`. Si le résultat dépasse le plafond, le
+  dépassement est journalisé avec `NOTIFICATION_AUDIENCE_TOO_LARGE` et aucun job
+  de fan-out n’est enfilé.
+- Une audience tronquée n’est jamais notifiée : soit tous les destinataires
+  sont notifiés, soit aucun. C’est la règle « jamais de troncature silencieuse ».
+
+Le resolver ne journalise pas et ne connaît pas le plafond de notification : il
+applique le `limit` reçu et retourne au plus cette quantité. C’est l’appelant
+qui interprète la borne.
+
 Une liste d’IDs fournie par l’émetteur est acceptée telle quelle : on fait
 confiance aux workflows et extensions, qui sont du code de l’installation. On
 ne l’intersecte pas avec `MEMBER`. Un ROOT d’un Space parent doit pouvoir
@@ -667,10 +725,10 @@ utilisateurs. `getSpacesHavingGlobalPermission()` raisonne sur la session, pas
 sur tous les comptes. Il faut un helper dédié, par exemple
 `Core\Helper\Acl\AclUserResolver`, avec :
 
-- `usersWithGlobalPermission(string $permission, int $spaceId): array`
-- `usersWithPermissionOnObject(string $permission, string $extension, string $object, int $objectId, int $spaceId): array`
-- `usersWithGlobalRole(int $roleId, int $spaceId): array`
-- `usersWithRoleOnObject(int $roleId, string $extension, string $object, int $objectId, int $spaceId): array`
+- `usersWithGlobalPermission(string $permission, int $spaceId, int $limit): array`
+- `usersWithPermissionOnObject(string $permission, string $extension, string $object, int $objectId, int $spaceId, int $limit): array`
+- `usersWithGlobalRole(int $roleId, int $spaceId, int $limit): array`
+- `usersWithRoleOnObject(int $roleId, string $extension, string $object, int $objectId, int $spaceId, int $limit): array`
 
 ### Algorithme SQL + PHP
 
@@ -689,17 +747,21 @@ calcul se fait en quatre étapes, avec des ensembles en PHP entre les requêtes.
 4. **Utilisateurs** : charger une fois l’arbre des groupes
    (`id => parent_id`), calculer en PHP la fermeture descendante des groupes
    bénéficiaires (un rôle sur un groupe parent profite aux enfants), puis lire
-   `user_groups_map` par lots de `group_id` avec `FormatIn`.
+   `user_groups_map` par lots de `group_id` avec `FormatIn`. Chaque lecture porte
+   un `LIMIT` égal au reste à trouver et la boucle s’arrête dès que `limit`
+   identifiants sont réunis.
 
-Filtres finaux : comptes bloqués, comptes de service, déduplication, acteur
-selon `notifyActor`, préférences.
+Le resolver écarte les comptes bloqués et de service et déduplique. Le job de
+fan-out réapplique ces filtres à l’exécution, puis applique l’acteur selon
+`notifyActor` et les préférences.
 
 Points d’optimisation :
 
 - cacher l’arbre des groupes et les ancêtres de Space pour la requête ;
 - cacher le résultat par `(méthode, paramètres, spaceId)` ;
 - utiliser `array<int, true>` pour les ensembles ;
-- borner et découper les `IN` (par exemple 1 000 IDs) ;
+- borner et découper les `IN` (par exemple 1 000 IDs), puis appliquer un
+  `LIMIT` sur l’énumération finale avec arrêt anticipé en PHP ;
 - ne jamais charger tous les utilisateurs pour tester leurs droits un par un.
 
 ### Index à examiner
@@ -739,10 +801,15 @@ public int $notification_max_recipients = 2000;
 
 Si l’audience dépasse le plafond :
 
-- l’événement est écrit au journal (il est critique) ;
-- aucun fan-out de notification n’est effectué ;
+- l’événement est écrit au journal (le listener de journal est critique) ;
+- le `NotificationFanoutListener` n’enfile **aucun** job de fan-out ;
 - un log technique `NOTIFICATION_AUDIENCE_TOO_LARGE` est écrit ;
 - aucun destinataire n’est tronqué silencieusement.
+
+Le resolver est appelé avec `notification_max_recipients + 1` : dès que la
+borne est atteinte, la résolution s’arrête et l’appelant sait que l’audience est
+trop grande. Le job de fan-out vérifie aussi le nombre d’identifiants de son
+payload, par défense, avant de créer la moindre ligne.
 
 ## Indexation
 
@@ -806,9 +873,91 @@ Pas d’index sur `data`.
 
 ## Traitement asynchrone
 
-### Job de livraison
+Deux types de jobs, deux garanties distinctes :
 
-Un seul type :
+| Job | Producteur | Priorité | Essais | Échec |
+| --- | --- | --- | --- | --- |
+| `core.notification_fanout` | `NotificationFanoutListener`, dans la transaction métier | normale | 2 | journalisé, visible dans Jobs, relançable manuellement |
+| `core.notification_delivery` | job de fan-out | basse | 1 | terminal, aucun rejeu |
+
+### Job de fan-out
+
+```php
+final class NotificationFanoutJobHandler extends BaseJobHandler
+{
+    public const JOB_TYPE = 'core.notification_fanout';
+    public const JOB_LABEL = 'Génération des notifications d’un événement';
+    public const JOB_MIN_TIME = 2;
+    public const JOB_MAX_ATTEMPTS = 2;
+    public const JOB_PRIORITY = JobType::PRIORITY_NORMAL;
+}
+```
+
+La priorité normale place le fan-out avant les livraisons, sans bloquer les
+traitements urgents. Les deux tentatives couvrent une erreur technique
+transitoire ; le handler est idempotent, donc un rejeu ne crée pas de doublon.
+
+Payload, références seulement :
+
+```json
+{
+  "event_id": 123,
+  "space_id": 4,
+  "event_type": "core.user.role.assigned",
+  "url_path": "/administrator/users/12",
+  "recipient_user_ids": [5, 8, 12]
+}
+```
+
+- `event_id` désigne la ligne `event_log` à relire.
+- `url_path` est le lien figé à l’émission : un job n’a pas de routes.
+- `recipient_user_ids` est l’audience déjà résolue, dédupliquée et bornée par le
+  plafond.
+- Le payload ne contient ni texte rendu, ni secret, ni donnée métier complète.
+  Le handler relit l’événement et la définition.
+- Un payload qui dépasse le plafond est refusé avant toute écriture.
+
+Déroulé :
+
+1. Valider le payload : types, identifiants positifs, nombre d’identifiants
+   inférieur ou égal au plafond.
+2. Charger `event_log` ; si la ligne est absente, échouer avec
+   `NOTIFICATION_EVENT_UNAVAILABLE`.
+3. Résoudre la définition ; si elle est absente ou `notifiable = false`,
+   échouer avec `NOTIFICATION_DEFINITION_UNAVAILABLE`.
+4. Reconstruire un `Event` avec les données, l’acteur, l’objet, l’audience, le
+   chemin et la date du journal.
+5. Retirer l’acteur si `notifyActor = false`.
+6. Charger les comptes par lots, écarter les comptes bloqués, de service et
+   supprimés.
+7. Charger les préférences par lots pour le type d’événement.
+8. Rendre le titre et les deux corps avec `event_log.data`, puis choisir le
+   corps self ou others selon le destinataire.
+9. Dans une transaction ouverte par le handler :
+   - insérer les `notifications` de façon idempotente ;
+   - créer les `notification_deliveries` et enfiler les jobs de livraison
+     (lot 3) ;
+   - travailler par lots de 500 pour borner la transaction et la durée du tick.
+10. Valider la transaction et retourner un `JobResult` avec les compteurs.
+
+Le worker ne fournit pas de transaction au handler : le handler ouvre la sienne
+et la referme avant de retourner. Une exception au milieu du lot annule toutes
+les écritures du fan-out.
+
+Idempotence : la file livre au moins une fois. Le handler doit être rejouable :
+contraintes uniques `(event_id, user_id)` et
+`(notification_id, channel, channel_id)`, insertions idempotentes, clé de
+déduplication des jobs de livraison. Un rejeu ne crée ni doublon ni seconde
+livraison.
+
+Échec : après la seconde tentative, le job passe en `failed` et reste visible
+dans Jobs. L’événement et son journal restent ; le métier n’est pas annulé. Un
+rejeu manuel depuis Jobs est possible, ce n’est pas un rejeu métier.
+
+Le fan-out ne relit pas les droits ACL : l’audience est celle résolue à
+l’émission.
+
+### Job de livraison
 
 ```php
 final class NotificationDeliveryJobHandler extends BaseJobHandler
@@ -828,7 +977,7 @@ plus urgents. L’enfilement peut aussi passer `priority` dans les options de
 La charge utile ne contient que `delivery_id`. Le handler recharge la
 livraison, la notification, l’utilisateur et la connexion.
 
-### Déroulé
+### Déroulé de la livraison
 
 1. Charger la livraison ; si elle est déjà `sent`, retourner un succès.
 2. Vérifier la notification, l’utilisateur, la préférence et la connexion.
@@ -844,22 +993,30 @@ Le handler reste idempotent pour le rejeu accidentel de la file après un crash.
 
 ### Enfilement
 
-`JobQueue::enqueue()` écrit dans la transaction de l’appelant. Un métier annulé
-ne laisse aucun job orphelin. Si l’enfilement échoue, la livraison est marquée
-`failed` avec `enqueue_failed` ; l’événement et la notification restent. Il n’y
-a pas de relance.
+Le job de fan-out est enfilé par le `NotificationFanoutListener` dans la
+transaction métier, avec la clé `notification_fanout:<event_id>`. Un échec
+d’enfilement est critique : la transaction métier est annulée, comme pour le
+journal.
+
+Le job de livraison est enfilé par le job de fan-out. Si cet enfilement échoue,
+la livraison est marquée `failed` avec `enqueue_failed` ; la notification reste.
+Le job de fan-out peut terminer en succès en signalant le nombre d’échecs
+d’enfilement.
 
 ### Débit
 
 Le worker est unique. Un envoi SMTP réel prend souvent 1 à 3 secondes, donc
-environ 10 à 20 emails par minute. La priorité basse évite de bloquer les
-traitements urgents, mais ne résout pas le débit.
+environ 10 à 20 emails par minute. Le fan-out précède les livraisons et ne
+bloque pas les traitements urgents, mais ne résout pas le débit.
 
 Conséquences :
 
 - pas d’email par défaut pour les événements informatifs ;
 - plafond de 2 000 destinataires ;
 - pas de promesse d’envoi immédiat ;
+- un fan-out de plusieurs centaines de destinataires peut durer plusieurs
+  secondes : le CRON (30 s) est le chemin normal, le déclencheur trafic (5 s) est
+  un secours ;
 - surveillance de la file dans l’onglet Jobs.
 
 ## Interface
@@ -883,6 +1040,10 @@ Fonctionnement :
 - à l’ouverture, les notifications affichées passent à `seen_date` ;
 - un clic sur une notification, ou « Tout marquer comme traité », renseigne
   `handled_date`.
+
+Les notifications sont créées par le job de fan-out : la cloche et son badge
+peuvent apparaître avec le délai du worker (CRON ou déclencheur trafic). Le
+journal, lui, est disponible immédiatement.
 
 Le composant doit fonctionner sur les pages sans racine Vue applicative : c’est
 un montage autonome, pas un composant du page component principal.
@@ -978,6 +1139,18 @@ Ce lot ne change pas le schéma.
   `NOTIFICATION_CHANNEL_PURGED` sans secret.
 - Les émetteurs sont du code de confiance : on ne réintroduit pas de contrôle
   `MEMBER` sur une liste d’IDs. C’est un choix assumé, documenté.
+- Le payload du job de fan-out ne contient que l’identifiant de l’événement,
+  l’audience et le chemin interne : ni secret, ni texte rendu, ni donnée métier
+  complète. Il n’est visible que dans l’administration des jobs, réservée à
+  ROOT.
+- Le job de fan-out filtre à l’exécution les comptes bloqués, de service et
+  supprimés. Il ne tire aucune autorisation du payload : l’audience vient de
+  l’émetteur de confiance, les préférences sont relues.
+- La résolution d’audience est bornée par le `limit` obligatoire. Les ensembles
+  intermédiaires ne sont jamais tronqués et une audience qui atteint la borne
+  n’est pas notifiée.
+- Le handler de fan-out ouvre sa propre transaction et reste idempotent : un
+  rejeu technique ne crée ni doublon ni seconde livraison.
 
 ### Transport HTTP partagé
 
@@ -1023,7 +1196,12 @@ Ainsi :
 - `EVENT_LISTENER_FAILED`
 - `EVENT_DEPTH_EXCEEDED`
 - `NOTIFICATION_AUDIENCE_TOO_LARGE`
+- `NOTIFICATION_FANOUT_ENQUEUE_FAILED`
+- `NOTIFICATION_FANOUT_SKIPPED`
+- `NOTIFICATION_FANOUT_DONE`
 - `NOTIFICATION_FANOUT_FAILED`
+- `NOTIFICATION_EVENT_UNAVAILABLE`
+- `NOTIFICATION_DEFINITION_UNAVAILABLE`
 - `NOTIFICATION_CHANNEL_UNAVAILABLE`
 - `NOTIFICATION_CHANNEL_SECRET_INVALID`
 - `NOTIFICATION_CHANNEL_FORBIDDEN`
@@ -1158,14 +1336,15 @@ Le transport est dans Core, comme expliqué plus haut.
 | Lot | Contenu | Dépendances |
 | --- | --- | --- |
 | 0 | Contrats PHP (événements, écouteurs, canaux avec permission), noms des états, emplacements des classes, guide `Docs/NOTIFICATIONS.md` | Aucune |
-| 1 | Registre, dispatcher, `event_log`, `EventJournalListener`, ACL inverses, purge, événement `core.user.role.assigned` | Lot 0 |
-| 2 | `notifications`, `NotificationListener`, préférences, cloche, panneau, composant d’éditeur de page | Lot 1 |
-| 3 | `user_notification_channels`, `notification_deliveries`, job, email, Telegram/Slack/Discord | Lot 2 |
+| 1 | Registre, dispatcher, `event_log`, `EventJournalListener`, ACL inverses bornées par `limit`, purge, événement `core.user.role.assigned` | Lot 0 |
+| 2 | `notifications`, `NotificationFanoutListener`, job `core.notification_fanout`, préférences, cloche, panneau, composant d’éditeur de page | Lot 1 |
+| 3 | `user_notification_channels`, `notification_deliveries`, job de livraison, email, Telegram/Slack/Discord ; le job de fan-out crée désormais aussi les livraisons | Lot 2 |
 | 4 | Page admin « Journal », migration `SYS_EVENT_READ` sur le rôle Root, rétention, monitoring, documentation, tests de sécurité | Lot 3 |
 
-Le lot 1 est le socle : journal fiable et résolution d’audience. Le lot 2 est
-le plus visible. Le lot 3 est le plus risqué côté exploitation (débit, secrets,
-SSRF).
+Le lot 1 est le socle : journal fiable et résolution d’audience bornée. Le lot 2
+est le plus visible : les notifications sont créées après commit. Le lot 3 est
+le plus risqué côté exploitation (débit, secrets, SSRF). Le job de fan-out du
+lot 2 ne crée que les notifications UI ; le lot 3 lui ajoute les livraisons.
 
 ### Premier événement à instrumenter
 
@@ -1192,16 +1371,25 @@ tableau des attributions et permet de valider :
 - préférences : self/others, absence de ligne, canal désactivé ;
 - canaux : permission nulle, permission refusée, identifiant dupliqué, permission
   mal formée refusée à la construction, absence de validation contre le
-  catalogue ACL.
+  catalogue ACL ;
+- resolver d’audience : `limit` obligatoire, arrêt anticipé, ensembles
+  intermédiaires non tronqués, résultat à la borne.
 
 ### Intégration base
 
 - audience : liste directe, permission globale, permission sur objet, rôle,
   rôle local, héritage Space, héritage groupe, doublons, acteur inclus/exclu ;
 - utilisateurs bloqués, comptes de service ;
-- transaction : annulation sans journal, notification ni job ;
+- transaction : annulation sans journal, ni job de fan-out ;
 - journal critique : une erreur d’écriture annule le métier ;
-- notification critique : une erreur de fan-out annule le métier ;
+- enfilement du fan-out critique : une erreur annule le métier ;
+- audience au-dessus du plafond : journal écrit, aucun job de fan-out,
+  `NOTIFICATION_AUDIENCE_TOO_LARGE` ;
+- job de fan-out : N notifications, livraisons et jobs de livraison attendus ;
+- rejeu technique du job de fan-out : aucun doublon de notification ni de
+  livraison ;
+- échec définitif du fan-out : métier et journal conservés, job `failed` visible,
+  aucune notification ;
 - écouteur d’extension critique : une erreur annule le métier ;
 - écouteur explicitement non critique : une erreur est journalisée sans annuler ;
 - purge : `0` = aucune suppression, valeur positive, par Space, par lots ;
@@ -1214,12 +1402,20 @@ tableau des attributions et permet de valider :
 
 ### Job
 
+- fan-out réussi : compteurs cohérents, transaction validée ;
+- fan-out : événement purgé ou définition absente → échec journalisé ;
+- fan-out : compte bloqué, compte de service ou compte supprimé → écarté ;
+- fan-out : acteur exclu quand `notifyActor = false` ;
+- fan-out : préférence désactivée → pas de livraison, notification UI conservée ;
+- fan-out : échec d’enfilement d’une livraison → livraison `failed` avec
+  `enqueue_failed`, notification conservée ;
+- fan-out : deux tentatives sur erreur transitoire, échec final au-delà ;
 - envoi réussi ;
 - SMTP désactivé → `skipped` ;
 - erreur SMTP ou HTTP → `failed`, pas de nouvelle tentative ;
-- job rejoué après crash → pas de double envoi ;
+- job de livraison rejoué après crash → pas de double envoi ;
 - canal supprimé, secret illisible, préférence désactivée ;
-- priorité basse respectée.
+- priorité basse respectée pour la livraison, priorité normale pour le fan-out.
 
 ### Sécurité
 
@@ -1230,14 +1426,19 @@ tableau des attributions et permet de valider :
 - SSRF sur les webhooks ;
 - secrets absents des réponses API et des journaux ;
 - `SYS_EVENT_READ` requis sur le Space de l’événement ou de la notification, pour le journal et les livraisons ;
+- payload du job de fan-out : aucun secret, aucun texte rendu, audience et
+  chemin interne seulement ; détail réservé à ROOT dans l’écran Jobs ;
+- audience bornée : la requête finale porte un `LIMIT` et aucun ensemble
+  intermédiaire n’est tronqué ;
 - page « Journal » : un utilisateur ne voit que les Spaces autorisés ; un
   non-ROOT n’accède à aucun onglet ROOT du shell Système.
 
 ## Documentation à mettre à jour
 
-- Nouveau guide `Docs/NOTIFICATIONS.md`.
-- [`Docs/JOBS.md`](../../JOBS.md) : type `core.notification_delivery`, priorité
-  basse, un seul essai.
+- Nouveau guide `Docs/NOTIFICATIONS.md`, avec le pipeline asynchrone.
+- [`Docs/JOBS.md`](../../JOBS.md) : type `core.notification_fanout` (priorité
+  normale, deux essais) et type `core.notification_delivery` (priorité basse,
+  un seul essai).
 - [`Docs/ARCHITECTURE.md`](../../ARCHITECTURE.md) : modules `Core/Event` et
   `Core/Notification`, registres et dispatcher.
 - [`Docs/LOGGING.md`](../../LOGGING.md) : codes du chantier.
@@ -1259,10 +1460,17 @@ tableau des attributions et permet de valider :
   `user_notification_channels` et `notification_deliveries`.
 - La spec demandait un type de menu « Notification » ; il n’y en a pas. La
   cloche est un composant global et les préférences sont un composant de page.
-- La spec demandait une relance ; elle est supprimée. Un échec est terminal.
+- La spec demandait une relance des livraisons ; elle reste supprimée. Le job de
+  fan-out est le seul rejoué : deux tentatives techniques avec backoff, et une
+  relance manuelle possible depuis Jobs, car il est idempotent.
 - La spec prévoyait `payloadFields` ; il n’y en a pas.
+- La génération des notifications est asynchrone ; l’audience reste résolue en
+  synchrone, avec un `limit` obligatoire.
+- Les textes sont rendus par le job de fan-out ; le lien est figé à l’émission
+  et transporté dans le payload, car un job n’a pas de routes.
 - La documentation actuelle dit que les notifications restent synchrones ;
-  ce chantier déplace les livraisons externes vers la file.
+  ce chantier déplace la génération des notifications et les livraisons
+  externes vers la file.
 - Les notifications d’automatisation par Space restent distinctes des
   notifications utilisateur. Aucun pont n’est prévu.
 
@@ -1284,11 +1492,16 @@ Les décisions structurantes sont prises :
   racine ;
 - tous les écouteurs critiques par défaut, avec possibilité explicite de
   `critical: false` ;
-- aucun rejeu, aucun `dedup_key`, aucune page de notifications dédiée ;
+- journal synchrone dans la transaction métier, génération des notifications
+  asynchrone par le job `core.notification_fanout` ;
+- audience résolue en synchrone et bornée par un `limit` obligatoire ;
+- aucun rejeu métier ni de livraison ; le job de fan-out est rejoué deux fois au
+  plus et relançable depuis Jobs ;
 - permission facultative par type de canal, vérifiée à la configuration des
   préférences sur le Space principal, sans contrôle à la livraison, avec purge
   des canaux interdits à l’ouverture des préférences.
 
 Le prochain travail est le lot 1 : branchement des registres dans
-`Core\Plugin`, table `event_log`, `EventJournalListener`, ACL inverses, purge
-et premier événement `core.user.role.assigned`.
+`Core\Plugin`, table `event_log`, `EventJournalListener`, ACL inverses bornées
+par `limit`, purge et premier événement `core.user.role.assigned`. Le lot 2
+ajoutera le job de fan-out asynchrone et les notifications UI.

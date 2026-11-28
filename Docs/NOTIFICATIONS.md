@@ -9,6 +9,12 @@ branchés dans `Core\Plugin`. Aucune table n’est créée, aucun événement n�
 encore émis par un workflow, aucune notification n’est produite et aucun envoi
 n’est effectué. Les lots 1 à 4 restent à livrer.
 
+La cible est un pipeline en deux temps : le journal et l’enfilement du fan-out
+sont **synchrones** dans la transaction métier ; les notifications et les
+livraisons sont créées **après le commit**, par le job
+`core.notification_fanout`. Voir
+[Génération asynchrone](#génération-asynchrone-des-notifications).
+
 ## Où se trouve quoi
 
 Les chemins sont relatifs à
@@ -31,6 +37,10 @@ Les chemins sont relatifs à
 | `NotificationChannelRegistry` | `Notification/NotificationChannelRegistry.php` | Catalogue des canaux |
 | `INotificationChannelProvider` | `ExtensionApi/Notification/INotificationChannelProvider.php` | Déclaration des canaux par une extension |
 | `NotificationChannelAccessHelper` | `Helper/Notification/NotificationChannelAccessHelper.php` | Vérifie qu’un compte peut utiliser un canal |
+
+Le lot 2 ajoutera `Notification/NotificationFanoutListener.php` et
+`Notification/NotificationFanoutJobHandler.php` ; ces classes n’existent pas
+encore. Le lot 1 ajoutera `Helper/Acl/AclUserResolver.php`.
 
 ## Déclarer un type d’événement
 
@@ -96,6 +106,7 @@ $emitter = $this->getSharedExtensionsClass(EventEmitter::class);
 $recipients = $this->coreAclUserResolver->usersWithGlobalPermission(
     Permissions::USER_ROLES_READ,
     $spaceId,
+    $this->app->getConf()->notification_max_recipients + 1,
 );
 
 $event = $emitter->emit(
@@ -115,6 +126,15 @@ $event = $emitter->emit(
 L’accès typé `coreEventEmitter` sera ajouté dans le trait des helpers partagés
 avec le premier workflow émetteur (lot 1). `AclUserResolver` appartient au même
 lot.
+
+Le resolver exige un `limit` : il s’arrête à cette borne. Le `+ 1` permet au
+listener de fan-out de distinguer une audience au plafond d’une audience qui le
+dépasse. Une audience trop grande est journalisée et ne produit aucune
+notification ; elle n’est jamais tronquée.
+
+Après `emit()`, la ligne de journal et le job de fan-out sont écrits dans la
+transaction métier. Les notifications n’existent qu’après le passage du worker :
+la cloche peut apparaître avec le délai du CRON ou du déclencheur trafic.
 
 La charge utile est vérifiée par `Event` :
 
@@ -176,7 +196,8 @@ Contrat :
   `critical: false` journalise `EVENT_LISTENER_FAILED` et continue la chaîne.
 
 Les écouteurs Core prévus sont `plg_core.event_journal` (écriture du journal) et
-`plg_core.notification` (fan-out), livrés aux lots 1 et 2.
+`plg_core.notification_fanout` (enfilement du job de fan-out), livrés aux lots 1
+et 2.
 
 ## Déclarer un canal de notification
 
@@ -248,13 +269,59 @@ Canaux intégrés :
 | `slack` | `null` | Oui |
 | `discord` | `null` | Oui |
 
+## Génération asynchrone des notifications
+
+Le `NotificationFanoutListener` (lot 2) ne crée aucune ligne. Il vérifie :
+
+- `Event::$logId` non nul et définition `notifiable = true` ;
+- audience non vide et inférieure ou égale à `notification_max_recipients`.
+
+Il enfile ensuite un `JobRequest` de type `core.notification_fanout`, avec une
+clé de déduplication `notification_fanout:<event_id>`. Un échec d’enfilement
+est critique : la transaction métier est annulée, comme pour le journal.
+
+Payload, références seulement :
+
+```json
+{
+  "event_id": 123,
+  "space_id": 4,
+  "event_type": "core.user.role.assigned",
+  "url_path": "/administrator/users/12",
+  "recipient_user_ids": [5, 8, 12]
+}
+```
+
+Le handler `NotificationFanoutJobHandler` :
+
+- déclare `JOB_MIN_TIME = 2`, `JOB_MAX_ATTEMPTS = 2` et la priorité normale ;
+- relit `event_log` et la définition, puis reconstruit l’`Event` ;
+- retire l’acteur si `notifyActor = false`, écarte les comptes bloqués, de
+  service et supprimés ;
+- applique les préférences ;
+- rend le titre et les deux corps avec `event_log.data` ;
+- crée les notifications et, au lot 3, les livraisons et les jobs de livraison ;
+- travaille par lots de 500 dans une transaction ouverte par le handler ;
+- reste idempotent : un rejeu technique ne crée ni doublon ni seconde
+  livraison.
+
+Le worker ne fournit pas de transaction au handler : le handler ouvre la sienne.
+Après deux tentatives en échec, le job passe en `failed` et reste visible dans
+Jobs. L’événement et le journal restent ; aucune notification n’est créée. Un
+rejeu manuel depuis Jobs est possible, ce n’est pas un rejeu métier.
+
+L’audience reste résolue en **synchrone** : le job ne recalcule jamais les
+droits ACL. Le lien est figé à l’émission et transporté dans le payload, car un
+job n’a pas de routes. Les textes, eux, sont rendus par le job ; une définition
+modifiée entre l’émission et le job applique le nouveau texte.
+
 ## Ce qui reste à livrer
 
 | Lot | Contenu |
 | --- | --- |
-| 1 | Branchement des registres, `event_log`, `EventJournalListener`, ACL inverses, purge, `core.user.role.assigned` |
-| 2 | `notifications`, `NotificationListener`, préférences, purge des canaux interdits, cloche, panneau |
-| 3 | `user_notification_channels`, `notification_deliveries`, job, email, Telegram, Slack, Discord ; champs complémentaires des canaux |
+| 1 | Branchement des registres, `event_log`, `EventJournalListener`, `AclUserResolver` borné par `limit`, purge, `core.user.role.assigned` |
+| 2 | `notifications`, `NotificationFanoutListener`, job `core.notification_fanout`, préférences, purge des canaux interdits, cloche, panneau |
+| 3 | `user_notification_channels`, `notification_deliveries`, job de livraison, email, Telegram, Slack, Discord ; champs complémentaires des canaux |
 | 4 | Page d’administration « Journal », `SYS_EVENT_READ`, rétention, monitoring, tests de sécurité |
 
 ## Vérifications
@@ -268,3 +335,5 @@ Canaux intégrés :
 Les tests couvrent les validations de définitions, la charge utile, les chemins
 internes, les registres, l’ordre et la criticité des écouteurs, la profondeur,
 le calcul du lien, les canaux et le contrôle de permission au Space principal.
+Les tests du resolver borné et du job de fan-out seront ajoutés avec les lots 1
+et 2.
