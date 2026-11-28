@@ -10,6 +10,8 @@ use YTassy\Tycms\CoreExts\Core\Helper\Video\SecureVideoHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\ShortCode\ShortCodeHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Fonts\FontHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Acl\AclHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\Acl\AclUserResolver;
+use YTassy\Tycms\CoreExts\Core\Helper\Event\EventLogHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Ai\AiGatewayHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Ai\AiProviderHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Crypt\CryptHelper;
@@ -34,6 +36,7 @@ use YTassy\Tycms\CoreExts\Core\Helper\Space\SpaceLanguageHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Template\TemplateHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\UserHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\UserRegistrationHelper;
+use YTassy\Tycms\CoreExts\Core\Event\EventEmitter;
 
 trait TraitCoreSharedHelpers
 {
@@ -114,6 +117,21 @@ trait TraitCoreSharedHelpers
 
     protected AclHelper $coreAclHelper {
         get { return $this->getSharedExtensionsClass(AclHelper::class); } 
+    }
+
+    /** Résolution inverse d’audience, bornée par un `limit` obligatoire. */
+    protected AclUserResolver $coreAclUserResolver {
+        get { return $this->getSharedExtensionsClass(AclUserResolver::class); }
+    }
+
+    /** Écriture et purge du journal métier des événements. */
+    protected EventLogHelper $coreEventLogHelper {
+        get { return $this->getSharedExtensionsClass(EventLogHelper::class); }
+    }
+
+    /** Point d’émission des événements métier. */
+    protected EventEmitter $coreEventEmitter {
+        get { return $this->getSharedExtensionsClass(EventEmitter::class); }
     }
 
     protected UserHelper $coreUserHelper {

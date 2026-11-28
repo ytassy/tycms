@@ -4,6 +4,14 @@ namespace YTassy\Tycms\CoreExts\Core;
 
 use Override;
 use YTassy\Tycms\CoreExts\Core\Controllers\HomeController;
+use YTassy\Tycms\CoreExts\Core\Event\Event;
+use YTassy\Tycms\CoreExts\Core\Event\EventDefinition;
+use YTassy\Tycms\CoreExts\Core\Event\EventDefinitionRegistry;
+use YTassy\Tycms\CoreExts\Core\Event\EventJournalListener;
+use YTassy\Tycms\CoreExts\Core\Event\EventListenerDefinition;
+use YTassy\Tycms\CoreExts\Core\Event\EventListenerRegistry;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Event\IEventListenerProvider;
+use YTassy\Tycms\CoreExts\Core\ExtensionApi\Event\IEventProvider;
 use YTassy\Tycms\Extensions\BasePlugin;
 use YTassy\Tycms\Lib\Forms\Form;
 use YTassy\Tycms\Lib\Forms\FormFactory;
@@ -71,6 +79,7 @@ use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_11;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_12;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_13;
 use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_14;
+use YTassy\Tycms\CoreExts\Core\Migration\Mig_1_1_15;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\IJobProvider;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Job\JobType;
 use YTassy\Tycms\CoreExts\Core\JobQueue\JobQueue;
@@ -96,7 +105,7 @@ use YTassy\Tycms\Routing\Controller\BaseController;
 use YTassy\Tycms\Routing\Route;
 use YTassy\Tycms\Routing\Router;
 
-class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider, IJobProvider, ICronProvider
+class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvider, \YTassy\Tycms\CoreExts\Core\ExtensionApi\Page\IPageComponentProvider, IAutomationProvider, IJobProvider, ICronProvider, IEventProvider, IEventListenerProvider
 {
     use TraitAllHelpers;
     use TraitCronProvider;
@@ -137,6 +146,74 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
         }
     }
 
+    /**
+     * Types d’événements métier émis par le Core.
+     *
+     * Les textes ne portent aucune audience : le workflow émetteur résout les
+     * destinataires. Le lien est figé à l’émission, car un job n’a pas de
+     * routes ; il pointe vers la grille des attributions, seule vue
+     * d’administration concernée par ces deux événements. Un run
+     * d’automatisation, initialisé sans routes, obtient un chemin nul.
+     */
+    public function coreOnRegisterEventTypes(EventDefinitionRegistry $registry): void
+    {
+        $assignmentsLink = function (Event $event): ?string {
+            // Un run d'automatisation n'enregistre pas de routes : le chemin
+            // reste facultatif plutôt que de faire échouer le métier.
+            if (!array_key_exists('AdministratorHome', $this->router->getAllRoutes())) {
+                return null;
+            }
+
+            return $this->url('AdministratorHome') . '#/user_assignments';
+        };
+
+        $registry->register(new EventDefinition(
+            id: 'core.user.role.assigned',
+            label: 'Rôle attribué',
+            description: 'Un rôle est attribué à un compte sur un Space.',
+            category: EventDefinition::CATEGORY_USER,
+            severity: EventDefinition::SEVERITY_INFO,
+            notifiable: true,
+            title: 'Rôle attribué',
+            bodySelf: 'Vous avez attribué le rôle {role.name} à {user.name}.',
+            bodyOthers: '{actor.name} a attribué le rôle {role.name} à {user.name}.',
+            link: $assignmentsLink,
+        ));
+
+        $registry->register(new EventDefinition(
+            id: 'core.user.role.removed',
+            label: 'Rôle retiré',
+            description: 'Un rôle est retiré à un compte sur un Space.',
+            category: EventDefinition::CATEGORY_USER,
+            severity: EventDefinition::SEVERITY_INFO,
+            notifiable: true,
+            title: 'Rôle retiré',
+            bodySelf: 'Vous avez retiré le rôle {role.name} à {user.name}.',
+            bodyOthers: '{actor.name} a retiré le rôle {role.name} à {user.name}.',
+            link: $assignmentsLink,
+        ));
+    }
+
+    public function coreOnRegisterEventListeners(EventListenerRegistry $registry): void
+    {
+        // Le registre n’accepte pas de joker : l’écouteur de journal couvre
+        // explicitement tous les types déclarés par les extensions chargées.
+        // Les définitions ont déjà été enregistrées à ce stade.
+        $definitions = $this->app->getOrAddSharedExtensionsClass(EventDefinitionRegistry::class);
+        $types = array_keys($definitions->all());
+
+        if ($types === []) {
+            return;
+        }
+
+        $registry->register(new EventListenerDefinition(
+            id: 'plg_core.event_journal',
+            eventTypes: $types,
+            listenerClass: EventJournalListener::class,
+            priority: 10,
+        ));
+    }
+
     public function coreOnRegisterJobTypes(JobTypeRegistry $registry): void
     {
         // Bienvenues qui ne portent aucun secret. L'accueil d'un compte créé
@@ -170,35 +247,85 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
             '1.1.12' => [Mig_1_1_12::class],
             '1.1.13' => [Mig_1_1_13::class],
             '1.1.14' => [Mig_1_1_14::class],
+            '1.1.15' => [Mig_1_1_15::class],
         ];
 	}
 
     /**
-     * Purge horaire du journal des e-mails selon la rétention configurée.
+     * Purge horaire du journal des e-mails et du journal d’événements.
      *
      * Le hook est déjà appelé hors transaction ; le dispatcher isole et
      * journalise une éventuelle erreur sans bloquer les autres hooks.
      *
-     * @return array{mail_log_purged:int}
+     * @return array{mail_log_purged:int,event_log_purged:int}
      */
     public function onCronHour(CronTick $tick): array
     {
-        if (!$this->coreMailLogHelper->isEnabled()) {
-            return ['mail_log_purged' => 0];
+        $mailLogPurged = 0;
+        if ($this->coreMailLogHelper->isEnabled()) {
+            $mailLogPurged = $this->coreMailLogHelper->purge($this->coreMailLogHelper->retentionDays());
+
+            if ($mailLogPurged > 0) {
+                $this->logInfo(
+                    'Purge automatique du journal des e-mails.',
+                    ['deleted' => $mailLogPurged],
+                    'MAIL_LOG_AUTO_PURGE',
+                    'mail',
+                );
+            }
         }
 
-        $deleted = $this->coreMailLogHelper->purge($this->coreMailLogHelper->retentionDays());
+        return [
+            'mail_log_purged' => $mailLogPurged,
+            'event_log_purged' => $this->purgeEventLogs(),
+        ];
+    }
 
-        if ($deleted > 0) {
+    /**
+     * Applique la rétention du journal d’événements Space par Space.
+     *
+     * La configuration de `plg_core` est lue une fois pour tous les Spaces ; une
+     * valeur absente ou nulle conserve tout. Le helper borne le nombre de lots
+     * supprimés pour ne pas monopoliser le CRON.
+     */
+    private function purgeEventLogs(): int
+    {
+        $spaceIds = $this->coreSpaceHelper->getAllSpaceIds();
+        if ($spaceIds === []) {
+            return 0;
+        }
+
+        $configs = $this->coreExtensionsHelper->getExtensionsConfForSpaces($spaceIds)['plg_core'] ?? [];
+
+        $purged = 0;
+
+        foreach ($spaceIds as $spaceId) {
+            $params = (array) ($configs[$spaceId]->params ?? []);
+            $days = (int) ($params['event_log_retention_days'] ?? 0);
+
+            // `0` = aucune limite : la purge ne s’exécute que sur une valeur positive.
+            if ($days <= 0) {
+                continue;
+            }
+
+            $deleted = $this->coreEventLogHelper->purge($spaceId, $days);
+            if ($deleted <= 0) {
+                continue;
+            }
+
+            $purged += $deleted;
+
+            // Le nombre est écrit dans le message : le contexte borné se limite
+            // aux identifiants. Aucun contenu d’événement n’est journalisé ici.
             $this->logInfo(
-                'Purge automatique du journal des e-mails.',
-                ['deleted' => $deleted],
-                'MAIL_LOG_AUTO_PURGE',
-                'mail',
+                sprintf('Purge automatique du journal d’événements : %d ligne(s) supprimée(s).', $deleted),
+                ['space_id' => $spaceId],
+                'EVENT_LOG_PURGE',
+                'event',
             );
         }
 
-        return ['mail_log_purged' => $deleted];
+        return $purged;
     }
 
     public function getControllers(): array
@@ -311,7 +438,42 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
     #[Override]
     public function onPrepareExtensions(): void
     {
+        // Les événements et leurs écouteurs sont des catalogues de code : ils
+        // doivent être connus avant toute route et sans dépendre de la requête.
+        $this->prepareEventCatalogs();
         $this->prepareWebsiteCatalogs();
+    }
+
+    /**
+     * Enregistre les définitions d’événements puis les écouteurs.
+     *
+     * L’ordre est explicite : un écouteur est refusé s’il vise un type encore
+     * inconnu, donc toutes les définitions sont collectées avant la
+     * vérification du graphe complet. L’extension propriétaire est attribuée
+     * pendant chaque déclaration, pour nommer les doublons au démarrage.
+     */
+    private function prepareEventCatalogs(): void
+    {
+        /** @var EventDefinitionRegistry $definitions */
+        $definitions = $this->app->getOrAddSharedExtensionsClass(EventDefinitionRegistry::class);
+
+        foreach ($this->app->getExtensions() as $owner => $extension) {
+            if ($extension instanceof IEventProvider) {
+                $definitions->withOwner((string) $owner, fn () => $extension->coreOnRegisterEventTypes($definitions));
+            }
+        }
+
+        /** @var EventListenerRegistry $listeners */
+        $listeners = $this->app->getOrAddSharedExtensionsClass(EventListenerRegistry::class);
+
+        foreach ($this->app->getExtensions() as $owner => $extension) {
+            if ($extension instanceof IEventListenerProvider) {
+                $listeners->withOwner((string) $owner, fn () => $extension->coreOnRegisterEventListeners($listeners));
+            }
+        }
+
+        // Toutes les définitions sont connues : refuser un écouteur orphelin.
+        $listeners->assertEventTypesKnown($definitions);
     }
 
     private function prepareWebsiteCatalogs(): void

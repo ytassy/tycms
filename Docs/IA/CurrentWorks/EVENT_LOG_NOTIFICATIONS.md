@@ -1192,6 +1192,7 @@ Ainsi :
 ### Codes de journal
 
 - `EVENT_LOG_WRITE_FAILED`
+- `EVENT_LOG_PURGE`
 - `EVENT_PAYLOAD_INVALID`
 - `EVENT_LISTENER_FAILED`
 - `EVENT_DEPTH_EXCEEDED`
@@ -1479,9 +1480,19 @@ tableau des attributions et permet de valider :
 Le lot 0 est livré : contrats PHP (`Core/Event`, `Core/Notification`,
 `Core/ExtensionApi/Event`, `Core/ExtensionApi/Notification`), contrôle de
 permission des canaux, tests unitaires et guide
-[NOTIFICATIONS.md](../../NOTIFICATIONS.md). Rien n’est encore branché dans
-`Core\Plugin` : aucune table, aucun événement émis par un workflow, aucune
-notification ni livraison.
+[NOTIFICATIONS.md](../../NOTIFICATIONS.md).
+
+Le lot 1 est livré : registres branchés dans `Core\Plugin` à
+`onPrepareExtensions`, table `event_log`, `EventJournalListener` critique
+(priorité 10, tous les types déclarés), `AclUserResolver` borné par un `limit`
+obligatoire, purge horaire par Space et premiers événements
+`core.user.role.assigned`/`core.user.role.removed` émis par
+`WFAdminUser::applyRole()`, donc aussi depuis les actions d’automatisation. Le
+plafond `notification_max_recipients` est dans `ConfigurationBase` et la
+rétention du journal dans la section `notifications` du formulaire
+`plugin.core.config` (version 2) ; les deux champs de rétention des
+notifications sont déjà exposés mais ne s’appliqueront qu’avec leurs tables.
+Aucune notification n’est encore créée ni livrée.
 
 Les décisions structurantes sont prises :
 
@@ -1501,7 +1512,8 @@ Les décisions structurantes sont prises :
   préférences sur le Space principal, sans contrôle à la livraison, avec purge
   des canaux interdits à l’ouverture des préférences.
 
-Le prochain travail est le lot 1 : branchement des registres dans
-`Core\Plugin`, table `event_log`, `EventJournalListener`, ACL inverses bornées
-par `limit`, purge et premier événement `core.user.role.assigned`. Le lot 2
-ajoutera le job de fan-out asynchrone et les notifications UI.
+Le prochain travail est le lot 2 : table `notifications`,
+`NotificationFanoutListener`, job `core.notification_fanout`, préférences,
+cloche et panneau. Le lot 3 ajoutera les connexions, les livraisons et les
+transports externes ; le lot 4 la page d’administration, `SYS_EVENT_READ` et la
+rétention des notifications.

@@ -106,6 +106,11 @@ class Configuration extends ConfigurationBase
     // Rétention appliquée par la purge horaire du CRON, en jours (1 à 3650).
     // public int $mail_log_retention_days = 90;
 
+    // Plafond global de destinataires d'un événement notifiable (2000 par défaut).
+    // Une audience qui le dépasse n'est jamais tronquée : elle est journalisée et
+    // aucune notification n'est créée. Toute valeur inférieure à 1 vaut 1.
+    // public int $notification_max_recipients = 2000;
+
     // Mises à jour : serveurs HTTPS ordonnés et clés publiques Ed25519 reconnues.
     // Conserver les valeurs héritées sauf besoin explicite de changer de distribution.
     // Une clé publique n'est pas un secret ; ne jamais placer ici de clé privée.

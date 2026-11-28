@@ -75,10 +75,12 @@ ou un message externe : utiliser `logException()` pour une exception.
 Le contexte n'accepte que les IDs entiers positifs `space_id`, `user_id`,
 `provider_id`, `policy_space_id` et des valeurs techniques courtes pour
 `route`, `method`, `mode`, `kind`, `source`, `pattern`, `auth_method`,
-`google_error`, `google_reason`, `google_operation`. Les autres champs sont
-écartés ; aucun objet métier ou objet Request n'est sérialisé. Les diagnostics
-réseau acceptent aussi `http_status` entier de 100 à 599 et `curl_errno` entier
-de 1 à 999 ; les chaînes et valeurs hors bornes sont écartées. Pour Google,
+`google_error`, `google_reason`, `google_operation`, `event_type`, `channel`,
+`listener`, `extension`, `hook`. Les autres champs sont écartés ; aucun objet
+métier ou objet Request n'est sérialisé. Les diagnostics réseau acceptent aussi
+`http_status` entier de 100 à 599, `curl_errno` entier de 1 à 999 et `deleted`
+entier de 0 à 10 000 000 pour un compteur de purge ; les chaînes et valeurs
+hors bornes sont écartées. Pour Google,
 `google_error` est un code interne stable, `google_reason` la raison technique
 bornée et `google_operation` le nom court de l'action ; le message brut du
 fournisseur n'est jamais copié dans le journal. Exception ciblée :
@@ -92,6 +94,31 @@ Les refus SSO/OAuth utilisent notamment `SSO_MEMBER_REQUIRED`,
 `SSO_ACCOUNT_BLOCKED`, `SSO_AUTO_LINK_DENIED`, `SSO_EMAIL_UNVERIFIED`,
 `SSO_STATE_EXPIRED` et les échecs d'échange de code ou de contrôle OIDC.
 Le message public reste générique.
+
+## Journal d’événements et notifications
+
+Le journal métier `event_log` n’est pas un journal applicatif : il est décrit
+dans [Journal d’événements et notifications](NOTIFICATIONS.md). Ses pannes et
+décisions techniques s’écrivent ici, dans le canal `event` :
+
+- `EVENT_LOG_WRITE_FAILED` : écriture du journal impossible ; l’écouteur est
+  critique et fait échouer le métier ;
+- `EVENT_LISTENER_FAILED` : un écouteur non critique a échoué ;
+- `EVENT_DEPTH_EXCEEDED` : chaîne d’événements au-delà de huit niveaux ;
+- `EVENT_LOG_PURGE` : purge horaire du journal, avec le Space dans le contexte
+  et le nombre de lignes dans le message ;
+- codes du fan-out et des livraisons, à livrer avec les lots 2 à 4 :
+  `NOTIFICATION_AUDIENCE_TOO_LARGE`, `NOTIFICATION_FANOUT_ENQUEUE_FAILED`,
+  `NOTIFICATION_FANOUT_SKIPPED`, `NOTIFICATION_FANOUT_DONE`,
+  `NOTIFICATION_FANOUT_FAILED`, `NOTIFICATION_EVENT_UNAVAILABLE`,
+  `NOTIFICATION_DEFINITION_UNAVAILABLE`, `NOTIFICATION_CHANNEL_UNAVAILABLE`,
+  `NOTIFICATION_CHANNEL_SECRET_INVALID`, `NOTIFICATION_CHANNEL_FORBIDDEN`,
+  `NOTIFICATION_CHANNEL_PURGED`, `NOTIFICATION_CHANNEL_PURGE_FAILED`,
+  `NOTIFICATION_DELIVERY_ENQUEUE_FAILED`, `NOTIFICATION_DELIVERY_FAILED`,
+  `NOTIFICATION_PURGE`.
+
+Le contexte porte le Space, le type d’événement, le canal ou l’écouteur selon
+le cas ; jamais la charge utile, un texte rendu ou un secret.
 
 ## Prévoir les logs pendant le développement
 

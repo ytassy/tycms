@@ -16,6 +16,10 @@ class Configuration extends ConfigurationBase
     // public bool $mail_log_enabled = true;
     // public int $mail_log_retention_days = 90;
 
+    // Plafond de destinataires d'un événement notifiable ; la valeur héritée
+    // de ConfigurationBase vaut 2000. Toute valeur inférieure à 1 vaut 1.
+    // public int $notification_max_recipients = 2000;
+
     // Afficher toutes les erreurs PHP en développement ; la production garde display_errors à false.
     public bool $display_errors = true;
     public int $error_reporting_level = E_ALL;

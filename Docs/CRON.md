@@ -117,7 +117,10 @@ tourner.
 
 Core utilise `onCronHour` pour la purge du journal des e-mails : elle applique
 `mail_log_retention_days` et journalise `MAIL_LOG_AUTO_PURGE` lorsqu'elle
-supprime des lignes. Voir [E-mails](MAIL.md) et [Journaux](LOGGING.md).
+supprime des lignes. Le même hook applique la rétention du journal
+d'événements par Space (`event_log_retention_days`, `0` = aucune limite) et
+journalise `EVENT_LOG_PURGE`. Voir [E-mails](MAIL.md),
+[Journal d'événements](NOTIFICATIONS.md) et [Journaux](LOGGING.md).
 
 ## Réponse
 

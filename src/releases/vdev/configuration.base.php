@@ -111,6 +111,15 @@ class ConfigurationBase
 	/** Durée de conservation du journal des e-mails, en jours (1 à 3650). */
 	public int $mail_log_retention_days = 90;
 
+	/**
+	 * Plafond global de destinataires d’un événement notifiable.
+	 *
+	 * Une audience qui le dépasse n’est jamais tronquée : elle est journalisée
+	 * et aucune notification n’est créée. Toute valeur inférieure à 1 est
+	 * ramenée à 1 à la lecture.
+	 */
+	public int $notification_max_recipients = 2000;
+
 	/** Chemin disque des médias ; garder le défaut public pour servir les URL /medias/. */
 	public string $medias_root = APP_ROOT . '/public/medias';
 

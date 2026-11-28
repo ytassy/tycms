@@ -15,7 +15,10 @@ class FormsHelper extends BaseHelper
         ];
 
         // Centraliser ici les sections du formulaire du plugin Core.
-        return new Form($this, ['id' => 'plugin.core.config', 'version' => 1, 'sections' => [
+        // Version 2 : ajout de la section de rétention du journal et des
+        // notifications. Les valeurs absentes gardent le défaut `0`, qui ne
+        // supprime rien : une installation existante ne perd aucun historique.
+        return new Form($this, ['id' => 'plugin.core.config', 'version' => 2, 'sections' => [
             ['id' => 'mermaid', 'label' => 'Shortcodes : diagrammes Mermaid', 'fields' => [
                 ['type' => 'core.note', 'description' => 'Syntaxe : [[DIAGRAM,width=600px,theme=forest]] puis le code Mermaid, puis [[/DIAGRAM]]. Les options du diagramme remplacent les valeurs par défaut.'],
                 ['name' => 'mermaid_default_width', 'type' => 'core.text', 'label' => 'Largeur', 'default' => '95%', 'validation' => ['pattern' => '^((?:10000|[1-9][0-9]{0,3})px|100%|[1-9][0-9]?%)$']],
@@ -38,6 +41,15 @@ class FormsHelper extends BaseHelper
                 ['name' => 'video_bunny_expire', 'type' => 'core.number', 'label' => 'Validité des liens signés (secondes)', 'default' => 7200, 'validation' => ['type' => 'integer', 'minimum' => 900, 'maximum' => 604800]],
                 ['name' => 'video_bunny_tokens', 'type' => 'core.code', 'syntax' => 'json', 'label' => 'Clés Bunny (JSON)', 'default' => '', 'validation' => ['maxLength' => 120000],
                     'description' => 'Objet {"bibliothèque":"clé"}. Vide conserve les clés enregistrées ; {} les supprime. Les clés sont stockées en clair en base et réaffichées uniquement dans cette configuration autorisée.'],
+            ]],
+            ['id' => 'notifications', 'label' => 'Journal d’événements et notifications', 'fields' => [
+                ['type' => 'core.note', 'description' => 'Durées de conservation appliquées par la purge horaire du CRON, par Space. `0` conserve tout ; les lignes sont supprimées par lots bornés.'],
+                ['name' => 'event_log_retention_days', 'type' => 'core.number', 'label' => 'Conservation du journal d’événements (jours)', 'default' => 0, 'validation' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 3650],
+                    'description' => 'Historique métier durable des actions. 0 = aucune limite.'],
+                ['name' => 'notification_retention_days', 'type' => 'core.number', 'label' => 'Conservation des notifications (jours)', 'default' => 0, 'validation' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 3650],
+                    'description' => 'Notifications de la boîte de réception. 0 = aucune limite.'],
+                ['name' => 'notification_delivery_retention_days', 'type' => 'core.number', 'label' => 'Conservation des livraisons de notification (jours)', 'default' => 0, 'validation' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 3650],
+                    'description' => 'Historique des envois externes (email, Telegram, Slack, Discord). 0 = aucune limite.'],
             ]],
         ]]);
     }

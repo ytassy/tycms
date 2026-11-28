@@ -3,6 +3,7 @@
 namespace YTassy\Tycms\CoreExts\Core\WF;
 
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
+use YTassy\Tycms\CoreExts\Core\Event\EventActorType;
 use YTassy\Tycms\CoreExts\Core\Security\LocalPasswordPolicy;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\UserGroups;
@@ -368,6 +369,67 @@ class WFAdminUser extends BaseWF
         else $this->coreUserAdminHelper->removeRole($groupId, $roleId, $spaceId);
 
         $this->coreAclHelper->invalidateUser($userId);
+
+        // Journal et notifications : l'événement est émis après l'écriture et
+        // avant le commit. Un écouteur critique en échec annule l'attribution.
+        $this->emitRoleEvent($user, $role, $spaceId, $assigned);
+    }
+
+    /**
+     * Émet l'événement métier d'attribution ou de retrait de rôle.
+     *
+     * L'audience est résolue ici, de façon synchrone et bornée par le plafond
+     * de destinataires : le job de fan-out ne recalcule jamais les droits. Elle
+     * n'est pas tronquée (`plafond + 1`) pour que le listener de notification
+     * puisse distinguer une audience au plafond d'une audience trop grande.
+     *
+     * La charge utile porte les libellés nécessaires aux textes self/others ;
+     * aucun secret ni identifiant de session n'y figure.
+     */
+    private function emitRoleEvent(object $user, object $role, int $spaceId, bool $assigned): void
+    {
+        $maxRecipients = max(1, (int) $this->app->getConf()->notification_max_recipients);
+
+        $recipients = $this->coreAclUserResolver->usersWithGlobalPermission(
+            Permissions::USER_ROLES_READ,
+            $spaceId,
+            $maxRecipients + 1,
+        );
+
+        // Un run d'automatisation peut ne pas porter de compte : l'acteur
+        // système reste identifiable par son type et son libellé.
+        $actorId = $this->session->getUserId();
+        $actor = $actorId === null ? null : $this->coreUserHelper->getUser($actorId);
+
+        $this->coreEventEmitter->emit(
+            type: $assigned ? 'core.user.role.assigned' : 'core.user.role.removed',
+            spaceId: $spaceId,
+            data: [
+                'user' => ['id' => (int) $user->id, 'name' => $this->displayName($user)],
+                'role' => [
+                    'id' => (int) $role->id,
+                    'name' => (string) $role->name,
+                    'space_id' => (int) $role->space_id,
+                ],
+                'actor' => [
+                    'id' => $actorId,
+                    'name' => $actor === null ? 'Système' : $this->displayName($actor),
+                ],
+            ],
+            recipientUserIds: $recipients,
+            actorId: $actorId,
+            actorType: $actorId === null ? EventActorType::SYSTEM : EventActorType::USER,
+            subjectType: 'user',
+            subjectId: (int) $user->id,
+        );
+    }
+
+    /** Libellé court d'un compte pour un texte de notification. */
+    private function displayName(object $user): string
+    {
+        $name = trim(((string) ($user->first_name ?? '')) . ' ' . ((string) ($user->last_name ?? '')));
+
+        return $name !== '' ? $name : sprintf('Compte %d', (int) $user->id);
     }
 
     /** @return array<string, mixed> */

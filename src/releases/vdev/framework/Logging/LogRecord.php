@@ -21,13 +21,17 @@ final class LogRecord
         foreach ([
             'route', 'method', 'mode', 'kind', 'source', 'pattern', 'auth_method',
             'google_error', 'google_reason', 'google_operation',
+            // Identifiants techniques du journal d'événements, des canaux de
+            // notification et du CRON : valeurs contrôlées par le code, jamais
+            // une entrée utilisateur.
+            'event_type', 'channel', 'listener', 'extension', 'hook',
         ] as $key) {
             $value = $values[$key] ?? null;
             if (is_string($value) && preg_match('/\A[a-zA-Z0-9_.\[\]-]{1,100}\z/', $value)) $result[$key] = $value;
         }
 
         // Diagnostics réseau numériques seulement : aucun corps ni en-tête distant.
-        foreach (['http_status' => [100, 599], 'curl_errno' => [1, 999]] as $key => [$min, $max]) {
+        foreach (['http_status' => [100, 599], 'curl_errno' => [1, 999], 'deleted' => [0, 10_000_000]] as $key => [$min, $max]) {
             $value = $values[$key] ?? null;
             if (is_int($value) && $value >= $min && $value <= $max) $result[$key] = $value;
         }

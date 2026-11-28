@@ -187,6 +187,15 @@ bloc, et son contrat public reste dans `Core/ExtensionApi`. Appartenir à un
 module n'expose rien : seuls les types cités par un contrat public sont
 utilisables par les extensions.
 
+`Core/Event` porte l'émetteur, le dispatcher et ses registres, ainsi que
+l'écouteur qui écrit `event_log` dans la transaction métier. Le stockage du
+journal et sa purge sont dans `Core/Helper/Event/EventLogHelper` ; la
+résolution inverse d'audience est dans
+`Core/Helper/Acl/AclUserResolver`. Les définitions et écouteurs des extensions
+sont collectés à `onPrepareExtensions`, avant les routes, et l'écouteur de
+journal du Core couvre tous les types déclarés. Voir
+[Journal d'événements et notifications](NOTIFICATIONS.md).
+
 L'API exposée est organisée ainsi (namespaces relatifs à
 `YTassy\Tycms\CoreExts\Core\ExtensionApi`) :
 
