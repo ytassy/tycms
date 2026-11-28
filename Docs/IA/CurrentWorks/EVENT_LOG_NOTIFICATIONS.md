@@ -49,6 +49,8 @@ c’est accepté : la lisibilité et la simplicité priment sur la factorisation
 | Admin | Page dédiée « Journal » ; `SYS_EVENT_READ` **par Space**, ajoutée au rôle Root par migration, pas de relance |
 | Connexions | Telegram : bot d’installation (jeton chiffré dans `plg_core` du Space racine) ou jeton utilisateur, les deux en option |
 | Classes de notification | Transport et canaux déplacés dans `plg_core` ; déclarations d’actions conservées dans `plg_automation` |
+| Permission d’un canal | Un type de canal peut déclarer une permission ; elle est vérifiée quand l’utilisateur configure ses préférences, sur son Space principal. Aucun contrôle à l’émission ni à la livraison |
+| Droit retiré | Une préférence ou une connexion déjà enregistrée reste active tant que l’utilisateur n’ouvre pas ses préférences. À l’ouverture, les canaux devenus interdits sont supprimés en base |
 
 ## Frontières avec l’existant
 
@@ -592,10 +594,53 @@ Sémantique :
 - `notifyActor = false` dans la définition retire l’acteur de l’audience avant
   même d’appliquer les préférences.
 
+### Permission du canal et purge à l’ouverture
+
+Un canal peut déclarer une permission (voir
+[Extensibilité des canaux](#extensibilité-des-canaux)). Elle limite l’usage du
+canal à certains comptes.
+
+Règles :
+
+- la permission est vérifiée au moment où l’utilisateur **configure** ses
+  préférences, avec son **Space principal** (`users.space_id`) ;
+- elle n’est pas vérifiée à l’émission de l’événement ni à la livraison : un
+  réglage déjà enregistré continue de fonctionner si le droit est retiré ;
+- à l’ouverture des préférences, chaque canal auquel l’utilisateur n’a plus
+  droit est **supprimé en base** : lignes `notification_preferences` du canal et
+  connexions `user_notification_channels` du fournisseur. C’est un nettoyage de
+  sécurité, pas un simple masquage ;
+- la suppression fait partie du chargement des préférences : si elle échoue, la
+  requête échoue plutôt que d’afficher un canal qui devrait avoir disparu ;
+- le code journalise `NOTIFICATION_CHANNEL_PURGED` avec l’identifiant du compte,
+  le canal et le nombre de lignes supprimées, jamais le secret ;
+- une tentative d’enregistrement d’une préférence ou d’une connexion sur un
+  canal interdit est refusée avec `NOTIFICATION_CHANNEL_FORBIDDEN`.
+
+Les canaux intégrés `ui`, `email`, Telegram, Slack et Discord ont
+`permission = null` : tout le monde peut les utiliser. `ui` et `email` ne sont
+pas réglables dans les préférences ; les trois canaux externes le sont, sans
+restriction de permission.
+
+Une permission déclarée n’est pas vérifiée contre le catalogue ACL à
+l’enregistrement du canal. Une faute de frappe rend simplement le canal
+inutilisable pour tous les comptes ; c’est assumé et documenté dans le guide.
+
 Pas de table `notification_settings`, pas d’interrupteur global, pas de données
 dans `users.params` pour l’instant.
 
 ## Résolution des destinataires
+
+L’audience est résolue par le **workflow émetteur**, pas par le noyau.
+`EventEmitter::emit()` reçoit la liste des `user_id` destinataires déjà calculée :
+liste directe fournie par le métier, ou résultat de `AclUserResolver` pour un
+droit ou un rôle. L’événement porte cette liste ; le `NotificationListener` la
+filtre ensuite (comptes bloqués, comptes de service, acteur selon `notifyActor`,
+préférences).
+
+La définition d’événement ne porte donc aucune règle d’audience. Ce choix garde
+les workflows explicites et évite un second langage de sélection dans les
+définitions.
 
 ### Méthodes
 
@@ -926,6 +971,11 @@ Ce lot ne change pas le schéma.
 - Les routes POST utilisent le jeton CSRF existant.
 - Les tests de canal et les écritures de préférences sont limités par un
   mécanisme de débit par utilisateur.
+- Un type de canal réservé n’est proposé et enregistré que pour les comptes qui
+  possèdent la permission sur leur Space principal.
+- À l’ouverture des préférences, les préférences et connexions des canaux
+  devenus interdits sont supprimées en base, avec un journal
+  `NOTIFICATION_CHANNEL_PURGED` sans secret.
 - Les émetteurs sont du code de confiance : on ne réintroduit pas de contrôle
   `MEMBER` sur une liste d’IDs. C’est un choix assumé, documenté.
 
@@ -976,6 +1026,9 @@ Ainsi :
 - `NOTIFICATION_FANOUT_FAILED`
 - `NOTIFICATION_CHANNEL_UNAVAILABLE`
 - `NOTIFICATION_CHANNEL_SECRET_INVALID`
+- `NOTIFICATION_CHANNEL_FORBIDDEN`
+- `NOTIFICATION_CHANNEL_PURGED`
+- `NOTIFICATION_CHANNEL_PURGE_FAILED`
 - `NOTIFICATION_DELIVERY_ENQUEUE_FAILED`
 - `NOTIFICATION_DELIVERY_FAILED`
 - `NOTIFICATION_PURGE`
@@ -1032,10 +1085,66 @@ unique. Un canal déclare :
 - champs secrets ;
 - validateur ;
 - classe d’envoi ;
-- longueur maximale de message.
+- longueur maximale de message ;
+- **permission facultative** : `null` = tout le monde, sinon un nom complet de
+  permission ACL (`extension__PERMISSION`).
 
 Registre proposé : `NotificationChannelRegistry` et
 `INotificationChannelProvider::coreOnRegisterNotificationChannels()`.
+
+Le lot 0 ne fige que l’identifiant, le libellé, la longueur maximale et la
+permission. Le formulaire de configuration, les champs secrets, le validateur et
+la classe d’envoi seront ajoutés avec le handler de livraison (lot 3).
+
+### Permission d’un type de canal
+
+Un type de canal peut être réservé à des comptes disposant d’une permission :
+
+```php
+new NotificationChannelDefinition(
+    id: 'webhook',
+    label: 'Webhook',
+    maxMessageLength: 2000,
+    permission: 'plg_webhook__USE_NOTIF_WEBHOOK_CHANNEL',
+);
+```
+
+Règles :
+
+- `permission = null` : le canal est utilisable par tous les comptes ;
+- la permission est un nom complet du catalogue ACL, déclaré par l’extension
+  qui fournit le canal ;
+- elle est vérifiée **uniquement quand l’utilisateur configure** ses préférences
+  ou une connexion, sur son **Space principal** (`users.space_id`), avec
+  l’héritage normal des Spaces ;
+- elle n’est **pas** vérifiée à l’émission de l’événement ni au moment de la
+  livraison ; un réglage existant reste actif si le droit est retiré ;
+- à l’ouverture des préférences, les canaux devenus interdits sont purgés de la
+  base (préférences et connexions) comme décrit dans la section Préférences ;
+- le registre ne vérifie pas que la permission existe dans le catalogue ACL. Une
+  permission mal orthographiée rend le canal inutilisable ; c’est un choix
+  assumé pour ne pas coupler le registre au catalogue des permissions.
+
+Canaux intégrés :
+
+| Canal | Permission | Réglable par l’utilisateur |
+| --- | --- | --- |
+| `ui` | `null` | Non : toujours actif |
+| `email` | `null` | Non : opt-in porté par la définition d’événement |
+| `telegram` | `null` | Oui |
+| `slack` | `null` | Oui |
+| `discord` | `null` | Oui |
+
+Les droits `ui` et `email` ne sont pas réglables. Telegram, Slack et Discord
+sont ouverts à tous ; seuls les canaux d’extension peuvent porter une
+permission. Les identifiants `ui`, `email`, `telegram`, `slack` et `discord`
+sont réservés à Core : une extension qui les revendique est refusée au
+démarrage.
+
+Côté Core, le contrôle est centralisé dans
+`Core\Helper\Notification\NotificationChannelAccessHelper::isAllowedForUser()`.
+Il est appelé à l’enregistrement et au chargement des préférences, jamais par le
+handler de livraison.
 
 Le handler résout la classe d’envoi à l’exécution à partir du `channel` stocké.
 Si le fournisseur n’est plus chargé, la livraison est marquée `failed` avec
@@ -1048,7 +1157,7 @@ Le transport est dans Core, comme expliqué plus haut.
 
 | Lot | Contenu | Dépendances |
 | --- | --- | --- |
-| 0 | Contrats PHP, noms des états, emplacements des classes, guide `Docs/NOTIFICATIONS.md` | Aucune |
+| 0 | Contrats PHP (événements, écouteurs, canaux avec permission), noms des états, emplacements des classes, guide `Docs/NOTIFICATIONS.md` | Aucune |
 | 1 | Registre, dispatcher, `event_log`, `EventJournalListener`, ACL inverses, purge, événement `core.user.role.assigned` | Lot 0 |
 | 2 | `notifications`, `NotificationListener`, préférences, cloche, panneau, composant d’éditeur de page | Lot 1 |
 | 3 | `user_notification_channels`, `notification_deliveries`, job, email, Telegram/Slack/Discord | Lot 2 |
@@ -1080,7 +1189,10 @@ tableau des attributions et permet de valider :
   écouteur explicitement non critique qui n’annule pas ;
 - rendu : texte self/others, variables manquantes, échappement, chemin invalide,
   sujet mono-ligne ;
-- préférences : self/others, absence de ligne, canal désactivé.
+- préférences : self/others, absence de ligne, canal désactivé ;
+- canaux : permission nulle, permission refusée, identifiant dupliqué, permission
+  mal formée refusée à la construction, absence de validation contre le
+  catalogue ACL.
 
 ### Intégration base
 
@@ -1095,6 +1207,9 @@ tableau des attributions et permet de valider :
 - purge : `0` = aucune suppression, valeur positive, par Space, par lots ;
 - migration `SYS_EVENT_READ` : ajoutée au rôle Root uniquement, autres rôles
   inchangés ;
+- permission de canal : un réglage existant reste actif après retrait du droit ;
+  à l’ouverture des préférences, préférences et connexions du canal interdit sont
+  supprimées ;
 - index : `EXPLAIN` des requêtes de boîte et d’audience.
 
 ### Job
@@ -1153,8 +1268,14 @@ tableau des attributions et permet de valider :
 
 ## État du chantier
 
-Les décisions structurantes sont prises. Le document peut servir de base à
-l’implémentation :
+Le lot 0 est livré : contrats PHP (`Core/Event`, `Core/Notification`,
+`Core/ExtensionApi/Event`, `Core/ExtensionApi/Notification`), contrôle de
+permission des canaux, tests unitaires et guide
+[NOTIFICATIONS.md](../../NOTIFICATIONS.md). Rien n’est encore branché dans
+`Core\Plugin` : aucune table, aucun événement émis par un workflow, aucune
+notification ni livraison.
+
+Les décisions structurantes sont prises :
 
 - page d’administration dédiée « Journal », sans modification du shell
   Système ;
@@ -1163,7 +1284,11 @@ l’implémentation :
   racine ;
 - tous les écouteurs critiques par défaut, avec possibilité explicite de
   `critical: false` ;
-- aucun rejeu, aucun `dedup_key`, aucune page de notifications dédiée.
+- aucun rejeu, aucun `dedup_key`, aucune page de notifications dédiée ;
+- permission facultative par type de canal, vérifiée à la configuration des
+  préférences sur le Space principal, sans contrôle à la livraison, avec purge
+  des canaux interdits à l’ouverture des préférences.
 
-Le prochain travail est l’écriture des contrats PHP et de la migration, puis
-les lots 1 à 4 décrits plus haut.
+Le prochain travail est le lot 1 : branchement des registres dans
+`Core\Plugin`, table `event_log`, `EventJournalListener`, ACL inverses, purge
+et premier événement `core.user.role.assigned`.

@@ -16,6 +16,7 @@ use YTassy\Tycms\CoreExts\Core\Helper\Crypt\CryptHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\MailHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\EmailTemplateRegistry;
 use YTassy\Tycms\CoreExts\Core\Helper\Mail\EmailTemplateHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\Notification\NotificationChannelAccessHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Language\LanguageCatalogRegistry;
 use YTassy\Tycms\CoreExts\Core\Helper\Language\LanguageTranslator;
 use YTassy\Tycms\CoreExts\Core\Helper\Language\LanguageProjectionHelper;
@@ -117,6 +118,10 @@ trait TraitCoreSharedHelpers
 
     protected UserHelper $coreUserHelper {
         get { return $this->getSharedExtensionsClass(UserHelper::class); } 
+    }
+
+    protected NotificationChannelAccessHelper $coreNotificationChannelAccessHelper {
+        get { return $this->getSharedExtensionsClass(NotificationChannelAccessHelper::class); }
     }
 
     protected UserRegistrationHelper $coreUserRegistrationHelper {

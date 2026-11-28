@@ -45,6 +45,7 @@ documentée ou une piste de travail ne constitue pas une fonctionnalité livrée
 | Concevoir le moteur d'automatisation, le langage de scénarios et son registre d'actions | [Chantier Automatisation](IA/CurrentWorks/AUTOMATION.md) |
 | Concevoir la file de jobs différés, son worker et ses déclencheurs | [Chantier Job Queue](IA/CurrentWorks/JOB_QUEUE.md) |
 | Concevoir le journal d’événements et les notifications utilisateur | [Chantier Journal et notifications](IA/CurrentWorks/EVENT_LOG_NOTIFICATIONS.md) |
+| Déclarer un type d’événement, un écouteur ou un canal de notification | [Journal et notifications](NOTIFICATIONS.md) |
 | Organiser les branches, la publication et les workflows GitHub Actions | [Chantier branches et CI](IA/CurrentWorks/BRANCHES_ET_CI.md) |
 | Préparer une mise en production minimale et la rotation des secrets | [Production Automatisation](AUTOMATION_PROD.md) |
 | Connecter un compte de service Google Sheets et utiliser les actions de classeur | [Google Sheets](GOOGLE_SHEETS.md) |

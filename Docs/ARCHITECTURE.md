@@ -181,7 +181,8 @@ pas une frontière technique étanche.
 Les helpers génériques, réutilisés par plusieurs domaines, restent dans
 `Core/Helper`. Un module fonctionnel regroupe en revanche ses propres classes
 techniques à sa racine — `Core/Cron`, `Core/JobQueue`, `Core/Security`,
-`Automation` — quand elles forment un ensemble cohérent. Le module se lit d'un
+`Core/Event`, `Core/Notification`, `Automation` — quand elles forment un
+ensemble cohérent. Le module se lit d'un
 bloc, et son contrat public reste dans `Core/ExtensionApi`. Appartenir à un
 module n'expose rien : seuls les types cités par un contrat public sont
 utilisables par les extensions.
@@ -195,6 +196,8 @@ L'API exposée est organisée ainsi (namespaces relatifs à
 | Classe de base des templates | `BaseTemplate` |
 | Événements généraux implémentés par les extensions | `IExtensionEvents` |
 | Fournisseurs et classes de composants de page | `Page\IPageComponentProvider`, `Page\PageComponent` |
+| Fournisseurs de types d’événements et d’écouteurs | `Event\IEventProvider`, `Event\IEventListenerProvider`, `Event\IEventListener` |
+| Fournisseur de canaux de notification | `Notification\INotificationChannelProvider` |
 | Réponse HTML avec template et contenu à rendre | `Template\TemplateResponse`, `Template\ContentTemplate` |
 | Définition d'un type d'entrée de menu | `Menu\MenuItemDef` |
 | Accès aux langues et aux helpers partagés | `Traits\TraitCoreLang`, `Traits\TraitCoreSharedHelpers` |
