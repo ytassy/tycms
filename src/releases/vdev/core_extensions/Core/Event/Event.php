@@ -12,9 +12,9 @@ use InvalidArgumentException;
  * Occurrence d'un événement métier.
  *
  * L'objet porte le type, le Space réel, l'acteur, l'objet concerné, la charge
- * utile bornée et l'audience déjà résolue par le workflow. Il est construit par
- * `EventEmitter`, qui affecte ensuite `logId` et, si la définition en déclare
- * un, le chemin interne calculé par le callable `link`.
+ * utile bornée et l'audience résolue. Il est construit par `EventEmitter`, qui
+ * résout l'audience et affecte ensuite `logId`, puis, si la définition en
+ * déclare un, le chemin interne calculé par le callable `link`.
  */
 final class Event
 {

@@ -115,8 +115,9 @@ Règles de validation, appliquées à la construction :
 - `defaultChannels` est une liste de canaux proposés par défaut, sans doublon et
   sans validation contre le registre des canaux.
 
-La définition **ne porte pas d’audience**. Le workflow émetteur résout les
-destinataires et les transmet à l’émission.
+La définition **ne porte pas d’audience**. Le workflow émetteur décrit la
+source (`EventAudience`) et `EventEmitter` résout les destinataires à
+l’émission.
 
 ## Émettre un événement
 

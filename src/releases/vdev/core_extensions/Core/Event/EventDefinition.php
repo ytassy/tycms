@@ -14,9 +14,9 @@ use InvalidArgumentException;
  * une définition incomplète doit échouer au démarrage, pas au moment où un
  * workflow l'émet.
  *
- * L'audience n'est pas décrite ici. Le workflow émetteur résout les
- * destinataires et les transmet à `EventEmitter::emit()` ; la définition ne
- * porte que le catalogue et les textes.
+ * L'audience n'est pas décrite ici. Le workflow émetteur en décrit seulement
+ * la source dans `EventAudience`, et `EventEmitter::emit()` la résout ; la
+ * définition ne porte que le catalogue et les textes.
  */
 final class EventDefinition
 {

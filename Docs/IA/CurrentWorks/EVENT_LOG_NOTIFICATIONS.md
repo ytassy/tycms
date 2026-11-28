@@ -33,7 +33,7 @@ c’est accepté : la lisibilité et la simplicité priment sur la factorisation
 | Rejeu | Aucun rejeu métier ni de livraison. Le job de fan-out est rejoué automatiquement par la file (2 tentatives) sur erreur technique et relançable depuis Jobs ; la livraison reste à un seul essai |
 | `dedup_key` | Supprimé : pas de rejeu métier et émetteurs de confiance. La file garde sa propre clé de déduplication pour le job de fan-out |
 | Rétention | Configurable par Space dans la configuration de `plg_core` ; `0` = aucune limite, on conserve tout |
-| Capacité | Plafond global de destinataires dans `configuration.php` : `notification_max_recipients = 2000`. La résolution d’audience est bornée à `plafond + 1` |
+| Capacité | Plafond global de destinataires : `notification_max_recipients = 2000` dans `ConfigurationBase`, surchargeable dans `configuration.php`. La résolution d’audience est bornée à `plafond + 1` |
 | Dépassement | Journaliser et ne pas notifier ; jamais de troncature silencieuse. Une audience qui dépasse le plafond n’est pas notifiée |
 | ACL inverses | Helper dédié, une requête SQL récursive (groupes puis comptes) avec `limit` obligatoire sur l’énumération finale |
 | Interface | Cloche montée en composant global, sans page dédiée ni type de menu ; activée par défaut |
@@ -1270,14 +1270,16 @@ Les index `(space_id, created_at)` de `event_log`, `notifications` et
 
 ### Configuration globale
 
-`configuration.php` porte le plafond de destinataires :
+`ConfigurationBase` porte le plafond de destinataires, surchargeable dans
+`configuration.php` :
 
 ```php
 public int $notification_max_recipients = 2000;
 ```
 
-Il est documenté dans `configuration.sample.php` et validé à la lecture. Une
-valeur absurde est ramenée à une borne basse de 1.
+Il est documenté dans `configuration.sample.php`. `EventEmitter::maxRecipients()`
+le lit et ramène une valeur absurde à une borne basse de 1 ; la résolution est
+appelée avec `plafond + 1`.
 
 ## Extensibilité des canaux
 
@@ -1399,13 +1401,16 @@ tableau des attributions et permet de valider :
 - canaux : permission nulle, permission refusée, identifiant dupliqué, permission
   mal formée refusée à la construction, absence de validation contre le
   catalogue ACL ;
-- resolver d’audience : `limit` obligatoire, arrêt anticipé, ensembles
-  intermédiaires non tronqués, résultat à la borne.
+- resolver d’audience : `limit` obligatoire, `LIMIT` sur l’énumération finale
+  seulement, ensembles intermédiaires non tronqués, résultat à la borne ;
+  spécification `EventAudience` (liste directe sans SQL, délégation avec la
+  limite reçue, plafond ramené à 1).
 
 ### Intégration base
 
 - audience : liste directe, permission globale, permission sur objet, rôle,
-  rôle local, héritage Space, héritage groupe, doublons, acteur inclus/exclu ;
+  rôle local, héritage Space, héritage groupe, doublons, acteur inclus/exclu,
+  attributions précises sur des groupes personnels ;
 - utilisateurs bloqués, comptes de service ;
 - transaction : annulation sans journal, ni job de fan-out ;
 - journal critique : une erreur d’écriture annule le métier ;
