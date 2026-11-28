@@ -6,6 +6,7 @@ namespace YTassy\Tycms\CoreExts\Core\Helper\Event;
 
 use YTassy\Tycms\CoreExts\Core\Event\Event;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\BaseHelper;
+use YTassy\Tycms\CoreExts\Core\Helper\TraitCoreAdditionalHelpers;
 use YTassy\Tycms\Exceptions\TechException;
 
 /**
@@ -17,6 +18,10 @@ use YTassy\Tycms\Exceptions\TechException;
  */
 class EventLogHelper extends BaseHelper
 {
+    // La base fournit les helpers partagés ; le trait complémentaire ajoute
+    // l'accès à la configuration des extensions.
+    use TraitCoreAdditionalHelpers;
+
     /** Taille d’un lot de purge. */
     public const PURGE_BATCH_SIZE = 500;
 
@@ -99,5 +104,52 @@ class EventLogHelper extends BaseHelper
         }
 
         return $deleted;
+    }
+
+    /**
+     * Applique la rétention configurée par Space et retourne le total supprimé.
+     *
+     * La configuration de `plg_core` est lue une fois pour tous les Spaces ; une
+     * valeur absente ou nulle conserve tout. La purge reste bornée par
+     * `PURGE_MAX_BATCHES` pour ne pas monopoliser le hook horaire.
+     */
+    public function purgeExpired(): int
+    {
+        $spaceIds = $this->coreSpaceHelper->getAllSpaceIds();
+        if ($spaceIds === []) {
+            return 0;
+        }
+
+        $configs = $this->coreExtensionsHelper->getExtensionsConfForSpaces($spaceIds)['plg_core'] ?? [];
+
+        $purged = 0;
+
+        foreach ($spaceIds as $spaceId) {
+            $params = (array) ($configs[$spaceId]->params ?? []);
+            $days = (int) ($params['event_log_retention_days'] ?? 0);
+
+            // `0` = aucune limite : la purge ne s’exécute que sur une valeur positive.
+            if ($days <= 0) {
+                continue;
+            }
+
+            $deleted = $this->purge($spaceId, $days);
+            if ($deleted <= 0) {
+                continue;
+            }
+
+            $purged += $deleted;
+
+            // Le nombre est écrit dans le message : le contexte borné se limite
+            // aux identifiants. Aucun contenu d’événement n’est journalisé ici.
+            $this->logInfo(
+                sprintf('Purge automatique du journal d’événements : %d ligne(s) supprimée(s).', $deleted),
+                ['space_id' => $spaceId],
+                'EVENT_LOG_PURGE',
+                'event',
+            );
+        }
+
+        return $purged;
     }
 }

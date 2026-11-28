@@ -4,6 +4,7 @@ namespace YTassy\Tycms\CoreExts\Core\WF;
 
 use YTassy\Tycms\CoreExts\Core\Helper\TraitAllHelpers;
 use YTassy\Tycms\CoreExts\Core\Event\EventActorType;
+use YTassy\Tycms\CoreExts\Core\Event\EventAudience;
 use YTassy\Tycms\CoreExts\Core\Security\LocalPasswordPolicy;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\Permissions;
 use YTassy\Tycms\CoreExts\Core\ExtensionApi\Acl\UserGroups;
@@ -378,24 +379,16 @@ class WFAdminUser extends BaseWF
     /**
      * Émet l'événement métier d'attribution ou de retrait de rôle.
      *
-     * L'audience est résolue ici, de façon synchrone et bornée par le plafond
-     * de destinataires : le job de fan-out ne recalcule jamais les droits. Elle
-     * n'est pas tronquée (`plafond + 1`) pour que le listener de notification
-     * puisse distinguer une audience au plafond d'une audience trop grande.
+     * Le workflow décrit seulement l'audience : les comptes qui possèdent
+     * `USER_ROLES_READ` sur ce Space. L'émetteur résout la liste avec le
+     * plafond de destinataires ; le job de fan-out ne recalcule jamais les
+     * droits.
      *
      * La charge utile porte les libellés nécessaires aux textes self/others ;
      * aucun secret ni identifiant de session n'y figure.
      */
     private function emitRoleEvent(object $user, object $role, int $spaceId, bool $assigned): void
     {
-        $maxRecipients = max(1, (int) $this->app->getConf()->notification_max_recipients);
-
-        $recipients = $this->coreAclUserResolver->usersWithGlobalPermission(
-            Permissions::USER_ROLES_READ,
-            $spaceId,
-            $maxRecipients + 1,
-        );
-
         // Un run d'automatisation peut ne pas porter de compte : l'acteur
         // système reste identifiable par son type et son libellé.
         $actorId = $this->session->getUserId();
@@ -416,7 +409,7 @@ class WFAdminUser extends BaseWF
                     'name' => $actor === null ? 'Système' : $this->displayName($actor),
                 ],
             ],
-            recipientUserIds: $recipients,
+            audience: EventAudience::globalPermission(Permissions::USER_ROLES_READ, $spaceId),
             actorId: $actorId,
             actorType: $actorId === null ? EventActorType::SYSTEM : EventActorType::USER,
             subjectType: 'user',

@@ -15,6 +15,10 @@ use YTassy\Tycms\Exceptions\TechException;
  * Un workflow appelle `emit()` après ses écritures et avant le commit. Si un
  * écouteur critique échoue, l'exception remonte et la transaction métier est
  * annulée : le journal et les notifications sont aussi durables que le métier.
+ *
+ * L'audience est décrite par une `EventAudience` et résolue ici, avec le
+ * plafond de destinataires : le workflow ne calcule ni liste d'utilisateurs ni
+ * limite. Une liste directe reste possible, mais elle est marginale.
  */
 final class EventEmitter extends BaseHelper
 {
@@ -44,18 +48,17 @@ final class EventEmitter extends BaseHelper
     /**
      * Émet un événement déclaré.
      *
-     * L'audience est déjà résolue par l'appelant : liste directe du métier ou
-     * résultat d'`AclUserResolver`. Le listener de notification applique
-     * ensuite les filtres de compte et les préférences.
+     * `$audience` décrit les destinataires ; l'émetteur les résout au plus tard
+     * au plafond configuré, avec `plafond + 1` pour que le fan-out distingue
+     * une audience au plafond d'une audience trop grande.
      *
      * @param array<string, mixed> $data
-     * @param list<int> $recipientUserIds
      */
     public function emit(
         string $type,
         int $spaceId,
         array $data = [],
-        array $recipientUserIds = [],
+        ?EventAudience $audience = null,
         ?int $actorId = null,
         EventActorType $actorType = EventActorType::USER,
         ?string $subjectType = null,
@@ -65,6 +68,10 @@ final class EventEmitter extends BaseHelper
         if ($definition === null) {
             throw new TechException(sprintf('Type d’événement non déclaré : "%s".', $type));
         }
+
+        $recipientUserIds = $audience === null
+            ? []
+            : $audience->resolve($this->coreAclUserResolver, $this->maxRecipients() + 1);
 
         $event = new Event(
             $definition,
@@ -86,6 +93,17 @@ final class EventEmitter extends BaseHelper
         $this->dispatcher->dispatch($event, $this->dispatcher->nextDepth());
 
         return $event;
+    }
+
+    /**
+     * Plafond de destinataires configuré, ramené à une borne basse de 1.
+     *
+     * Exposé pour le listener de fan-out, qui vérifie l'audience du payload
+     * avec la même règle.
+     */
+    public function maxRecipients(): int
+    {
+        return max(1, (int) $this->app->getConf()->notification_max_recipients);
     }
 
     private function resolveLink(\Closure $link, Event $event): ?string

@@ -35,7 +35,7 @@ c’est accepté : la lisibilité et la simplicité priment sur la factorisation
 | Rétention | Configurable par Space dans la configuration de `plg_core` ; `0` = aucune limite, on conserve tout |
 | Capacité | Plafond global de destinataires dans `configuration.php` : `notification_max_recipients = 2000`. La résolution d’audience est bornée à `plafond + 1` |
 | Dépassement | Journaliser et ne pas notifier ; jamais de troncature silencieuse. Une audience qui dépasse le plafond n’est pas notifiée |
-| ACL inverses | Nouveaux helpers dédiés, algorithme SQL + PHP optimisé, index revus, `limit` obligatoire sur l’énumération finale des utilisateurs |
+| ACL inverses | Helper dédié, une requête SQL récursive (groupes puis comptes) avec `limit` obligatoire sur l’énumération finale |
 | Interface | Cloche montée en composant global, sans page dédiée ni type de menu ; activée par défaut |
 | Boîte de réception | Toutes les notifications de l’utilisateur, tous Spaces confondus, avec badge du Space |
 | Email | Aucun email par défaut ; opt-in au cas par cas dans la définition |
@@ -114,9 +114,11 @@ Un workflow appelle `EventEmitter::emit()` après ses écritures métier et avan
 le commit. L’émetteur :
 
 1. résout la définition dans le registre ;
-2. construit un objet `Event` (type, Space, acteur, données, date) ;
-3. passe l’événement au dispatcher ;
-4. laisse les écouteurs écrire le journal et enfiler le job de fan-out.
+2. résout l’audience décrite par `EventAudience` avec le plafond de
+   destinataires (`plafond + 1`) ;
+3. construit un objet `Event` (type, Space, acteur, données, audience, date) ;
+4. passe l’événement au dispatcher ;
+5. laisse les écouteurs écrire le journal et enfiler le job de fan-out.
 
 Tous les écouteurs sont **critiques par défaut** : si l’un d’eux échoue,
 l’exception remonte et la transaction métier est annulée. C’est le contrat
@@ -662,17 +664,23 @@ dans `users.params` pour l’instant.
 
 ## Résolution des destinataires
 
-L’audience est résolue par le **workflow émetteur**, pas par le noyau.
-`EventEmitter::emit()` reçoit la liste des `user_id` destinataires déjà calculée :
-liste directe fournie par le métier, ou résultat de `AclUserResolver` pour un
-droit ou un rôle. L’événement porte cette liste ; le job de fan-out la filtre
-ensuite (comptes bloqués, comptes de service, acteur selon `notifyActor`,
-préférences).
+Le workflow **décrit** l’audience, il ne la calcule pas. `EventEmitter::emit()`
+reçoit une `EventAudience` : permission globale + Space, permission sur objet,
+rôle global, rôle sur objet, ou — cas marginal — une liste directe
+d’identifiants. L’émetteur résout la liste avec `AclUserResolver` et le plafond
+de destinataires, puis l’événement porte cette liste. Le job de fan-out la
+filtre ensuite (comptes bloqués, comptes de service, acteur selon
+`notifyActor`, préférences).
 
 La résolution reste donc **synchrone**, dans la transaction métier : le job ne
 recalcule jamais les droits. Si l’audience est coûteuse, c’est cette étape qui
 coûte, pas la création des notifications. Le resolver est borné (voir plus bas)
 pour que cette étape ne puisse pas durer indéfiniment.
+
+Une liste directe reste acceptée telle quelle : on fait confiance aux
+workflows et extensions, qui sont du code de l’installation. Elle doit rester
+marginale ; dans la quasi-totalité des cas, l’émetteur désigne un droit et un
+Space.
 
 La définition d’événement ne porte donc aucune règle d’audience. Ce choix garde
 les workflows explicites et évite un second langage de sélection dans les
@@ -680,13 +688,13 @@ définitions.
 
 ### Méthodes
 
-| Méthode | Signification |
+| `EventAudience` | Signification |
 | --- | --- |
-| Liste d’IDs | Utilisateurs explicitement désignés par l’émetteur |
-| Permission globale + Space | Droit effectif sur ce Space ou un ancêtre |
-| Permission sur objet | Droit effectif : global, type d’objet ou instance |
-| Rôle + Space | Rôle effectif sur ce Space ou un ancêtre |
-| Rôle local sur objet | Rôle effectif sur le type ou l’instance |
+| `users([…])` | Liste directe, marginale, sans lecture SQL |
+| `globalPermission($permission, $spaceId)` | Droit effectif sur ce Space ou un ancêtre |
+| `permissionOnObject(…, $objectId, $spaceId)` | Droit effectif : global, type d’objet ou instance |
+| `globalRole($roleId, $spaceId)` | Rôle effectif sur ce Space ou un ancêtre |
+| `roleOnObject(…, $objectId, $spaceId)` | Rôle effectif sur le type ou l’instance |
 
 L’audience est toujours le **droit effectif**. Pas de mode « exact ».
 
@@ -698,13 +706,11 @@ demander une liste non bornée.
 
 - Les requêtes intermédiaires (rôles, `acl_map`, groupes) ne sont **pas**
   tronquées : les limiter fausserait l’audience en oubliant des bénéficiaires.
-- Seule la requête finale sur `user_groups_map` porte un `LIMIT` et la boucle
-  PHP s’arrête dès que `limit` identifiants sont réunis.
-- L’appelant qui doit distinguer une liste complète d’une liste bornée passe
-  `limit + 1`. Pour les notifications :
-  `notification_max_recipients + 1`. Si le résultat dépasse le plafond, le
-  dépassement est journalisé avec `NOTIFICATION_AUDIENCE_TOO_LARGE` et aucun job
-  de fan-out n’est enfilé.
+- Seule l’énumération finale des comptes porte un `LIMIT` ; la CTE calcule la
+  fermeture des groupes sans être tronquée.
+- `EventEmitter` passe `notification_max_recipients + 1`. Si le résultat
+  dépasse le plafond, le dépassement est journalisé avec
+  `NOTIFICATION_AUDIENCE_TOO_LARGE` et aucun job de fan-out n’est enfilé.
 - Une audience tronquée n’est jamais notifiée : soit tous les destinataires
   sont notifiés, soit aucun. C’est la règle « jamais de troncature silencieuse ».
 
@@ -720,48 +726,66 @@ tout de même écartés.
 
 ### Helpers inverses
 
-Il n’existe pas aujourd’hui de méthode `AclHelper` pour énumérer les
-utilisateurs. `getSpacesHavingGlobalPermission()` raisonne sur la session, pas
-sur tous les comptes. Il faut un helper dédié, par exemple
-`Core\Helper\Acl\AclUserResolver`, avec :
+Il n’existe pas de méthode `AclHelper` pour énumérer les utilisateurs.
+`getSpacesHavingGlobalPermission()` raisonne sur la session, pas sur tous les
+comptes. Le helper dédié `Core\Helper\Acl\AclUserResolver` fournit :
 
 - `usersWithGlobalPermission(string $permission, int $spaceId, int $limit): array`
 - `usersWithPermissionOnObject(string $permission, string $extension, string $object, int $objectId, int $spaceId, int $limit): array`
 - `usersWithGlobalRole(int $roleId, int $spaceId, int $limit): array`
 - `usersWithRoleOnObject(int $roleId, string $extension, string $object, int $objectId, int $spaceId, int $limit): array`
 
-### Algorithme SQL + PHP
+### Algorithme SQL
 
-L’objectif est d’éviter une boucle « un utilisateur = un contrôle ACL ». Le
-calcul se fait en quatre étapes, avec des ensembles en PHP entre les requêtes.
+L’objectif est d’éviter une boucle « un utilisateur = un contrôle ACL », et de
+ne jamais faire une requête par groupe. Chaque compte possède un groupe
+personnel (type 1) : un rôle attribué précisément à 3 000 comptes désigne
+3 000 groupes.
 
-1. **Espaces** : charger l’espace et ses ancêtres une fois par requête
-   (`SpaceHelper::getSpaceIdsWithParents`).
-2. **Rôles** : pour une permission, lire les `role_id` dans `acl_permissions`
-   (`extension`, `name`). Pour un rôle, partir directement de son ID.
-3. **Groupes** : lire les `group_id` dans `acl_map` pour ces rôles, les espaces
-   ancêtres et, si besoin, le type/objet. Pour un droit sur objet, réunir les
-   affectations globales, celles du type (`object_id IS NULL`) et celles de
-   l’instance : `AclHelper::hasPermissionOn()` fait de même. Utiliser les index
-   existants.
-4. **Utilisateurs** : charger une fois l’arbre des groupes
-   (`id => parent_id`), calculer en PHP la fermeture descendante des groupes
-   bénéficiaires (un rôle sur un groupe parent profite aux enfants), puis lire
-   `user_groups_map` par lots de `group_id` avec `FormatIn`. Chaque lecture porte
-   un `LIMIT` égal au reste à trouver et la boucle s’arrête dès que `limit`
-   identifiants sont réunis.
+La résolution tient donc en une requête, avec une CTE récursive :
 
-Le resolver écarte les comptes bloqués et de service et déduplique. Le job de
-fan-out réapplique ces filtres à l’exécution, puis applique l’acteur selon
-`notifyActor` et les préférences.
+1. **Espaces** : `SpaceHelper::getSpaceIdsWithParents` fournit le Space et ses
+   ancêtres.
+2. **Rôles** : pour une permission, les `role_id` viennent d’`acl_permissions`
+   (`extension`, `name`) ; pour un rôle, partir de son ID.
+3. **Groupes et comptes** : la CTE part des affectations utiles (`role_id`,
+   `space_id`, et le périmètre d’objet), descend l’arbre des groupes par
+   `user_groups.parent_id`, puis joint `user_groups_map` et `users`. Le `LIMIT`
+   ne porte que sur cette jointure finale ; les comptes bloqués et de service
+   sont écartés et les identifiants dédupliqués.
 
-Points d’optimisation :
+```sql
+WITH RECURSIVE beneficiaries AS (
+    SELECT DISTINCT group_id FROM acl_map
+    WHERE role_id IN (…) AND space_id IN (…) AND (…)
+    UNION DISTINCT
+    SELECT child.id FROM user_groups child FORCE INDEX (idx_user_groups_parent1)
+    INNER JOIN beneficiaries parent ON child.parent_id = parent.group_id
+)
+SELECT STRAIGHT_JOIN DISTINCT gm.user_id
+FROM beneficiaries
+INNER JOIN user_groups_map gm ON gm.group_id = beneficiaries.group_id
+INNER JOIN users u ON u.id = gm.user_id
+WHERE u.blocked = 0 AND u.type <> 'service'
+ORDER BY gm.user_id
+LIMIT …
+```
 
-- cacher l’arbre des groupes et les ancêtres de Space pour la requête ;
-- cacher le résultat par `(méthode, paramètres, spaceId)` ;
-- utiliser `array<int, true>` pour les ensembles ;
-- borner et découper les `IN` (par exemple 1 000 IDs), puis appliquer un
-  `LIMIT` sur l’énumération finale avec arrêt anticipé en PHP ;
+Les `IN` sur les rôles et les Spaces sont découpés par 1 000 identifiants par
+sécurité ; le nombre de groupes n’influe pas sur le nombre de requêtes.
+`STRAIGHT_JOIN` fixe l’ordre affectations → groupes → comptes : sans lui,
+l’optimiseur peut partir d’un scan de `users` et perdre le `LIMIT`. La descente
+force `idx_user_groups_parent1` ; `EXPLAIN` confirme la graine sur `acl_map`,
+la jointure sur `user_groups_map (group_id, user_id)` puis les comptes par clé
+primaire. Le job
+de fan-out réapplique les filtres de compte à l’exécution, puis applique
+l’acteur selon `notifyActor` et les préférences.
+
+Points d’optimisation restants :
+
+- cacher l’ancêtre de Space est déjà assuré par `SpaceHelper` ;
+- cacher le résultat par `(méthode, paramètres, spaceId)` n’est pas fait : une
+  audience doit refléter l’état de la transaction courante ;
 - ne jamais charger tous les utilisateurs pour tester leurs droits un par un.
 
 ### Index à examiner
@@ -777,8 +801,9 @@ Points d’optimisation :
 | Descente des groupes | `user_groups.idx_user_groups_parent1 (parent_id, type, name)` |
 | Appartenance | `user_groups_map` unique `(group_id, user_id)` |
 
-Candidats à tester pendant l’implémentation, uniquement si `EXPLAIN` montre un
-scan ou un tri coûteux :
+La requête récursive est en place ; son `EXPLAIN` reste à faire avant d’ajouter
+un index. Candidats à tester, uniquement si `EXPLAIN` montre un scan ou un tri
+coûteux :
 
 - `acl_map (role_id, space_id, acl_object_id, object_id, group_id)` pour le
   chemin inverse permission → rôle → affectation ;
@@ -789,11 +814,11 @@ scan ou un tri coûteux :
 
 Si l’arbre des groupes devient un goulot d’étranglement, la solution scalable
 est une table de fermeture `user_group_ancestors`. Ce n’est pas nécessaire au
-premier lot.
+premier lot : la CTE évite déjà une requête par groupe.
 
 ### Plafond
 
-`configuration.php` porte :
+`ConfigurationBase` porte le défaut, surchargeable dans `configuration.php` :
 
 ```php
 public int $notification_max_recipients = 2000;
@@ -806,10 +831,11 @@ Si l’audience dépasse le plafond :
 - un log technique `NOTIFICATION_AUDIENCE_TOO_LARGE` est écrit ;
 - aucun destinataire n’est tronqué silencieusement.
 
-Le resolver est appelé avec `notification_max_recipients + 1` : dès que la
-borne est atteinte, la résolution s’arrête et l’appelant sait que l’audience est
-trop grande. Le job de fan-out vérifie aussi le nombre d’identifiants de son
-payload, par défense, avant de créer la moindre ligne.
+`EventEmitter` appelle le resolver avec `notification_max_recipients + 1` et
+ramène une valeur inférieure à 1 à 1 : dès que la borne est atteinte, la
+résolution s’arrête et le listener sait que l’audience est trop grande. Le job
+de fan-out vérifie aussi le nombre d’identifiants de son payload, par défense,
+avant de créer la moindre ligne.
 
 ## Indexation
 
@@ -1483,16 +1509,20 @@ permission des canaux, tests unitaires et guide
 [NOTIFICATIONS.md](../../NOTIFICATIONS.md).
 
 Le lot 1 est livré : registres branchés dans `Core\Plugin` à
-`onPrepareExtensions`, table `event_log`, `EventJournalListener` critique
-(priorité 10, tous les types déclarés), `AclUserResolver` borné par un `limit`
-obligatoire, purge horaire par Space et premiers événements
+`onPrepareExtensions`, catalogue `CoreEventDefinitions`, table `event_log`,
+`EventJournalListener` critique (priorité 10, tous les types déclarés),
+`AclUserResolver` borné par un `limit` obligatoire et résolu par une seule
+requête récursive, purge horaire par Space déléguée à
+`EventLogHelper::purgeExpired()` et premiers événements
 `core.user.role.assigned`/`core.user.role.removed` émis par
-`WFAdminUser::applyRole()`, donc aussi depuis les actions d’automatisation. Le
-plafond `notification_max_recipients` est dans `ConfigurationBase` et la
-rétention du journal dans la section `notifications` du formulaire
-`plugin.core.config` (version 2) ; les deux champs de rétention des
-notifications sont déjà exposés mais ne s’appliqueront qu’avec leurs tables.
-Aucune notification n’est encore créée ni livrée.
+`WFAdminUser::applyRole()`, donc aussi depuis les actions d’automatisation.
+`EventEmitter` résout l’audience décrite par `EventAudience`
+(permission/rôle/objet) avec le plafond `notification_max_recipients` ; une
+liste directe reste possible mais marginale. La rétention du journal est dans
+la section `notifications` du formulaire `plugin.core.config` (version 2) ; les
+deux champs de rétention des notifications sont déjà exposés mais ne
+s’appliqueront qu’avec leurs tables. Aucune notification n’est encore créée ni
+livrée.
 
 Les décisions structurantes sont prises :
 

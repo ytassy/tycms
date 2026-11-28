@@ -13,30 +13,29 @@ use YTassy\Tycms\DB\FormatIn;
  *
  * `AclHelper` répond « ce compte a-t-il ce droit ? ». Ce resolver répond à la
  * question inverse pour une audience de notification : « quels comptes ont ce
- * droit ? ». Il ne teste jamais les comptes un par un : les rôles, les
- * affectations de groupe et la fermeture descendante des groupes sont calculés
- * en ensembles, puis les utilisateurs sont lus en une requête finale bornée.
+ * droit ? ». Il ne teste jamais les comptes un par un.
  *
- * Le `limit` est obligatoire et la seule requête tronquée est l’énumération
- * finale des utilisateurs. Les ensembles intermédiaires (rôles, `acl_map`,
- * groupes) restent complets : les limiter oublierait des bénéficiaires. Un
- * appelant qui doit distinguer une liste complète d’une liste bornée passe
- * `limit + 1` et interprète le dépassement.
+ * Les groupes et les utilisateurs sont résolus par **une seule requête** :
+ * une CTE récursive part des affectations utiles et descend l’arbre des
+ * groupes, puis joint `user_groups_map` et `users`. Le nombre de groupes
+ * personnels (un par compte, type 1) n’a donc aucun coût par groupe : le
+ * `LIMIT` porte sur l’énumération finale des comptes, pas sur les groupes.
+ * `STRAIGHT_JOIN` impose l’ordre affectations → groupes → comptes : un scan de
+ * `users` ferait perdre l’intérêt du `LIMIT`.
+ *
+ * Le `limit` est obligatoire. Les ensembles intermédiaires ne sont pas
+ * tronqués : seule la liste des utilisateurs l’est, pour qu’une audience au
+ * plafond puisse être distinguée d’une audience trop grande. L’appelant qui a
+ * besoin de cette distinction passe `limit + 1`.
  *
  * Les ancêtres du Space sont pris en compte, comme `AclHelper` : un rôle ou un
  * droit accordé sur un Space parent vaut pour ses descendants. Les comptes
  * bloqués et de service sont écartés, et les identifiants sont dédupliqués.
  */
-final class AclUserResolver extends BaseHelper
+class AclUserResolver extends BaseHelper
 {
     /** Nombre maximal d’identifiants par requête `IN`. */
     public const MAX_IDS_PER_QUERY = 1000;
-
-    /** Condition commune de filtrage des comptes destinataires. */
-    private const ACTIVE_USER_FILTER = "u.blocked = 0 AND u.type <> 'service'";
-
-    /** @var array<int, list<int>>|null Enfants directs par groupe, chargés une fois. */
-    private ?array $groupChildren = null;
 
     /**
      * Comptes ayant la permission globale sur le Space ou un de ses ancêtres.
@@ -156,7 +155,12 @@ final class AclUserResolver extends BaseHelper
     }
 
     /**
-     * Calcule l’audience d’un ensemble de rôles pour un Space.
+     * Énumère l’audience d’un ensemble de rôles pour un Space.
+     *
+     * Une seule requête suffit quel que soit le nombre de groupes concernés :
+     * la CTE récursive calcule la fermeture descendante, puis la jointure finale
+     * porte le `LIMIT`. Les rôles et les Spaces sont découpés par sécurité, mais
+     * il n’y a jamais une requête par groupe.
      *
      * @param list<int> $roleIds
      * @return list<int>
@@ -178,28 +182,6 @@ final class AclUserResolver extends BaseHelper
             return [];
         }
 
-        $groupIds = $this->beneficiaryGroupIds($roleIds, $spaceIds, $aclObjectId, $objectId);
-        if ($groupIds === []) {
-            return [];
-        }
-
-        // Un rôle assigné à un groupe parent profite aux membres des enfants.
-        return $this->usersFromGroups($this->expandGroupsWithDescendants($groupIds), $limit);
-    }
-
-    /**
-     * Groupes porteurs d’une affectation utile.
-     *
-     * @param list<int> $roleIds
-     * @param list<int> $spaceIds
-     * @return list<int>
-     */
-    private function beneficiaryGroupIds(
-        array $roleIds,
-        array $spaceIds,
-        ?int $aclObjectId,
-        ?int $objectId,
-    ): array {
         // Un droit global ne retient que les affectations globales. Un droit sur
         // objet réunit aussi celles du type et de l’instance, comme
         // `AclHelper::hasPermissionOn()`.
@@ -208,113 +190,45 @@ final class AclUserResolver extends BaseHelper
             : '(acl_object_id IS NULL AND object_id IS NULL)'
                 . ' OR (acl_object_id = % AND (object_id IS NULL OR object_id = %))';
 
-        $groups = [];
+        $userIds = [];
 
         foreach (array_chunk($roleIds, self::MAX_IDS_PER_QUERY) as $roleChunk) {
             foreach (array_chunk($spaceIds, self::MAX_IDS_PER_QUERY) as $spaceChunk) {
+                $remaining = $limit - count($userIds);
+                if ($remaining <= 0) {
+                    break 2;
+                }
+
                 $values = [FormatIn::get($roleChunk), FormatIn::get($spaceChunk)];
                 if ($aclObjectId !== null) {
                     $values[] = $aclObjectId;
                     $values[] = $objectId;
                 }
 
+                // L'ordre des jointures est fixé : partir des affectations, puis
+                // des groupes, puis des comptes. Sans cela, l'optimiseur peut
+                // commencer par un scan de `users` et perdre le bénéfice du
+                // LIMIT. La descente force l'index du parent de groupe.
                 $rows = $this->db->select(
-                    'SELECT DISTINCT group_id FROM acl_map
-                     WHERE role_id IN (%) AND space_id IN (%) AND (' . $objectCondition . ')',
+                    'WITH RECURSIVE beneficiaries AS (
+                        SELECT DISTINCT group_id FROM acl_map
+                        WHERE role_id IN (%) AND space_id IN (%) AND (' . $objectCondition . ')
+                        UNION DISTINCT
+                        SELECT child.id FROM user_groups child FORCE INDEX (idx_user_groups_parent1)
+                        INNER JOIN beneficiaries parent ON child.parent_id = parent.group_id
+                    )
+                    SELECT STRAIGHT_JOIN DISTINCT gm.user_id
+                    FROM beneficiaries
+                    INNER JOIN user_groups_map gm ON gm.group_id = beneficiaries.group_id
+                    INNER JOIN users u ON u.id = gm.user_id
+                    WHERE u.blocked = 0 AND u.type <> \'service\'
+                    ORDER BY gm.user_id
+                    LIMIT ' . $remaining,
                     $values,
                 );
 
                 foreach ($rows as $row) {
-                    $groups[(int) $row->group_id] = true;
-                }
-            }
-        }
-
-        return array_keys($groups);
-    }
-
-    /**
-     * Fermeture descendante des groupes bénéficiaires.
-     *
-     * @param list<int> $groupIds
-     * @return list<int>
-     */
-    private function expandGroupsWithDescendants(array $groupIds): array
-    {
-        $children = $this->groupChildren();
-        $result = [];
-        $queue = $groupIds;
-
-        while ($queue !== []) {
-            $groupId = array_pop($queue);
-            if (isset($result[$groupId])) {
-                continue;
-            }
-
-            $result[$groupId] = true;
-
-            foreach ($children[$groupId] ?? [] as $childId) {
-                if (!isset($result[$childId])) {
-                    $queue[] = $childId;
-                }
-            }
-        }
-
-        return array_keys($result);
-    }
-
-    /**
-     * Arbre des groupes chargé une seule fois par requête.
-     *
-     * @return array<int, list<int>>
-     */
-    private function groupChildren(): array
-    {
-        if ($this->groupChildren !== null) {
-            return $this->groupChildren;
-        }
-
-        $children = [];
-        foreach ($this->db->select('SELECT id, parent_id FROM user_groups') as $row) {
-            if ($row->parent_id === null) {
-                continue;
-            }
-
-            $children[(int) $row->parent_id][] = (int) $row->id;
-        }
-
-        return $this->groupChildren = $children;
-    }
-
-    /**
-     * Énumération finale, seule requête bornée.
-     *
-     * @param list<int> $groupIds
-     * @return list<int>
-     */
-    private function usersFromGroups(array $groupIds, int $limit): array
-    {
-        $userIds = [];
-
-        foreach (array_chunk($groupIds, self::MAX_IDS_PER_QUERY) as $chunk) {
-            $remaining = $limit - count($userIds);
-            if ($remaining <= 0) {
-                break;
-            }
-
-            $rows = $this->db->select(
-                'SELECT gm.user_id FROM user_groups_map gm
-                 INNER JOIN users u ON u.id = gm.user_id
-                 WHERE gm.group_id IN (%) AND ' . self::ACTIVE_USER_FILTER . '
-                 ORDER BY gm.user_id
-                 LIMIT ' . $remaining,
-                [FormatIn::get($chunk)],
-            );
-
-            foreach ($rows as $row) {
-                $userIds[(int) $row->user_id] = true;
-                if (count($userIds) >= $limit) {
-                    break 2;
+                    $userIds[(int) $row->user_id] = true;
                 }
             }
         }

@@ -13,6 +13,7 @@ use YTassy\Tycms\CoreExts\Core\Event\Event;
 use YTassy\Tycms\CoreExts\Core\Event\EventActorType;
 use YTassy\Tycms\CoreExts\Core\Event\EventDefinition;
 use YTassy\Tycms\CoreExts\Core\Event\EventJournalListener;
+use YTassy\Tycms\CoreExts\Core\Helper\Admin\ExtensionsHelper;
 use YTassy\Tycms\CoreExts\Core\Helper\Event\EventLogHelper;
 use YTassy\Tycms\CoreExts\Core\WF\WFAdminUser;
 use YTassy\Tycms\DB\Database;
@@ -172,6 +173,30 @@ final class EventLogIntegrationTest extends TestCase
 
         self::assertSame(1, $this->logs->purge(2, 30));
         self::assertSame(2, $this->countIds($ids));
+    }
+
+    #[Test]
+    public function purgeExpiredAppliesTheConfiguredRetentionOfEachSpace(): void
+    {
+        $oldSpaceOne = $this->event(spaceId: 1, occurredAt: $this->daysAgo(40));
+        $oldSpaceTwo = $this->event(spaceId: 2, occurredAt: $this->daysAgo(40));
+        $oldSpaceOne->logId = $this->logs->write($oldSpaceOne);
+        $oldSpaceTwo->logId = $this->logs->write($oldSpaceTwo);
+
+        /** @var ExtensionsHelper $extensions */
+        $extensions = $this->app->getOrAddSharedExtensionsClass(ExtensionsHelper::class);
+        $extensions->saveExtensionConfig(1, 'plg_core', ['event_log_retention_days' => 30]);
+        $extensions->saveExtensionConfig(2, 'plg_core', ['event_log_retention_days' => 0]);
+
+        // Seul le Space 1 purge ; `0` conserve tout pour le Space 2.
+        self::assertSame(1, $this->logs->purgeExpired());
+
+        self::assertNull($this->db->selectOneOrNull(
+            'SELECT id FROM event_log WHERE id = %', [$oldSpaceOne->logId],
+        ));
+        self::assertNotNull($this->db->selectOneOrNull(
+            'SELECT id FROM event_log WHERE id = %', [$oldSpaceTwo->logId],
+        ));
     }
 
     #[Test]

@@ -187,13 +187,17 @@ bloc, et son contrat public reste dans `Core/ExtensionApi`. Appartenir à un
 module n'expose rien : seuls les types cités par un contrat public sont
 utilisables par les extensions.
 
-`Core/Event` porte l'émetteur, le dispatcher et ses registres, ainsi que
-l'écouteur qui écrit `event_log` dans la transaction métier. Le stockage du
-journal et sa purge sont dans `Core/Helper/Event/EventLogHelper` ; la
-résolution inverse d'audience est dans
-`Core/Helper/Acl/AclUserResolver`. Les définitions et écouteurs des extensions
-sont collectés à `onPrepareExtensions`, avant les routes, et l'écouteur de
-journal du Core couvre tous les types déclarés. Voir
+`Core/Event` porte l'émetteur, le dispatcher et ses registres, la
+spécification d'audience `EventAudience`, le catalogue `CoreEventDefinitions`
+et l'écouteur qui écrit `event_log` dans la transaction métier. L'émetteur
+résout lui-même l'audience décrite par le workflow, avec le plafond de
+destinataires : un workflow ne calcule ni liste de comptes ni limite. Le
+stockage du journal et la purge de sa rétention sont dans
+`Core/Helper/Event/EventLogHelper` ; la résolution inverse d'audience est dans
+`Core/Helper/Acl/AclUserResolver`, en une seule requête récursive quel que soit
+le nombre de groupes. Les définitions et écouteurs des extensions sont
+collectés à `onPrepareExtensions`, avant les routes, et l'écouteur de journal
+du Core couvre tous les types déclarés. Voir
 [Journal d'événements et notifications](NOTIFICATIONS.md).
 
 L'API exposée est organisée ainsi (namespaces relatifs à

@@ -263,6 +263,27 @@ final class AclUserResolverIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function individualRoleAssignmentsOnPersonalGroupsAreResolvedInOneCall(): void
+    {
+        // Cas réel : un rôle attribué précisément à 3 000 comptes crée 3 000
+        // groupes personnels. La requête unique ne doit pas coûter par groupe.
+        $roleId = $this->permissionRole('USE', TestFixtures::SITE_SPACE_ID);
+
+        $members = [];
+        for ($index = 0; $index < 3; $index++) {
+            $members[] = $this->user(TestFixtures::SITE_SPACE_ID);
+            $personalGroup = $this->group(TestFixtures::SITE_SPACE_ID, null, 1);
+            $this->membership($members[$index], $personalGroup);
+            $this->grant($personalGroup, $roleId, TestFixtures::SITE_SPACE_ID);
+        }
+
+        self::assertSame(
+            $this->sorted($members),
+            $this->globalPermissionUsers($this->permission, TestFixtures::SITE_SPACE_ID, 20),
+        );
+    }
+
+    #[Test]
     public function globalRoleReturnsOnlyItsOwnHolders(): void
     {
         $wantedRole = $this->permissionRole('USE', TestFixtures::SITE_SPACE_ID);
@@ -333,12 +354,12 @@ final class AclUserResolverIntegrationTest extends TestCase
         return $roleId;
     }
 
-    private function group(int $spaceId, ?int $parentId = null): int
+    private function group(int $spaceId, ?int $parentId = null, int $type = 0): int
     {
         $db = $this->database->connection();
         $parent = $parentId === null ? 'NULL' : (string) $parentId;
         $db->query("INSERT INTO user_groups (space_id, parent_id, type, name) VALUES ("
-            . $spaceId . ', ' . $parent . ", 0, 'Groupe audience " . bin2hex(random_bytes(4)) . "')");
+            . $spaceId . ', ' . $parent . ', ' . $type . ", 'Groupe audience " . bin2hex(random_bytes(4)) . "')");
         $groupId = (int) $db->insert_id;
         $this->groups[] = $groupId;
 

@@ -4,8 +4,7 @@ namespace YTassy\Tycms\CoreExts\Core;
 
 use Override;
 use YTassy\Tycms\CoreExts\Core\Controllers\HomeController;
-use YTassy\Tycms\CoreExts\Core\Event\Event;
-use YTassy\Tycms\CoreExts\Core\Event\EventDefinition;
+use YTassy\Tycms\CoreExts\Core\Event\CoreEventDefinitions;
 use YTassy\Tycms\CoreExts\Core\Event\EventDefinitionRegistry;
 use YTassy\Tycms\CoreExts\Core\Event\EventJournalListener;
 use YTassy\Tycms\CoreExts\Core\Event\EventListenerDefinition;
@@ -146,52 +145,33 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
         }
     }
 
-    /**
-     * Types d’événements métier émis par le Core.
-     *
-     * Les textes ne portent aucune audience : le workflow émetteur résout les
-     * destinataires. Le lien est figé à l’émission, car un job n’a pas de
-     * routes ; il pointe vers la grille des attributions, seule vue
-     * d’administration concernée par ces deux événements. Un run
-     * d’automatisation, initialisé sans routes, obtient un chemin nul.
-     */
+    /** Types d’événements métier émis par le Core, déclarés dans leur catalogue. */
     public function coreOnRegisterEventTypes(EventDefinitionRegistry $registry): void
     {
-        $assignmentsLink = function (Event $event): ?string {
-            // Un run d'automatisation n'enregistre pas de routes : le chemin
-            // reste facultatif plutôt que de faire échouer le métier.
-            if (!array_key_exists('AdministratorHome', $this->router->getAllRoutes())) {
-                return null;
-            }
+        $definitions = CoreEventDefinitions::all(
+            fn (string $page): ?string => $this->administratorPagePath($page),
+        );
 
-            return $this->url('AdministratorHome') . '#/user_assignments';
-        };
+        foreach ($definitions as $definition) {
+            $registry->register($definition);
+        }
+    }
 
-        $registry->register(new EventDefinition(
-            id: 'core.user.role.assigned',
-            label: 'Rôle attribué',
-            description: 'Un rôle est attribué à un compte sur un Space.',
-            category: EventDefinition::CATEGORY_USER,
-            severity: EventDefinition::SEVERITY_INFO,
-            notifiable: true,
-            title: 'Rôle attribué',
-            bodySelf: 'Vous avez attribué le rôle {role.name} à {user.name}.',
-            bodyOthers: '{actor.name} a attribué le rôle {role.name} à {user.name}.',
-            link: $assignmentsLink,
-        ));
+    /**
+     * Chemin interne vers une page de l’administration, ou null sans routes.
+     *
+     * L’administration est une application Vue servie sous `/administrator`
+     * avec un routage par fragment. Un run d’automatisation initialise
+     * l’application sans routes : le lien reste alors facultatif et ne doit
+     * pas faire échouer le métier.
+     */
+    public function administratorPagePath(string $page): ?string
+    {
+        if (!array_key_exists('AdministratorHome', $this->router->getAllRoutes())) {
+            return null;
+        }
 
-        $registry->register(new EventDefinition(
-            id: 'core.user.role.removed',
-            label: 'Rôle retiré',
-            description: 'Un rôle est retiré à un compte sur un Space.',
-            category: EventDefinition::CATEGORY_USER,
-            severity: EventDefinition::SEVERITY_INFO,
-            notifiable: true,
-            title: 'Rôle retiré',
-            bodySelf: 'Vous avez retiré le rôle {role.name} à {user.name}.',
-            bodyOthers: '{actor.name} a retiré le rôle {role.name} à {user.name}.',
-            link: $assignmentsLink,
-        ));
+        return $this->url('AdministratorHome') . '#/' . $page;
     }
 
     public function coreOnRegisterEventListeners(EventListenerRegistry $registry): void
@@ -277,55 +257,8 @@ class Plugin extends BasePlugin implements IExtensionEvents, IEmailTemplateProvi
 
         return [
             'mail_log_purged' => $mailLogPurged,
-            'event_log_purged' => $this->purgeEventLogs(),
+            'event_log_purged' => $this->coreEventLogHelper->purgeExpired(),
         ];
-    }
-
-    /**
-     * Applique la rétention du journal d’événements Space par Space.
-     *
-     * La configuration de `plg_core` est lue une fois pour tous les Spaces ; une
-     * valeur absente ou nulle conserve tout. Le helper borne le nombre de lots
-     * supprimés pour ne pas monopoliser le CRON.
-     */
-    private function purgeEventLogs(): int
-    {
-        $spaceIds = $this->coreSpaceHelper->getAllSpaceIds();
-        if ($spaceIds === []) {
-            return 0;
-        }
-
-        $configs = $this->coreExtensionsHelper->getExtensionsConfForSpaces($spaceIds)['plg_core'] ?? [];
-
-        $purged = 0;
-
-        foreach ($spaceIds as $spaceId) {
-            $params = (array) ($configs[$spaceId]->params ?? []);
-            $days = (int) ($params['event_log_retention_days'] ?? 0);
-
-            // `0` = aucune limite : la purge ne s’exécute que sur une valeur positive.
-            if ($days <= 0) {
-                continue;
-            }
-
-            $deleted = $this->coreEventLogHelper->purge($spaceId, $days);
-            if ($deleted <= 0) {
-                continue;
-            }
-
-            $purged += $deleted;
-
-            // Le nombre est écrit dans le message : le contexte borné se limite
-            // aux identifiants. Aucun contenu d’événement n’est journalisé ici.
-            $this->logInfo(
-                sprintf('Purge automatique du journal d’événements : %d ligne(s) supprimée(s).', $deleted),
-                ['space_id' => $spaceId],
-                'EVENT_LOG_PURGE',
-                'event',
-            );
-        }
-
-        return $purged;
     }
 
     public function getControllers(): array
